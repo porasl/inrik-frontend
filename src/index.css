@@ -178,3 +178,85 @@ body, html {
   align-items: center;
   padding-left: 10px;
 }
+
+/* Darkens the background when the modal is open */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* Higher than navbar and sidebars */
+  backdrop-filter: blur(4px); /* Modern blur effect */
+}
+
+/* The actual white box */
+.modal-content-custom {
+  background: white;
+  padding: 30px;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 500px;
+  border: none;
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Darkens the background when the modal is open */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* Higher than navbar and sidebars */
+  backdrop-filter: blur(4px); /* Modern blur effect */
+}
+
+/* The actual white box */
+.modal-content-custom {
+  background: white;
+  padding: 30px;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 500px;
+  border: none;
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Force header icons to stay small and aligned */
+.header-icon-action {
+  height: 30px !important; /* This is the "Master Control" for size */
+  width: auto;
+  cursor: pointer;
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.header-icon-action:hover {
+  transform: scale(1.1);
+}
+
+/* Ensure the center group keeps them perfectly horizontal */
+.nav-center-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
