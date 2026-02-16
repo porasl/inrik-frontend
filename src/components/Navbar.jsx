@@ -83,7 +83,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
             </div>
             
             <span className="text-dark small fw-bold">
-              {user?.name || "Member"}
+              {user?.name ||  "Member"}
             </span>
           </div>
         
