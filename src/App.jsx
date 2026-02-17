@@ -9,6 +9,14 @@ function App() {
   const [connections, setConnections] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
 
+  const Application_IP = "192.168.4.63";
+
+  const API_BASE = `http://${Application_IP}:8082`; 
+  const NOTIFY_URL = `http://${Application_IP}:8084`;
+  const STATIC_URL = `http://${Application_IP}:3000`;
+  const PUBLIC_BASE = `http://${Application_IP}:3000`;
+  const GRAPHQL_URL = `${API_BASE}/graphql`;
+
   const [user, setUser] = useState(() => {
     // 1. Check if user data exists in localStorage on startup
     const savedUser = localStorage.getItem("user");
@@ -77,8 +85,6 @@ function App() {
     // Add your GraphQL Mutation for delete here, then:
     setPosts(posts.filter(p => p.id !== postId));
   };
-
-  const API_BASE = "http://localhost:8082";
 
   // 1. Fetch User Data on Load or Login
   const fetchUserProfile = async (token) => {
