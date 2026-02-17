@@ -101,7 +101,15 @@ function App() {
         </main>
         <Rightbar />
       </div>
+      <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2">
+      <button className="btn btn-link text-dark"><i className="bi bi-house-door fs-3"></i></button>
+      <button className="btn btn-link text-dark"><i className="bi bi-compass fs-3"></i></button>
+      <button className="btn btn-link text-primary"><i className="bi bi-plus-square fs-2"></i></button>
+      <button className="btn btn-link text-dark"><i className="bi bi-bell fs-3"></i></button>
+      <button className="btn btn-link text-dark"><i className="bi bi-person fs-3"></i></button>
     </div>
+    </div>
+     
   );
 }
 

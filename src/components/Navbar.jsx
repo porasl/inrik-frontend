@@ -12,10 +12,14 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
   const toggleRightbar = () => {
     const rightBar = document.getElementById('rightbar-id');
     if (rightBar) {
+      // This adds/removes the 'show-mobile' class
       rightBar.classList.toggle('show-mobile');
+      console.log("Toggle clicked!"); // Check your console to see if this fires
+    } else {
+      console.error("Rightbar element not found!");
     }
   };
-  
+
   const getProfileImage = () => {
     if (!user || !user.avatar || user.avatar === "null" || user.avatar === "") return null;
     return user.avatar.startsWith('http') ? user.avatar : `${PUBLIC_BASE}${user.avatar}`;

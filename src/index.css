@@ -141,14 +141,17 @@ body, html {
 @media (max-width: 1100px) {
   .rightbar {
     position: fixed;
-    right: -300px; /* Hidden off-screen */
+    right: -300px; /* Stay hidden off-screen to the right */
+    top: var(--nav-h);
+    height: calc(100vh - var(--nav-h));
     z-index: 3000;
+    display: block !important; /* Override the 'display: none' */
+    transition: right 0.3s ease-in-out; /* Smooth slide effect */
     box-shadow: -5px 0 15px rgba(0,0,0,0.1);
   }
   
   .rightbar.show-mobile {
     right: 0 !important;
-    display: block !important;
   }
 
   .mobile-connection-toggle { 
