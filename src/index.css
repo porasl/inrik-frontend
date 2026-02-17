@@ -40,9 +40,10 @@ body, html {
 }
 
 .company-logo {
-  height: 50px !important; 
+  height: 60px !important; 
   width: auto !important;
   display: block;
+  margin-left: -30px !important;
 }
 
 .logo-container {

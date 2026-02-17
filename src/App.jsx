@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Rightbar from './components/Rightbar';
+import VideoCard from './components/VideoCard';
 
 function App() {
+  const [posts, setPosts] = useState([]);
+  const [connections, setConnections] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
-
 
   const [user, setUser] = useState(() => {
     // 1. Check if user data exists in localStorage on startup
@@ -17,6 +19,64 @@ function App() {
       return null;
     }
   });
+
+  // GraphQL Query Strings
+  const GET_DATA_QUERY = `
+    query GetInitialData {
+      allPosts {
+        id
+        title
+        videoUrl
+        thumbnailUrl
+        likeCount
+        viewCount
+        userId
+      }
+      userConnections {
+        id
+        name
+        avatar
+        status
+      }
+    }
+  `;
+
+  const fetchInitialData = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await fetch("http://localhost:8082/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ query: GET_DATA_QUERY })
+      });
+
+      const result = await response.json();
+      if (result.data) {
+        setPosts(result.data.allPosts);
+        setConnections(result.data.userConnections);
+      }
+    } catch (err) {
+      console.error("GraphQL Fetch Error:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchInitialData();
+    }
+  }, [isLoggedIn]);
+
+  // Handler for Delete (Passed to VideoCard)
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Delete this video?")) return;
+    // Add your GraphQL Mutation for delete here, then:
+    setPosts(posts.filter(p => p.id !== postId));
+  };
 
   const API_BASE = "http://localhost:8082";
 
@@ -91,13 +151,17 @@ function App() {
       <div className="app-body-wrapper">
         <Sidebar />
         <main className="main-content">
-          <h2 className="text-dark">Main Feed</h2>
-          <div className="video-grid">
-             {/* This is where your video components will go */}
-             <p className="text-secondary">Videos will load here soon...</p>
+          <div className="video-grid d-flex flex-wrap gap-3">
+            {posts.map(post => (
+              <VideoCard 
+                key={post.id} 
+                post={post} 
+                onDelete={() => handleDeletePost(post.id)}
+              />
+            ))}
           </div>
         </main>
-        <Rightbar />
+        <Rightbar connections={connections} />
       </div>
       {
   <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg">

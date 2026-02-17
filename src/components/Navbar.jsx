@@ -95,6 +95,9 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
                 onClick={() => setShowUpload(true)} 
                 style={{ cursor: 'pointer' }}
               />
+              <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
+                 <i className="bi bi-people-fill"></i>
+              </button>
               <i className="bi bi-shop fs-4 cursor-pointer text-dark"></i>
             </div>
 
@@ -123,9 +126,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
                 <img src="/resources/images/logout.png" alt="Logout" style={{ width: '22px' }} />
               </button>
 
-              <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
-                 <i className="bi bi-people-fill"></i>
-              </button>
+              
             </div>
           </div>
         )}
