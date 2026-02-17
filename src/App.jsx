@@ -4,8 +4,21 @@ import Sidebar from './components/Sidebar';
 import Rightbar from './components/Rightbar';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+
+
+  const [user, setUser] = useState(() => {
+    // 1. Check if user data exists in localStorage on startup
+    const savedUser = localStorage.getItem("user");
+    try {
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (error) {
+      console.error("Failed to parse user from localStorage", error);
+      return null;
+    }
+  });
+
+
 
   const API_BASE = "http://localhost:8082";
 
@@ -44,14 +57,15 @@ function App() {
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem("token", data.token);
-        
-        // If your login response includes user info, set it here
-        // Otherwise, call fetchUserProfile(data.token)
-        setUser({
-          name: data.username || data.name || "Authenticated User",
-          avatar: data.profileImageUrl || null
-        });
-        
+
+        const userData = {
+          email: email, // Use the email from the input field
+          name: data.username || data.name || "Member",
+          avatar: data.profileImageUrl || data.avatar || null 
+        };
+
+        localStorage.setItem("user", JSON.stringify(userData));
+        setUser(userData);
         setIsLoggedIn(true);
       } else {
         alert("Login failed: Invalid email or password");
