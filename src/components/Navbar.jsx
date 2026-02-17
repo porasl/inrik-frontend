@@ -9,6 +9,13 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const toggleRightbar = () => {
+    const rightBar = document.getElementById('rightbar-id');
+    if (rightBar) {
+      rightBar.classList.toggle('show-mobile');
+    }
+  };
+  
   const getProfileImage = () => {
     if (!user || !user.avatar || user.avatar === "null" || user.avatar === "") return null;
     return user.avatar.startsWith('http') ? user.avatar : `${PUBLIC_BASE}${user.avatar}`;
@@ -111,6 +118,10 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
 
               <button onClick={onLogout} className="btn btn-link p-0 border-0">
                 <img src="/resources/images/logout.png" alt="Logout" style={{ width: '22px' }} />
+              </button>
+
+              <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
+                 <i className="bi bi-people-fill"></i>
               </button>
             </div>
           </div>
