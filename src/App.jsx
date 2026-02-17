@@ -18,8 +18,6 @@ function App() {
     }
   });
 
-
-
   const API_BASE = "http://localhost:8082";
 
   // 1. Fetch User Data on Load or Login
@@ -101,7 +99,7 @@ function App() {
         </main>
         <Rightbar />
       </div>
-      {isLoggedIn && (
+      {
   <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg">
     {/* 1. HOME (Matches Sidebar Home) */}
     <button className="btn btn-link text-dark p-1">
@@ -133,7 +131,7 @@ function App() {
       <div style={{ fontSize: '10px', color: '#555' }}>Audios</div>
     </button>
   </div>
-)}
+}
     </div>
      
   );
