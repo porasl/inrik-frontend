@@ -101,13 +101,39 @@ function App() {
         </main>
         <Rightbar />
       </div>
-      <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2">
-      <button className="btn btn-link text-dark"><i className="bi bi-house-door fs-3"></i></button>
-      <button className="btn btn-link text-dark"><i className="bi bi-compass fs-3"></i></button>
-      <button className="btn btn-link text-primary"><i className="bi bi-plus-square fs-2"></i></button>
-      <button className="btn btn-link text-dark"><i className="bi bi-bell fs-3"></i></button>
-      <button className="btn btn-link text-dark"><i className="bi bi-person fs-3"></i></button>
-    </div>
+      {isLoggedIn && (
+  <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg">
+    {/* 1. HOME (Matches Sidebar Home) */}
+    <button className="btn btn-link text-dark p-1">
+      <img src="resources/images/home.png" alt="Home" style={{ width: '30px', height: '30px' }} />
+      <div style={{ fontSize: '10px', color: '#555' }}>Home</div>
+    </button>
+
+    {/* 2. EXPLORE / CONTENT (Matches Sidebar My Content) */}
+    <button className="btn btn-link text-dark p-1">
+      <img src="resources/images/photo.png" alt="Explore" style={{ width: '30px', height: '30px' }} />
+      <div style={{ fontSize: '10px', color: '#555' }}>Photos</div>
+    </button>
+
+    {/* 3. ADD / UPLOAD (The primary action) */}
+    <button className="btn btn-link text-dark p-1">
+      <img src="resources/images/cut.png" alt="Videos" style={{ width: '30px', height: '30px' }} />
+      <div style={{ fontSize: '10px', color: '#555' }}>Slice</div>
+    </button>
+
+    {/* 4. SUBSCRIPTIONS (Matches Sidebar Subscriptions) */}
+    <button className="btn btn-link text-dark p-1">
+      <img src="resources/images/video.png" alt="Videos" style={{ width: '30px', height: '30px' }} />
+      <div style={{ fontSize: '10px', color: '#555' }}>Videos</div>
+    </button>
+
+    {/* 5. SETTINGS / PROFILE (Matches Header/Sidebar logic) */}
+    <button className="btn btn-link text-dark p-1">
+      <img src="resources/images/music.png" alt="Settings" style={{ width: '30px', height: '30px' }} />
+      <div style={{ fontSize: '10px', color: '#555' }}>Audios</div>
+    </button>
+  </div>
+)}
     </div>
      
   );
