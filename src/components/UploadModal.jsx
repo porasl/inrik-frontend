@@ -1,65 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
-const API_BASE = "http://192.168.4.63:8082"; // Matches your app.js
+const API_BASE = "http://192.168.4.63:8082";
 
 const UploadModal = ({ onClose }) => {
-  const [file, setFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]); // List of {name, format}
   const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(true); // Default to Public as requested
+  const [isPublic, setIsPublic] = useState(true);
   const [isMemory, setIsMemory] = useState(false);
   const [isEvent, setIsEvent] = useState(false);
-  const [isSlice, setIsSlice] = useState(false); // "Reel" option
+  const [isSlice, setIsSlice] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // 1. Initial Upload (Triggered when file is selected/dropped)
+  // 1. Initial/Subsequent Upload
   const handleFileChange = async (selectedFile) => {
     if (!selectedFile) return;
-    setFile(selectedFile);
     setUploading(true);
-
+  
     const token = localStorage.getItem("token");
+    const userId = localStorage.getItem("userId");
+    
     const formData = new FormData();
     formData.append("file", selectedFile);
-    formData.append("userId", localStorage.getItem("userId") || "");
     
-    // Initial status based on current state
-    formData.append("ispublic", isPublic);
-    formData.append("ismemory", isMemory);
-    formData.append("isevent", isEvent);
-    formData.append("isslice", isSlice);
-    formData.append("author", localStorage.getItem("userId") || "");
-    formData.append("description", description);
+    // Ensure we send "0" or valid ID, never null/undefined strings
+    const savedPostId = localStorage.getItem("postId");
+    formData.append("postId", savedPostId && savedPostId !== "undefined" ? savedPostId : "");
     
-    // Check for existing postId if continuing an upload
-    const savedPostId = localStorage.getItem("postId") || "";
-    formData.append("postId", savedPostId);
-
+    formData.append("userId", userId || "");
+    formData.append("author", userId || "");
+    formData.append("description", description || "");
+    
+    // Backend often expects "true"/"false" as strings or 1/0 for multipart
+    formData.append("ispublic", String(isPublic));
+    formData.append("ismemory", String(isMemory));
+    formData.append("isevent", String(isEvent));
+    formData.append("isslice", String(isSlice));
+  
     try {
       const response = await fetch(`${API_BASE}/api/upload`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
+        headers: { 
+          "Authorization": `Bearer ${token}` 
+          // Note: Do NOT set 'Content-Type' header here, 
+          // the browser must set it automatically for FormData
+        },
         body: formData
       });
+  
+      // Handle non-JSON errors (like the 500 error you saw)
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Server Error Text:", errorText);
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+  
       const data = await response.json();
       
-      // Store postId in localStorage as app.js does
       if (data.id) {
         localStorage.setItem("postId", data.id);
-        console.log("Post created/file uploaded. ID:", data.id);
+        const fileExt = selectedFile.name.split('.').pop().toUpperCase();
+        setUploadedFiles(prev => [...prev, { name: selectedFile.name, format: fileExt }]);
       }
     } catch (err) {
-      console.error("Upload error:", err);
-      alert("Initial upload failed.");
+      console.error("Upload error details:", err);
+      alert("Upload failed. Check console for server error message.");
     } finally {
       setUploading(false);
     }
   };
 
-  // 2. Final Submit (Update the created post)
+  // 2. Final Submit (Update the post metadata)
   const handleFinalSubmit = async () => {
     const savedPostId = localStorage.getItem("postId");
-    if (!savedPostId) {
-      alert("Please upload a file first.");
+    if (!savedPostId || uploadedFiles.length === 0) {
+      alert("Please upload at least one file first.");
       return;
     }
 
@@ -85,10 +99,10 @@ const UploadModal = ({ onClose }) => {
       });
 
       if (res.ok) {
-        alert("Post updated successfully!");
-        localStorage.removeItem("postId"); // Cleanup
+        alert("Post finalized successfully!");
+        localStorage.removeItem("postId");
         onClose();
-        window.location.reload(); // Refresh feed
+        window.location.reload(); 
       }
     } catch (err) {
       console.error("Update error:", err);
@@ -97,8 +111,7 @@ const UploadModal = ({ onClose }) => {
 
   const onDrop = (e) => {
     e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    handleFileChange(droppedFile);
+    handleFileChange(e.dataTransfer.files[0]);
   };
 
   return (
@@ -109,63 +122,65 @@ const UploadModal = ({ onClose }) => {
           <button className="btn-close" onClick={onClose}></button>
         </div>
 
+        {/* Drop Zone */}
         <div 
-          className="drop-zone border rounded-3 p-4 text-center mb-3"
+          className="drop-zone border rounded-3 p-3 text-center mb-3"
           onDragOver={e => e.preventDefault()}
           onDrop={onDrop}
-          style={{ borderStyle: 'dashed !important', backgroundColor: '#f8f9fa' }}
+          style={{ borderStyle: 'dashed', backgroundColor: '#f8f9fa' }}
         >
           {uploading ? (
-            <div className="spinner-border text-primary" role="status"></div>
+            <div className="py-2">
+              <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+              <span className="small">Syncing with server...</span>
+            </div>
           ) : (
             <>
-              <p className="mb-1">{file ? file.name : "Drag & Drop video here"}</p>
-              <input 
-                type="file" 
-                className="d-none" 
-                id="fileInput" 
-                onChange={e => handleFileChange(e.target.files[0])} 
-              />
-              <label htmlFor="fileInput" className="btn btn-sm btn-outline-primary cursor-pointer">
-                Or Browse Files
-              </label>
+              <p className="small mb-2 text-muted">Drag & Drop or browse to add more files</p>
+              <input type="file" className="d-none" id="multiInput" onChange={e => handleFileChange(e.target.files[0])} />
+              <label htmlFor="multiInput" className="btn btn-sm btn-outline-primary">Add File</label>
             </>
           )}
         </div>
 
+        {/* Uploaded Files List */}
+        {uploadedFiles.length > 0 && (
+          <div className="uploaded-list mb-3 border rounded p-2" style={{maxHeight: '120px', overflowY: 'auto', backgroundColor: '#fff'}}>
+            <label className="x-small fw-bold text-uppercase text-secondary mb-1 d-block" style={{fontSize: '10px'}}>Attached to Post:</label>
+            {uploadedFiles.map((f, index) => (
+              <div key={index} className="d-flex justify-content-between align-items-center border-bottom py-1">
+                <span className="small text-truncate me-2" style={{maxWidth: '200px'}}>{f.name}</span>
+                <span className="badge bg-dark" style={{fontSize: '10px'}}>{f.format}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mb-3">
-          <label className="small fw-bold text-secondary">Description</label>
+          <label className="small fw-bold text-secondary">Post Description</label>
           <textarea 
             className="form-control" 
+            rows="2"
             value={description} 
             onChange={e => setDescription(e.target.value)} 
-            placeholder="What's on your mind?"
+            placeholder="Describe this upload..."
           />
         </div>
 
-        {/* PRIVACY SWITCHES - MATCHING APP.JS */}
-        <div className="privacy-options d-flex flex-wrap gap-3 mb-3">
-          <div className="form-check form-switch">
-            <input className="form-check-input" type="checkbox" id="pubSw" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-            <label className="form-check-label small" htmlFor="pubSw">Public</label>
-          </div>
-          <div className="form-check form-switch">
-            <input className="form-check-input" type="checkbox" id="memSw" checked={isMemory} onChange={e => setIsMemory(e.target.checked)} />
-            <label className="form-check-label small" htmlFor="memSw">Memory</label>
-          </div>
-          <div className="form-check form-switch">
-            <input className="form-check-input" type="checkbox" id="evtSw" checked={isEvent} onChange={e => setIsEvent(e.target.checked)} />
-            <label className="form-check-label small" htmlFor="evtSw">Event</label>
-          </div>
-          <div className="form-check form-switch">
-            <input className="form-check-input" type="checkbox" id="slcSw" checked={isSlice} onChange={e => setIsSlice(e.target.checked)} />
-            <label className="form-check-label small" htmlFor="slcSw">Reel (Slice)</label>
-          </div>
+        {/* Switches */}
+        <div className="privacy-options d-flex flex-wrap gap-2 mb-3">
+          {/* Switches remain as per your logic */}
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)}/><label className="form-check-label small">Public</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isMemory} onChange={e => setIsMemory(e.target.checked)}/><label className="form-check-label small">Memory</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isEvent} onChange={e => setIsEvent(e.target.checked)}/><label className="form-check-label small">Event</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isSlice} onChange={e => setIsSlice(e.target.checked)}/><label className="form-check-label small">Reel</label></div>
         </div>
 
-        <div className="d-flex justify-content-end gap-2 pt-2">
-          <button className="btn btn-light border" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary px-4 fw-bold" onClick={handleFinalSubmit}>Post</button>
+        <div className="d-flex justify-content-end gap-2 pt-2 border-top">
+          <button className="btn btn-light btn-sm border" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm px-4 fw-bold" onClick={handleFinalSubmit}>
+            {uploadedFiles.length > 1 ? `Submit ${uploadedFiles.length} Items` : "Submit Post"}
+          </button>
         </div>
       </div>
     </div>
