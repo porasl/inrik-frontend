@@ -3,49 +3,49 @@ import React from 'react';
 export default function Sidebar() {
   return (
     <div className="leftbar">
-      <ul className="nav flex-column align-items-center">
-        {/* Spacer to keep items below the header */}
-        <li className="nav-item leftbar-spacer" aria-hidden="true"></li>
+      <ul className="nav flex-column w-100 px-2">
+        {/* Spacer */}
+        <li className="nav-item mb-3"></li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/home.png" className="w-40" alt="Home" />
-            <span className="left-label">Home</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-house-door fs-5 text-secondary"></i>
+            <span className="fw-medium">Home</span>
           </a>
         </li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/video.png" className="w-40" alt="Videos" />
-            <span className="left-label">Videos</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-play-btn fs-5 text-secondary"></i>
+            <span className="fw-medium">Videos</span>
           </a>
         </li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/cut.png" className="w-60" alt="Slice" />
-            <span className="left-label">Slice</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-film fs-5 text-secondary"></i>
+            <span className="fw-medium">Slice</span>
           </a>
         </li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/music.png" className="w-40" alt="Audio" />
-            <span className="left-label">Audio</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-music-note-beamed fs-5 text-secondary"></i>
+            <span className="fw-medium">Audio</span>
           </a>
         </li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/photo.png" className="w-40" alt="Photos" />
-            <span className="left-label">Photos</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-images fs-5 text-secondary"></i>
+            <span className="fw-medium">Photos</span>
           </a>
         </li>
 
-        <li className="nav-item">
-          <a className="nav-link" href="#">
-            <img src="resources/images/memoryNotes.png" className="w-40" alt="Notes" />
-            <span className="left-label">Notes</span>
+        <li className="nav-item w-100 mb-1">
+          <a className="nav-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 text-dark hover-bg-light" href="#">
+            <i className="bi bi-journal-text fs-5 text-secondary"></i>
+            <span className="fw-medium">Notes</span>
           </a>
         </li>
       </ul>

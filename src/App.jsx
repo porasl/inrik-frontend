@@ -11,7 +11,7 @@ function App() {
 
   const Application_IP = "192.168.4.63";
 
-  const API_BASE = `http://${Application_IP}:8082`; 
+  const API_BASE = `http://${Application_IP}:8082`;
   const NOTIFY_URL = `http://${Application_IP}:8084`;
   const STATIC_URL = `http://${Application_IP}:3000`;
   const PUBLIC_BASE = `http://${Application_IP}:3000`;
@@ -54,7 +54,7 @@ function App() {
     if (!token) return;
 
     try {
-      const response = await fetch("http://localhost:8082/graphql", {
+      const response = await fetch(`${API_BASE}/graphql`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -125,7 +125,7 @@ function App() {
         const userData = {
           email: email, // Use the email from the input field
           name: data.username || data.name || "Member",
-          avatar: data.profileImageUrl || data.avatar || null 
+          avatar: data.profileImageUrl || data.avatar || null
         };
 
         localStorage.setItem("user", JSON.stringify(userData));
@@ -148,20 +148,20 @@ function App() {
 
   return (
     <div className="app-container">
-      <Navbar 
-        isLoggedIn={isLoggedIn} 
-        user={user} 
-        onLogin={handleLogin} 
-        onLogout={handleLogout} 
+      <Navbar
+        isLoggedIn={isLoggedIn}
+        user={user}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
       />
       <div className="app-body-wrapper">
         <Sidebar />
         <main className="main-content">
           <div className="video-grid d-flex flex-wrap gap-3">
             {posts.map(post => (
-              <VideoCard 
-                key={post.id} 
-                post={post} 
+              <VideoCard
+                key={post.id}
+                post={post}
                 onDelete={() => handleDeletePost(post.id)}
               />
             ))}
@@ -170,40 +170,39 @@ function App() {
         <Rightbar connections={connections} />
       </div>
       {
-  <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg">
-    {/* 1. HOME (Matches Sidebar Home) */}
-    <button className="btn btn-link text-dark p-1">
-      <img src="resources/images/home.png" alt="Home" style={{ width: '30px', height: '30px' }} />
-      <div style={{ fontSize: '10px', color: '#555' }}>Home</div>
-    </button>
+        <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg z-3">
+          {/* 1. HOME */}
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+            <i className="bi bi-house-door fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Home</span>
+          </button>
 
-    {/* 2. EXPLORE / CONTENT (Matches Sidebar My Content) */}
-    <button className="btn btn-link text-dark p-1">
-      <img src="resources/images/photo.png" alt="Explore" style={{ width: '30px', height: '30px' }} />
-      <div style={{ fontSize: '10px', color: '#555' }}>Photos</div>
-    </button>
+          {/* 2. PHOTOS */}
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+            <i className="bi bi-images fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Photos</span>
+          </button>
 
-    {/* 3. ADD / UPLOAD (The primary action) */}
-    <button className="btn btn-link text-dark p-1">
-      <img src="resources/images/cut.png" alt="Videos" style={{ width: '30px', height: '30px' }} />
-      <div style={{ fontSize: '10px', color: '#555' }}>Slice</div>
-    </button>
+          {/* 3. UPLOAD (Primary) */}
+          <button className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+            <i className="bi bi-plus-circle-fill fs-1 mt-n3" style={{ marginTop: '-12px' }}></i>
+          </button>
 
-    {/* 4. SUBSCRIPTIONS (Matches Sidebar Subscriptions) */}
-    <button className="btn btn-link text-dark p-1">
-      <img src="resources/images/video.png" alt="Videos" style={{ width: '30px', height: '30px' }} />
-      <div style={{ fontSize: '10px', color: '#555' }}>Videos</div>
-    </button>
+          {/* 4. VIDEOS */}
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+            <i className="bi bi-play-btn fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Videos</span>
+          </button>
 
-    {/* 5. SETTINGS / PROFILE (Matches Header/Sidebar logic) */}
-    <button className="btn btn-link text-dark p-1">
-      <img src="resources/images/music.png" alt="Settings" style={{ width: '30px', height: '30px' }} />
-      <div style={{ fontSize: '10px', color: '#555' }}>Audios</div>
-    </button>
-  </div>
-}
+          {/* 5. AUDIO */}
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+            <i className="bi bi-music-note-beamed fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Audio</span>
+          </button>
+        </div>
+      }
     </div>
-     
+
   );
 }
 

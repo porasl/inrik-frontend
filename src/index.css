@@ -1,21 +1,84 @@
 /* --- 1. Variables & Global Reset --- */
 :root {
-  --nav-h: 70px;
-  --left-w: 200px; 
-  --right-w: 280px;
-  --primary-blue: #0d6efd;
+  --nav-h: 65px;
+  /* Slightly reduced for sleeker look */
+  --left-w: 240px;
+  /* Wider sidebar for better readability */
+  --right-w: 300px;
+
+  /* Light Theme Palette */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-hover: #e9ecef;
+
+  --accent-color: #0d6efd;
+  --accent-hover: #0b5ed7;
+
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+
+  --border-color: #eff2f5;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 50rem;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   width: 100%;
   overflow-x: hidden;
-  background-color: #f8f9fa;
-  font-family: sans-serif;
+  background-color: var(--bg-secondary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* --- Utility Classes --- */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md) !important;
+}
+
+.card-clean {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  transition: background-color 0.2s;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+}
+
+.btn-icon:hover {
+  background-color: var(--bg-hover);
+  color: var(--accent-color);
+}
+
 
 /* --- 2. Navbar (Header) --- */
 .header-bar {
@@ -24,12 +87,14 @@ body, html {
   left: 0;
   width: 100%;
   height: var(--nav-h);
-  background: white;
-  border-bottom: 1px solid #dee2e6;
-  z-index: 2000;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 1050;
+  /* Standard Bootstrap z-index */
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 24px;
+  box-shadow: var(--shadow-sm);
 }
 
 .header-inner {
@@ -39,11 +104,13 @@ body, html {
   width: 100%;
 }
 
+/* --- LOGO SIZING --- */
 .company-logo {
-  height: 60px !important; 
+  height: clamp(25px, 5vw, 60px) !important;
   width: auto !important;
   display: block;
   margin-left: -30px !important;
+  transition: height 0.2s ease;
 }
 
 .logo-container {
@@ -54,7 +121,8 @@ body, html {
 
 /* --- 3. Header Icons (The Fix for the Huge Folder) --- */
 .header-icon-action {
-  height: 30px !important; /* Forces all header icons to this size */
+  height: 30px !important;
+  /* Forces all header icons to this size */
   width: 30px !important;
   object-fit: contain;
   cursor: pointer;
@@ -86,8 +154,9 @@ body, html {
   overflow-y: auto;
 }
 
-.leftbar img, .sidebar-icon {
-  width: 48px !important; 
+.leftbar img,
+.sidebar-icon {
+  width: 48px !important;
   height: 48px !important;
   object-fit: contain;
   transition: transform 0.2s;
@@ -113,7 +182,8 @@ body, html {
 .app-body-wrapper {
   display: flex;
   width: 100%;
-  margin-top: var(--nav-h); /* Pushes content below fixed header */
+  margin-top: var(--nav-h);
+  /* Pushes content below fixed header */
 }
 
 .main-content {
@@ -142,49 +212,58 @@ body, html {
 @media (max-width: 1100px) {
   .rightbar {
     position: fixed;
-    right: -300px; /* Stay hidden off-screen to the right */
+    right: -300px;
+    /* Stay hidden off-screen to the right */
     top: var(--nav-h);
     height: calc(100vh - var(--nav-h));
     z-index: 3000;
-    display: block !important; /* Override the 'display: none' */
-    transition: right 0.3s ease-in-out; /* Smooth slide effect */
-    box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+    display: block !important;
+    /* Override the 'display: none' */
+    transition: right 0.3s ease-in-out;
+    /* Smooth slide effect */
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
   }
-  
+
   .rightbar.show-mobile {
     right: 0 !important;
   }
 
-  .mobile-connection-toggle { 
-    display: flex !important; 
+  .mobile-connection-toggle {
+    display: flex !important;
   }
 }
 
 /* Breakpoint 2: Tablet - Slim Sidebar */
 @media (max-width: 992px) {
-  :root { --left-w: 80px; }
-  
-  .auth-links-container { display: none !important; }
-  
+  :root {
+    --left-w: 80px;
+  }
+
+  .auth-links-container {
+    display: none !important;
+  }
+
   .leftbar img {
     width: 35px !important;
     height: 35px !important;
   }
-  
+
   .nav-link span {
-    display: none; 
+    display: none;
   }
 }
 
 /* Breakpoint 3: Mobile - Hide Sidebar */
 @media (max-width: 768px) {
-  .leftbar { display: none !important; }
-  
+  .leftbar {
+    display: none !important;
+  }
+
   .main-content {
     padding: 15px;
     padding-bottom: 80px;
   }
-  
+
   .login-form input {
     width: 100px !important;
   }
@@ -215,8 +294,15 @@ body, html {
 }
 
 @keyframes modalSlideUp {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Ensure the mobile nav is only visible on mobile */
@@ -229,11 +315,12 @@ body, html {
 @media (max-width: 768px) {
   .mobile-nav {
     height: 65px;
-    z-index: 4000; /* Higher than everything else */
+    z-index: 4000;
+    /* Higher than everything else */
   }
 
   .main-content {
-    margin-bottom: 65px; 
+    margin-bottom: 65px;
     padding: 15px;
   }
 }

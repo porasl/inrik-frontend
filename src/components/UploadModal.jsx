@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const API_BASE = "http://192.168.4.63:8082";
+const API_BASE = "http://localhost:8082";
 
 const UploadModal = ({ onClose }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]); // List of {name, format}
@@ -15,47 +15,47 @@ const UploadModal = ({ onClose }) => {
   const handleFileChange = async (selectedFile) => {
     if (!selectedFile) return;
     setUploading(true);
-  
+
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
-    
+
     const formData = new FormData();
     formData.append("file", selectedFile);
-    
+
     // Ensure we send "0" or valid ID, never null/undefined strings
     const savedPostId = localStorage.getItem("postId");
     formData.append("postId", savedPostId && savedPostId !== "undefined" ? savedPostId : "");
-    
+
     formData.append("userId", userId || "");
     formData.append("author", userId || "");
     formData.append("description", description || "");
-    
+
     // Backend often expects "true"/"false" as strings or 1/0 for multipart
     formData.append("ispublic", String(isPublic));
     formData.append("ismemory", String(isMemory));
     formData.append("isevent", String(isEvent));
     formData.append("isslice", String(isSlice));
-  
+
     try {
       const response = await fetch(`${API_BASE}/api/upload`, {
         method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}` 
+        headers: {
+          "Authorization": `Bearer ${token}`
           // Note: Do NOT set 'Content-Type' header here, 
           // the browser must set it automatically for FormData
         },
         body: formData
       });
-  
+
       // Handle non-JSON errors (like the 500 error you saw)
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Server Error Text:", errorText);
         throw new Error(`Server returned ${response.status}: ${errorText}`);
       }
-  
+
       const data = await response.json();
-      
+
       if (data.id) {
         localStorage.setItem("postId", data.id);
         const fileExt = selectedFile.name.split('.').pop().toUpperCase();
@@ -102,7 +102,7 @@ const UploadModal = ({ onClose }) => {
         alert("Post finalized successfully!");
         localStorage.removeItem("postId");
         onClose();
-        window.location.reload(); 
+        window.location.reload();
       }
     } catch (err) {
       console.error("Update error:", err);
@@ -123,7 +123,7 @@ const UploadModal = ({ onClose }) => {
         </div>
 
         {/* Drop Zone */}
-        <div 
+        <div
           className="drop-zone border rounded-3 p-3 text-center mb-3"
           onDragOver={e => e.preventDefault()}
           onDrop={onDrop}
@@ -145,12 +145,12 @@ const UploadModal = ({ onClose }) => {
 
         {/* Uploaded Files List */}
         {uploadedFiles.length > 0 && (
-          <div className="uploaded-list mb-3 border rounded p-2" style={{maxHeight: '120px', overflowY: 'auto', backgroundColor: '#fff'}}>
-            <label className="x-small fw-bold text-uppercase text-secondary mb-1 d-block" style={{fontSize: '10px'}}>Attached to Post:</label>
+          <div className="uploaded-list mb-3 border rounded p-2" style={{ maxHeight: '120px', overflowY: 'auto', backgroundColor: '#fff' }}>
+            <label className="x-small fw-bold text-uppercase text-secondary mb-1 d-block" style={{ fontSize: '10px' }}>Attached to Post:</label>
             {uploadedFiles.map((f, index) => (
               <div key={index} className="d-flex justify-content-between align-items-center border-bottom py-1">
-                <span className="small text-truncate me-2" style={{maxWidth: '200px'}}>{f.name}</span>
-                <span className="badge bg-dark" style={{fontSize: '10px'}}>{f.format}</span>
+                <span className="small text-truncate me-2" style={{ maxWidth: '200px' }}>{f.name}</span>
+                <span className="badge bg-dark" style={{ fontSize: '10px' }}>{f.format}</span>
               </div>
             ))}
           </div>
@@ -158,11 +158,11 @@ const UploadModal = ({ onClose }) => {
 
         <div className="mb-3">
           <label className="small fw-bold text-secondary">Post Description</label>
-          <textarea 
-            className="form-control" 
+          <textarea
+            className="form-control"
             rows="2"
-            value={description} 
-            onChange={e => setDescription(e.target.value)} 
+            value={description}
+            onChange={e => setDescription(e.target.value)}
             placeholder="Describe this upload..."
           />
         </div>
@@ -170,10 +170,10 @@ const UploadModal = ({ onClose }) => {
         {/* Switches */}
         <div className="privacy-options d-flex flex-wrap gap-2 mb-3">
           {/* Switches remain as per your logic */}
-          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)}/><label className="form-check-label small">Public</label></div>
-          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isMemory} onChange={e => setIsMemory(e.target.checked)}/><label className="form-check-label small">Memory</label></div>
-          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isEvent} onChange={e => setIsEvent(e.target.checked)}/><label className="form-check-label small">Event</label></div>
-          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isSlice} onChange={e => setIsSlice(e.target.checked)}/><label className="form-check-label small">Reel</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} /><label className="form-check-label small">Public</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isMemory} onChange={e => setIsMemory(e.target.checked)} /><label className="form-check-label small">Memory</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isEvent} onChange={e => setIsEvent(e.target.checked)} /><label className="form-check-label small">Event</label></div>
+          <div className="form-check form-switch"><input className="form-check-input" type="checkbox" checked={isSlice} onChange={e => setIsSlice(e.target.checked)} /><label className="form-check-label small">Reel</label></div>
         </div>
 
         <div className="d-flex justify-content-end gap-2 pt-2 border-top">
