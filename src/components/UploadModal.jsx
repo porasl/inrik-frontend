@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 
-const API_BASE = "http://localhost:8082";
-
-const UploadModal = ({ onClose }) => {
+const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
   const [uploadedFiles, setUploadedFiles] = useState([]); // List of {name, format}
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -37,7 +35,7 @@ const UploadModal = ({ onClose }) => {
     formData.append("isslice", String(isSlice));
 
     try {
-      const response = await fetch(`${API_BASE}/api/upload`, {
+      const response = await fetch(`${apiBase}/api/upload`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -89,7 +87,7 @@ const UploadModal = ({ onClose }) => {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/posts/update`, {
+      const res = await fetch(`${apiBase}/api/posts/update`, {
         method: "PUT",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -101,8 +99,7 @@ const UploadModal = ({ onClose }) => {
       if (res.ok) {
         alert("Post finalized successfully!");
         localStorage.removeItem("postId");
-        onClose();
-        window.location.reload();
+        if (onUploaded) onUploaded(); else onClose();
       }
     } catch (err) {
       console.error("Update error:", err);

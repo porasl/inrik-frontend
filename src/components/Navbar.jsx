@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import UploadModal from './UploadModal';
 
-const APPLICATION_IP = "localhost";
+const APPLICATION_IP = "192.168.4.63";
 const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
 
 export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {

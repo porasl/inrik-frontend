@@ -3,113 +3,75 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Rightbar from './components/Rightbar';
 import VideoCard from './components/VideoCard';
+import UploadModal from './components/UploadModal';
+
+/* ─── Server config ─── */
+const Application_IP = "192.168.4.63";
+const API_BASE = "";               // empty = relative URLs → Vite proxy handles it
+const NOTIFY_URL = `http://${Application_IP}:8084`;
+const PUBLIC_BASE = `http://${Application_IP}:3000`; // static file server (no proxy needed)
+
+/* ─── GraphQL query (mirrors app.js fetchAllSlicePosts / setupGraphQLInfiniteScroll) ─── */
+const GET_POSTS_QUERY = `
+  query($page: Int!, $size: Int!) {
+    getAllPostsPaged(page: $page, size: $size) {
+      items {
+        id
+        title: description
+        imageUrls
+        videoImagePath
+        hlsVideoUrls
+        slice
+        views
+        likes
+        isLikedByCurrentUser
+        userProfileImageUrl
+        userFirstName
+        userLastName
+        email
+        author
+      }
+      pageInfo { page size hasNext }
+    }
+  }
+`;
+
+/* ─── Helper: convert FS path → public URL (mirrors app.js toPublicUrl) ─── */
+function toPublicUrl(fsPath) {
+  if (!fsPath) return "";
+  if (/^https?:\/\//i.test(fsPath)) return fsPath;
+  const norm = String(fsPath).replace(/\\/g, "/");
+  const idx = norm.indexOf("/videos/");
+  const rel = idx >= 0 ? norm.slice(idx) : (norm.startsWith("/") ? norm : `/${norm}`);
+  return `${PUBLIC_BASE}${rel}`;
+}
 
 function App() {
-  const [posts, setPosts] = useState([]);
-  const [connections, setConnections] = useState([]);
+  /* ─── Auth state ─── */
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
-
-  const Application_IP = "192.168.4.63";
-
-  const API_BASE = `http://${Application_IP}:8082`;
-  const NOTIFY_URL = `http://${Application_IP}:8084`;
-  const STATIC_URL = `http://${Application_IP}:3000`;
-  const PUBLIC_BASE = `http://${Application_IP}:3000`;
-  const GRAPHQL_URL = `${API_BASE}/graphql`;
-
   const [user, setUser] = useState(() => {
-    // 1. Check if user data exists in localStorage on startup
-    const savedUser = localStorage.getItem("user");
-    try {
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-      return null;
-    }
+    // Restore from the same keys app.js writes on login
+    const email = localStorage.getItem("email");
+    const firstName = localStorage.getItem("userFirstName");
+    const lastName = localStorage.getItem("userLastName");
+    const avatar = localStorage.getItem("userProfileImageUrl");
+    if (!email) return null;
+    return { email, name: [firstName, lastName].filter(Boolean).join(" ") || email, avatar };
   });
 
-  // GraphQL Query Strings
-  const GET_DATA_QUERY = `
-    query GetInitialData {
-      allPosts {
-        id
-        title
-        videoUrl
-        thumbnailUrl
-        likeCount
-        viewCount
-        userId
-      }
-      userConnections {
-        id
-        name
-        avatar
-        status
-      }
-    }
-  `;
+  /* ─── Feed state ─── */
+  const [posts, setPosts] = useState([]);
+  const [connections, setConnections] = useState([]);
+  const [page, setPage] = useState(0);
+  const [hasNext, setHasNext] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchInitialData = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  /* ─── Upload modal ─── */
+  const [showUpload, setShowUpload] = useState(false);
 
-    try {
-      const response = await fetch(`${API_BASE}/graphql`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ query: GET_DATA_QUERY })
-      });
-
-      const result = await response.json();
-      if (result.data) {
-        setPosts(result.data.allPosts);
-        setConnections(result.data.userConnections);
-      }
-    } catch (err) {
-      console.error("GraphQL Fetch Error:", err);
-    }
-  };
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetchInitialData();
-    }
-  }, [isLoggedIn]);
-
-  // Handler for Delete (Passed to VideoCard)
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Delete this video?")) return;
-    // Add your GraphQL Mutation for delete here, then:
-    setPosts(posts.filter(p => p.id !== postId));
-  };
-
-  // 1. Fetch User Data on Load or Login
-  const fetchUserProfile = async (token) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/auth/me`, { // Change this to your "get current user" endpoint
-        headers: { "Authorization": `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      }
-    } catch (err) {
-      console.error("Failed to fetch user profile", err);
-    }
-  };
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setIsLoggedIn(true);
-      fetchUserProfile(token);
-    }
-  }, []);
-
-  // 2. Updated handleLogin
+  /* ────────────────────────────────────────────
+     LOGIN  (mirrors app.js loginForm submit)
+  ──────────────────────────────────────────── */
   const handleLogin = async (email, password) => {
     try {
       const response = await fetch(`${API_BASE}/api/auth/authenticate`, {
@@ -118,34 +80,142 @@ function App() {
         body: JSON.stringify({ email, password }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem("token", data.token);
+      if (!response.ok) throw new Error("Invalid login credentials");
 
-        const userData = {
-          email: email, // Use the email from the input field
-          name: data.username || data.name || "Member",
-          avatar: data.profileImageUrl || data.avatar || null
-        };
+      const data = await response.json();
 
-        localStorage.setItem("user", JSON.stringify(userData));
-        setUser(userData);
-        setIsLoggedIn(true);
+      // app.js stores access_token as "token"
+      const token = data.access_token;
+      localStorage.setItem("token", token);
+      localStorage.setItem("refresh_token", data.refresh_token || "");
+      localStorage.setItem("email", email);
+      localStorage.setItem("userName", email);
+      localStorage.setItem("userId", email);
+      localStorage.setItem("author", email);
+
+      const firstName = data.firstname || data.first_name || "";
+      const lastName = data.lastname || data.last_name || "";
+      const profileUrl = data.profileImageUrl || data.profile_image_url || "";
+
+      if (firstName) localStorage.setItem("userFirstName", firstName);
+      else localStorage.removeItem("userFirstName");
+      if (lastName) localStorage.setItem("userLastName", lastName);
+      else localStorage.removeItem("userLastName");
+      if (profileUrl) {
+        localStorage.setItem("userProfileImageUrl", profileUrl);
+        localStorage.setItem("userProfileImageOwner", email);
       } else {
-        alert("Login failed: Invalid email or password");
+        localStorage.removeItem("userProfileImageUrl");
+        localStorage.removeItem("userProfileImageOwner");
       }
+
+      // Reset upload-related localStorage (mirrors app.js)
+      ["postId", "audioUrls", "imageUrls", "videoUrls", "documents", "description",
+        "isevent", "ismemory", "ispublic"].forEach(k => localStorage.setItem(k, ""));
+
+      const userData = {
+        email,
+        name: [firstName, lastName].filter(Boolean).join(" ") || email,
+        avatar: profileUrl || null,
+      };
+      setUser(userData);
+      setIsLoggedIn(true);
     } catch (err) {
-      console.error("Connection error:", err);
-      alert("Cannot connect to Java Server. Make sure it is running on port 8082.");
+      console.error("Login error:", err);
+      alert("Login failed. Please check your credentials.");
     }
   };
 
+  /* ────────────────────────────────────────────
+     LOGOUT  (mirrors app.js cleanSession)
+  ──────────────────────────────────────────── */
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    [
+      "token", "refresh_token", "userName", "postId", "audioUrls", "documentUrls", "imageUrls",
+      "videoUrls", "author", "description", "documents", "email", "isevent", "ismemory",
+      "ispublic", "userId", "userFirstName", "userLastName", "userProfileImageUrl", "userProfileImageOwner"
+    ].forEach(k => localStorage.removeItem(k));
     setIsLoggedIn(false);
     setUser(null);
+    setPosts([]);
+    setConnections([]);
+    setPage(0);
+    setHasNext(true);
   };
 
+  /* ────────────────────────────────────────────
+     FETCH POSTS  (mirrors app.js fetchAllSlicePosts / GraphQL pagination)
+  ──────────────────────────────────────────── */
+  const fetchPosts = async (pageNum = 0, append = false) => {
+    const token = localStorage.getItem("token");
+    if (!token || isLoading || !hasNext) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/graphql`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page: pageNum, size: 15 } }),
+      });
+
+      const json = await res.json();
+      const data = json?.data?.getAllPostsPaged;
+      if (!data) return;
+
+      const items = (data.items || []).map(p => ({
+        ...p,
+        // Normalise media URLs the same way app.js does
+        thumbnailUrl: toPublicUrl(p.videoImagePath || (p.imageUrls?.[0] ?? "")),
+        hlsUrl: p.hlsVideoUrls?.[0]
+          ? `${PUBLIC_BASE}/` + p.hlsVideoUrls[0].split("webdata/")[1]
+          : "",
+      }));
+
+      setPosts(prev => append ? [...prev, ...items] : items);
+      setHasNext(data.pageInfo?.hasNext ?? false);
+      setPage(pageNum);
+    } catch (err) {
+      console.error("GraphQL fetch error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /* ─── Initial load ─── */
+  useEffect(() => {
+    if (isLoggedIn) fetchPosts(0, false);
+  }, [isLoggedIn]);
+
+  /* ────────────────────────────────────────────
+     DELETE POST  (mirrors app.js handleAction 'delete')
+  ──────────────────────────────────────────── */
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this video? This cannot be undone.")) return;
+    const token = localStorage.getItem("token");
+    try {
+      const response = await fetch(`${API_BASE}/api/posts/delete`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ postId }),
+      });
+      const result = await response.json();
+      if (result.errors) throw new Error(result.errors[0].message);
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete video: " + err.message);
+    }
+  };
+
+  /* ────────────────────────────────────────────
+     RENDER
+  ──────────────────────────────────────────── */
   return (
     <div className="app-container">
       <Navbar
@@ -153,56 +223,85 @@ function App() {
         user={user}
         onLogin={handleLogin}
         onLogout={handleLogout}
+        onUploadClick={() => setShowUpload(true)}
       />
+
       <div className="app-body-wrapper">
+        <div className="leftbar-spacer" />
         <Sidebar />
+
         <main className="main-content">
           <div className="video-grid d-flex flex-wrap gap-3">
             {posts.map(post => (
               <VideoCard
                 key={post.id}
                 post={post}
+                publicBase={PUBLIC_BASE}
                 onDelete={() => handleDeletePost(post.id)}
               />
             ))}
           </div>
+
+          {/* Load more */}
+          {hasNext && !isLoading && (
+            <div className="text-center my-4">
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => fetchPosts(page + 1, true)}
+              >
+                Load more
+              </button>
+            </div>
+          )}
+          {isLoading && (
+            <div className="text-center my-4">
+              <div className="spinner-border text-secondary" role="status">
+                <span className="visually-hidden">Loading…</span>
+              </div>
+            </div>
+          )}
         </main>
+
         <Rightbar connections={connections} />
+        <div className="rightbar-spacer" />
       </div>
-      {
-        <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg z-3">
-          {/* 1. HOME */}
-          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
-            <i className="bi bi-house-door fs-4"></i>
-            <span style={{ fontSize: '10px' }}>Home</span>
-          </button>
 
-          {/* 2. PHOTOS */}
-          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
-            <i className="bi bi-images fs-4"></i>
-            <span style={{ fontSize: '10px' }}>Photos</span>
-          </button>
+      {/* Mobile bottom nav */}
+      <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+          <i className="bi bi-house-door fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Home</span>
+        </button>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+          <i className="bi bi-images fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Photos</span>
+        </button>
+        <button
+          className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+          onClick={() => setShowUpload(true)}
+        >
+          <i className="bi bi-plus-circle-fill" style={{ fontSize: '2rem', marginTop: '-12px' }}></i>
+        </button>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+          <i className="bi bi-play-btn fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Videos</span>
+        </button>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+          <i className="bi bi-music-note-beamed fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Audio</span>
+        </button>
+      </div>
 
-          {/* 3. UPLOAD (Primary) */}
-          <button className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
-            <i className="bi bi-plus-circle-fill fs-1 mt-n3" style={{ marginTop: '-12px' }}></i>
-          </button>
-
-          {/* 4. VIDEOS */}
-          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
-            <i className="bi bi-play-btn fs-4"></i>
-            <span style={{ fontSize: '10px' }}>Videos</span>
-          </button>
-
-          {/* 5. AUDIO */}
-          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
-            <i className="bi bi-music-note-beamed fs-4"></i>
-            <span style={{ fontSize: '10px' }}>Audio</span>
-          </button>
-        </div>
-      }
+      {/* Upload modal */}
+      {showUpload && (
+        <UploadModal
+          apiBase={API_BASE}
+          publicBase={PUBLIC_BASE}
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => { setShowUpload(false); fetchPosts(0, false); }}
+        />
+      )}
     </div>
-
   );
 }
 
