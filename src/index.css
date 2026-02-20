@@ -2,8 +2,7 @@
 :root {
   --nav-h: 65px;
   /* Slightly reduced for sleeker look */
-  --left-w: 240px;
-  /* Wider sidebar for better readability */
+  --left-w: 100px;
   --right-w: 300px;
 
   /* Light Theme Palette */
@@ -314,13 +313,14 @@ html {
 
 @media (max-width: 768px) {
   .mobile-nav {
-    height: 65px;
+    height: auto;
+    min-height: 70px;
     z-index: 4000;
     /* Higher than everything else */
   }
 
   .main-content {
-    margin-bottom: 65px;
+    margin-bottom: 80px;
     padding: 15px;
   }
 }
