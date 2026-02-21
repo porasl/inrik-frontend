@@ -227,7 +227,6 @@ function App() {
       />
 
       <div className="app-body-wrapper">
-        <div className="leftbar-spacer" />
         <Sidebar />
 
         <main className="main-content">
@@ -263,7 +262,6 @@ function App() {
         </main>
 
         <Rightbar connections={connections} />
-        <div className="rightbar-spacer" />
       </div>
 
       {/* Mobile bottom nav */}

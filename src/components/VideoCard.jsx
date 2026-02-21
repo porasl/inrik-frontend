@@ -41,7 +41,7 @@ function OwnerAvatar({ post }) {
       </div>
       <span className="text-truncate text-secondary" style={{ fontSize: 12, maxWidth: 150 }}>
         {displayName}
-      </span>
+      </span>.
     </div>
   );
 }
@@ -179,13 +179,9 @@ export default function VideoCard({ post, onDelete }) {
             {post.title || "Untitled Video"}
           </h6>
 
-          {/* Owner */}
-          <div className="mb-3">
-            <OwnerAvatar post={post} />
-          </div>
-
           {/* Like / Comment row */}
           <div className="d-flex align-items-center gap-2">
+            <OwnerAvatar post={post} />
             <button className="btn btn-sm btn-light rounded-pill d-flex align-items-center gap-1 px-3">
               <i className={`bi ${post.isLikedByCurrentUser ? 'bi-heart-fill' : 'bi-heart'} text-danger`}></i>
               <span className="small fw-medium">{post.likes || 0}</span>
