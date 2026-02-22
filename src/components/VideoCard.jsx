@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Hls from 'hls.js';
 
 const APPLICATION_IP = "192.168.4.63";
 const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
 
-/* ── helpers ── */
+/* ── HELPERS ── */
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
   if (/^https?:\/\//i.test(fsPath)) return fsPath;
@@ -13,7 +14,7 @@ function toPublicUrl(fsPath) {
   return `${PUBLIC_BASE}${rel}`;
 }
 
-/* ── Owner avatar ── */
+/* ── OWNER AVATAR COMPONENT ── */
 function OwnerAvatar({ post }) {
   const firstName = post.userFirstName || "";
   const lastName = post.userLastName || "";
@@ -39,28 +40,38 @@ function OwnerAvatar({ post }) {
           </div>
         )}
       </div>
-      <span className="text-truncate text-secondary" style={{ fontSize: 12, maxWidth: 150 }}>
+      <span className="text-truncate text-secondary fw-medium" style={{ fontSize: 12, maxWidth: 110 }}>
         {displayName}
-      </span>.
+      </span>
     </div>
   );
 }
 
-/* ── Embed modal ── */
+/* ── EMBED MODAL COMPONENT ── */
 function EmbedModal({ postId, onClose }) {
   const iframeCode = `<iframe src="${window.location.origin}/embed/${postId}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`;
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content-custom" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="modal-content-custom bg-white p-4 shadow-lg rounded" style={{ maxWidth: 520, width: '90%' }} onClick={e => e.stopPropagation()}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="m-0 fw-bold"><i className="bi bi-code-slash me-2 text-primary"></i>Embed Video</h5>
           <button className="btn-close" onClick={onClose}></button>
         </div>
         <p className="text-secondary small mb-2">Copy and paste this code into your website:</p>
-        <div className="embed-code-box" onClick={e => { e.target.select?.(); }}>{iframeCode}</div>
-        <div className="d-flex justify-content-end gap-2 mt-3">
-          <button className="btn btn-primary btn-sm" onClick={() => { navigator.clipboard.writeText(iframeCode); }}>
-            <i className="bi bi-clipboard me-1"></i>Copy Code
+        <textarea
+          className="form-control bg-light mb-3"
+          rows="3"
+          readOnly
+          value={iframeCode}
+          style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
+        />
+        <div className="d-flex justify-content-end gap-2">
+          <button className="btn btn-primary btn-sm px-3" onClick={() => {
+            navigator.clipboard.writeText(iframeCode);
+            alert("Copied to clipboard!");
+          }}>
+            <i className="bi bi-clipboard me-1"></i>Copy
           </button>
           <button className="btn btn-light btn-sm border" onClick={onClose}>Close</button>
         </div>
@@ -69,82 +80,139 @@ function EmbedModal({ postId, onClose }) {
   );
 }
 
-/* ── Main VideoCard ── */
+/* ── MAIN VIDEOCARD COMPONENT ── */
 export default function VideoCard({ post, onDelete }) {
+  const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
+
+  const videoRef = useRef(null);
+  const hlsRef = useRef(null);
   const menuRef = useRef(null);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menuOpen]);
-
-  if (hidden) return null;
-
-  /* Choose best image to show (mirrors app.js firstThumb) */
+  const hls0 = post.hlsVideoUrls?.[0] || "";
+  const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
   const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
 
-  /* All images for the gallery strip */
-  const allImages = (post.imageUrls || []).map(toPublicUrl).filter(Boolean);
+  if (isHidden) return null;
 
-  const handleAction = async (action) => {
-    setMenuOpen(false);
-    if (action === 'hide') {
-      setHidden(true);
-    } else if (action === 'delete') {
-      onDelete?.();
-    } else if (action === 'embed') {
-      setShowEmbed(true);
+  // Handle outside clicks for menu
+  useEffect(() => {
+    const clickHandler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', clickHandler);
+    return () => document.removeEventListener('mousedown', clickHandler);
+  }, []);
+
+  // HLS Logic for Hover
+  useEffect(() => {
+    let hls = null;
+
+    if (isHovered && hlsUrl && videoRef.current) {
+      const videoElement = videoRef.current;
+
+      if (Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true
+        });
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(videoElement);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          // Attempt playback with sound
+          videoElement.muted = false;
+          videoElement.play().catch(err => {
+            console.log("Audio autoplay blocked, falling back to muted", err);
+            videoElement.muted = true;
+            videoElement.play();
+          });
+        });
+        hlsRef.current = hls;
+      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari fallback
+        videoElement.src = hlsUrl;
+        videoElement.muted = false;
+        videoElement.play().catch(() => {
+          videoElement.muted = true;
+          videoElement.play();
+        });
+      }
     }
-  };
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src'); // Stop stream completely
+        videoRef.current.load();
+      }
+    };
+  }, [isHovered, hlsUrl]);
 
   return (
     <>
-      <div className="card-clean hover-lift overflow-hidden" style={{ width: 300 }}>
-
-        {/* ── Thumbnail ── */}
-        <div className="position-relative bg-light" style={{ height: 170 }}>
-          {thumbSrc ? (
-            <img
-              src={thumbSrc}
+      <div
+        className="card-clean hover-lift overflow-hidden position-relative shadow-sm"
+        style={{ width: 300, background: '#fff', borderRadius: '12px', margin: '10px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Media Container */}
+        <div className="position-relative bg-black" style={{ height: 170 }}>
+          {isHovered && hlsUrl ? (
+            <video
+              ref={videoRef}
+              playsInline
+              controls
+              crossOrigin="anonymous"
               className="w-100 h-100"
-              alt={post.title || "Thumbnail"}
               style={{ objectFit: 'cover' }}
             />
           ) : (
-            <div className="w-100 h-100 d-flex align-items-center justify-content-center text-secondary-subtle">
-              <i className="bi bi-play-circle" style={{ fontSize: '2.5rem' }}></i>
-            </div>
+            <img
+              src={thumbSrc}
+              className="w-100 h-100"
+              style={{ objectFit: 'cover', opacity: isHovered ? 0.8 : 1 }}
+              alt={post.title}
+            />
           )}
 
-          {/* Views badge */}
-          <span
-            className="position-absolute bottom-0 end-0 bg-black bg-opacity-75 text-white px-2 py-1 m-2 rounded"
-            style={{ fontSize: '0.7rem' }}
-          >
+          <span className="position-absolute bottom-0 end-0 bg-black bg-opacity-75 text-white px-2 py-1 m-2 rounded" style={{ fontSize: '0.7rem' }}>
             <i className="bi bi-eye me-1"></i>{post.views || 0}
           </span>
 
-          {/* ⋮ Options button (top-right) */}
-          <div className="options-container position-absolute top-0 end-0 m-2" ref={menuRef}>
-            <button className="options-btn bg-white bg-opacity-75 shadow-sm" onClick={() => setMenuOpen(o => !o)}>
+          {/* Menu Button */}
+          <div className="position-absolute top-0 end-0 m-2" ref={menuRef} style={{ zIndex: 100 }}>
+            <button
+              className="btn btn-sm bg-white bg-opacity-75 rounded-circle shadow-sm d-flex align-items-center justify-content-center"
+              style={{ width: 28, height: 28 }}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+            >
               <i className="bi bi-three-dots-vertical"></i>
             </button>
 
             {menuOpen && (
-              <div className="custom-options-menu">
-                <button onClick={() => handleAction('hide')}>
+              <div className="shadow-lg bg-white position-absolute end-0 mt-1 rounded py-1 border" style={{ minWidth: '130px' }}>
+                <button className="dropdown-item py-2 px-3 small d-flex align-items-center gap-2 text-dark"
+                  onClick={(e) => { e.stopPropagation(); setIsHidden(true); setMenuOpen(false); }}>
                   <i className="bi bi-eye-slash"></i> Hide
                 </button>
-                <button onClick={() => handleAction('embed')}>
+                <button className="dropdown-item py-2 px-3 small d-flex align-items-center gap-2 text-dark"
+                  onClick={(e) => { e.stopPropagation(); setShowEmbed(true); setMenuOpen(false); }}>
                   <i className="bi bi-code-slash"></i> Embed
                 </button>
-                <button className="danger" onClick={() => handleAction('delete')}>
+                <hr className="my-1" />
+                <button className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Delete this video permanently?")) onDelete?.();
+                    setMenuOpen(false);
+                  }}>
                   <i className="bi bi-trash"></i> Delete
                 </button>
               </div>
@@ -152,49 +220,24 @@ export default function VideoCard({ post, onDelete }) {
           </div>
         </div>
 
-        {/* ── Image strip (if post has multiple images) ── */}
-        {allImages.length > 1 && (
-          <div className="d-flex gap-1 px-2 pt-2 overflow-hidden" style={{ height: 52 }}>
-            {allImages.slice(0, 4).map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt=""
-                className="rounded"
-                style={{ width: 44, height: 44, objectFit: 'cover', flexShrink: 0 }}
-              />
-            ))}
-            {allImages.length > 4 && (
-              <div className="d-flex align-items-center justify-content-center rounded bg-secondary text-white" style={{ width: 44, height: 44, fontSize: 11, flexShrink: 0 }}>
-                +{allImages.length - 4}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Card body ── */}
+        {/* Card Body */}
         <div className="p-3">
-          {/* Title */}
-          <h6 className="card-title text-truncate fw-bold mb-2" title={post.title}>
+          <h6 className="text-truncate fw-bold mb-2" title={post.title} style={{ color: '#2c3e50' }}>
             {post.title || "Untitled Video"}
           </h6>
-
-          {/* Like / Comment row */}
-          <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center justify-content-between mt-2">
             <OwnerAvatar post={post} />
-            <button className="btn btn-sm btn-light rounded-pill d-flex align-items-center gap-1 px-3">
-              <i className={`bi ${post.isLikedByCurrentUser ? 'bi-heart-fill' : 'bi-heart'} text-danger`}></i>
-              <span className="small fw-medium">{post.likes || 0}</span>
-            </button>
-            <button className="btn btn-sm btn-light rounded-circle" style={{ width: 32, height: 32 }}>
-              <i className="bi bi-chat text-secondary"></i>
-            </button>
+            <div className="d-flex align-items-center gap-3">
+              <div className="d-flex align-items-center gap-1 text-secondary" style={{ fontSize: 13 }}>
+                <i className={`bi ${post.isLikedByCurrentUser ? 'bi-heart-fill text-danger' : 'bi-heart'}`}></i>
+                <span>{post.likes || 0}</span>
+              </div>
+              <i className="bi bi-chat text-secondary" style={{ fontSize: 13 }}></i>
+            </div>
           </div>
         </div>
-
       </div>
 
-      {/* Embed modal */}
       {showEmbed && <EmbedModal postId={post.id} onClose={() => setShowEmbed(false)} />}
     </>
   );
