@@ -52,7 +52,7 @@ function EmbedModal({ postId, onClose }) {
   const iframeCode = `<iframe src="${window.location.origin}/embed/${postId}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`;
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
       <div className="modal-content-custom bg-white p-4 shadow-lg rounded" style={{ maxWidth: 520, width: '90%' }} onClick={e => e.stopPropagation()}>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="m-0 fw-bold"><i className="bi bi-code-slash me-2 text-primary"></i>Embed Video</h5>
@@ -82,6 +82,7 @@ function EmbedModal({ postId, onClose }) {
 
 /* ── MAIN VIDEOCARD COMPONENT ── */
 export default function VideoCard({ post, onDelete }) {
+  // 1. ALL HOOKS DECLARED AT THE TOP (The Fix for the Uncaught Error)
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
@@ -95,9 +96,7 @@ export default function VideoCard({ post, onDelete }) {
   const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
   const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
 
-  if (isHidden) return null;
-
-  // Handle outside clicks for menu
+  // 2. ALL EFFECTS DECLARED BEFORE THE EARLY RETURN
   useEffect(() => {
     const clickHandler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
@@ -106,67 +105,45 @@ export default function VideoCard({ post, onDelete }) {
     return () => document.removeEventListener('mousedown', clickHandler);
   }, []);
 
-  // HLS Logic for Hover
   useEffect(() => {
-    let hls = null;
-
     if (isHovered && hlsUrl && videoRef.current) {
-      const videoElement = videoRef.current;
-
       if (Hls.isSupported()) {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true
-        });
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.loadSource(hlsUrl);
-        hls.attachMedia(videoElement);
+        hls.attachMedia(videoRef.current);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          // Attempt playback with sound
-          videoElement.muted = false;
-          videoElement.play().catch(err => {
-            console.log("Audio autoplay blocked, falling back to muted", err);
-            videoElement.muted = true;
-            videoElement.play();
-          });
+          videoRef.current.play().catch(() => { });
         });
         hlsRef.current = hls;
-      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari fallback
-        videoElement.src = hlsUrl;
-        videoElement.muted = false;
-        videoElement.play().catch(() => {
-          videoElement.muted = true;
-          videoElement.play();
-        });
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        videoRef.current.src = hlsUrl;
       }
     }
-
     return () => {
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src'); // Stop stream completely
-        videoRef.current.load();
-      }
     };
   }, [isHovered, hlsUrl]);
 
+  // 3. EARLY RETURN AFTER HOOKS (This prevents the React error)
+  if (isHidden) return null;
+
+  // 4. MAIN JSX
   return (
     <>
       <div
         className="card-clean hover-lift overflow-hidden position-relative shadow-sm"
-        style={{ width: 300, background: '#fff', borderRadius: '12px', margin: '10px' }}
+        style={{ width: 300, background: '#fff', borderRadius: '12px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Media Container */}
         <div className="position-relative bg-black" style={{ height: 170 }}>
           {isHovered && hlsUrl ? (
             <video
               ref={videoRef}
+              muted
               playsInline
               controls
               crossOrigin="anonymous"
@@ -186,7 +163,6 @@ export default function VideoCard({ post, onDelete }) {
             <i className="bi bi-eye me-1"></i>{post.views || 0}
           </span>
 
-          {/* Menu Button */}
           <div className="position-absolute top-0 end-0 m-2" ref={menuRef} style={{ zIndex: 100 }}>
             <button
               className="btn btn-sm bg-white bg-opacity-75 rounded-circle shadow-sm d-flex align-items-center justify-content-center"
@@ -202,11 +178,14 @@ export default function VideoCard({ post, onDelete }) {
                   onClick={(e) => { e.stopPropagation(); setIsHidden(true); setMenuOpen(false); }}>
                   <i className="bi bi-eye-slash"></i> Hide
                 </button>
+
                 <button className="dropdown-item py-2 px-3 small d-flex align-items-center gap-2 text-dark"
                   onClick={(e) => { e.stopPropagation(); setShowEmbed(true); setMenuOpen(false); }}>
                   <i className="bi bi-code-slash"></i> Embed
                 </button>
+
                 <hr className="my-1" />
+
                 <button className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -220,11 +199,11 @@ export default function VideoCard({ post, onDelete }) {
           </div>
         </div>
 
-        {/* Card Body */}
         <div className="p-3">
           <h6 className="text-truncate fw-bold mb-2" title={post.title} style={{ color: '#2c3e50' }}>
             {post.title || "Untitled Video"}
           </h6>
+
           <div className="d-flex align-items-center justify-content-between mt-2">
             <OwnerAvatar post={post} />
             <div className="d-flex align-items-center gap-3">
