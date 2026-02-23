@@ -4,39 +4,63 @@ import Hls from 'hls.js';
 const APPLICATION_IP = "192.168.4.63";
 const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
 
-/* ── HELPERS ── */
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
-  if (/^https?:\/\//i.test(fsPath)) return fsPath;
+  if (/^https?:\/\//i.test(fsPath)) return fsPath; // Already a full URL
+
   const norm = String(fsPath).replace(/\\/g, "/");
-  const idx = norm.indexOf("/videos/");
-  const rel = idx >= 0 ? norm.slice(idx) : (norm.startsWith("/") ? norm : `/${norm}`);
-  return `${PUBLIC_BASE}${rel}`;
+
+  // If it's a video path
+  if (norm.indexOf("/videos/") >= 0) {
+    const rel = norm.slice(norm.indexOf("/videos/"));
+    return `${PUBLIC_BASE}${rel}`;
+  }
+
+  // If it's a profile image path (likely starts with /images/ or /profile/)
+  const cleanPath = norm.startsWith("/") ? norm : `/${norm}`;
+  return `${PUBLIC_BASE}${cleanPath}`;
 }
 
-/* ── OWNER AVATAR COMPONENT ── */
 function OwnerAvatar({ post }) {
-  const firstName = post.userFirstName || "";
-  const lastName = post.userLastName || "";
-  const email = post.email || post.author || "";
-  const displayName = [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0] || "User";
-  const initials = ((firstName.charAt(0) || "") + (lastName.charAt(0) || email.charAt(0) || "")).toUpperCase() || "U";
+  // 1. Extract the user object from the GraphQL response
+  const user = post.user || {};
 
+  // 2. Map GraphQL 'name' to display logic
+  // Your query returns 'name', not 'firstName'/'lastName'
+  const displayName = user.name || post.author || "User";
+
+  // 3. Generate initials from the single 'name' string
+  const initials = displayName
+    .split(" ")
+    .map(word => word.charAt(0))
+    .join("")
+    .toUpperCase() || "U";
+
+  // 4. Use the same color logic based on the name string
   const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
-  const colorIdx = email.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length;
-  const avatarUrl = toPublicUrl(post.userProfileImageUrl);
+  const colorIdx = displayName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length;
+
+  // 5. Use the 'avatar' field from your GraphQL query
+  // Ensure we pass it through toPublicUrl to prepending the IP/Port 3000
+  const avatarUrl = toPublicUrl(user.avatar);
 
   return (
     <div className="d-flex align-items-center gap-2">
       <div
-        className="rounded-circle overflow-hidden flex-shrink-0"
-        style={{ width: 26, height: 26, background: colors[colorIdx] }}
+        className="rounded-circle overflow-hidden flex-shrink-0 shadow-sm"
+        style={{ width: 28, height: 28, background: colors[colorIdx], border: '1px solid #eee' }}
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img
+            src={avatarUrl}
+            alt={displayName}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            // If the image fails to load, this prevents a broken icon
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
         ) : (
           <div className="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style={{ fontSize: 10 }}>
-            {initials}
+            {initials.slice(0, 2)}
           </div>
         )}
       </div>
@@ -92,9 +116,15 @@ export default function VideoCard({ post, onDelete }) {
   const hlsRef = useRef(null);
   const menuRef = useRef(null);
 
+
   const hls0 = post.hlsVideoUrls?.[0] || "";
   const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
   const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
+
+  const getAvatarUrl = (avatar) => {
+    if (!avatar) return null;
+    return avatar.startsWith('http') ? avatar : `${PUBLIC_BASE}${avatar}`;
+  };
 
   // 2. ALL EFFECTS DECLARED BEFORE THE EARLY RETURN
   useEffect(() => {

@@ -36,6 +36,28 @@ const GET_POSTS_QUERY = `
   }
 `;
 
+const GET_DATA_QUERY = `
+  query GetInitialData {
+    allPosts {
+      id
+      title
+      videoUrl
+      thumbnailUrl
+      likeCount
+      viewCount
+      # We need to fetch the nested user data for the avatar
+      user {
+        avatar
+        name
+      }
+    }
+    userConnections {
+      id
+      name
+      avatar
+    }
+  }
+`;
 /* ─── Helper: convert FS path → public URL (mirrors app.js toPublicUrl) ─── */
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
