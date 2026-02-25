@@ -8,16 +8,28 @@ export default defineConfig({
   server: {
     port: 4000,
     host: true,
-    strictPort:true,
+    strictPort: true,
     proxy: {
       // All /graphql and /api/* requests are forwarded to the Java backend
       '/graphql': {
         target: BACKEND,
         changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            proxyReq.setHeader('Origin', BACKEND);
+            proxyReq.setHeader('Referer', BACKEND + '/');
+          });
+        }
       },
       '/api': {
         target: BACKEND,
         changeOrigin: true,
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            proxyReq.setHeader('Origin', BACKEND);
+            proxyReq.setHeader('Referer', BACKEND + '/');
+          });
+        }
       },
     },
   },

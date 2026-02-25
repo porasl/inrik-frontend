@@ -7,9 +7,7 @@ import UploadModal from './components/UploadModal';
 
 /* ─── Server config ─── */
 const Application_IP = "192.168.4.63";
-// Since app.js used absolute URLs and proxy might be causing 403 due to CORS/Origin headers or stripped tokens,
-// we will use the backend's explicit URL as the API_BASE.
-const API_BASE = `http://${Application_IP}:8082`;
+const API_BASE = ""; // Empty string routes API calls to Vite proxy instead of causing CORS 403 on backend
 const NOTIFY_URL = `http://${Application_IP}:8084`;
 const PUBLIC_BASE = `http://${Application_IP}:3000`; // static file server (no proxy needed)
 
