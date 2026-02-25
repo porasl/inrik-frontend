@@ -7,7 +7,9 @@ import UploadModal from './components/UploadModal';
 
 /* ─── Server config ─── */
 const Application_IP = "192.168.4.63";
-const API_BASE = "";               // empty = relative URLs → Vite proxy handles it
+// Since app.js used absolute URLs and proxy might be causing 403 due to CORS/Origin headers or stripped tokens,
+// we will use the backend's explicit URL as the API_BASE.
+const API_BASE = `http://${Application_IP}:8082`;
 const NOTIFY_URL = `http://${Application_IP}:8084`;
 const PUBLIC_BASE = `http://${Application_IP}:3000`; // static file server (no proxy needed)
 
@@ -206,9 +208,40 @@ function App() {
     }
   };
 
+  /* ────────────────────────────────────────────
+     FETCH CONNECTIONS
+  ──────────────────────────────────────────── */
+  const fetchConnections = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me/connections`, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to load connections");
+      const data = await res.json();
+      const mappedConnections = data.map(conn => ({
+        id: conn.id || conn.email || Math.random(),
+        name: [conn.firstname, conn.lastname].filter(Boolean).join(" ") || conn.email,
+        avatar: conn.profileImageUrl ? toPublicUrl(conn.profileImageUrl) : null,
+        status: 'offline' // Adjust as needed based on backend
+      }));
+      setConnections(mappedConnections);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   /* ─── Initial load ─── */
   useEffect(() => {
-    if (isLoggedIn) fetchPosts(0, false);
+    if (isLoggedIn) {
+      fetchPosts(0, false);
+      fetchConnections();
+    }
   }, [isLoggedIn]);
 
   /* ────────────────────────────────────────────
