@@ -105,7 +105,7 @@ function EmbedModal({ postId, onClose }) {
 }
 
 /* ── MAIN VIDEOCARD COMPONENT ── */
-export default function VideoCard({ post, onDelete }) {
+export default function VideoCard({ post, onDelete, onWatch }) {
   // 1. ALL HOOKS DECLARED AT THE TOP (The Fix for the Uncaught Error)
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -165,9 +165,10 @@ export default function VideoCard({ post, onDelete }) {
     <>
       <div
         className="card-clean hover-lift overflow-hidden position-relative shadow-sm"
-        style={{ width: 300, background: '#fff', borderRadius: '12px' }}
+        style={{ width: 300, background: '#fff', borderRadius: '12px', cursor: 'pointer' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onClick={() => onWatch?.(post)}
       >
         <div className="position-relative bg-black" style={{ height: 170 }}>
           {isHovered && hlsUrl ? (

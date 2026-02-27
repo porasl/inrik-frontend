@@ -1,6 +1,11 @@
 import React from 'react';
 
-export default function Sidebar() {
+export default function Sidebar({ onHome }) {
+  const handleNav = (e) => {
+    e.preventDefault();
+    onHome?.();
+  };
+
   return (
     <div className="leftbar">
       <ul className="nav flex-column w-100 px-2">
@@ -8,14 +13,16 @@ export default function Sidebar() {
         <li className="nav-item mb-3"></li>
 
         <li className="nav-item w-100 mb-0">
-          <a className="nav-link d-flex align-items-center gap-0 px-3 py-1 rounded-3 text-dark hover-bg-light" href="#">
+          <a className="nav-link d-flex align-items-center gap-0 px-3 py-1 rounded-3 text-dark hover-bg-light"
+            href="#" onClick={handleNav}>
             <i className="bi bi-house-door fs-5 text-secondary"></i>
             <span className="fw-medium">Home</span>
           </a>
         </li>
 
         <li className="nav-item w-100 mb-0">
-          <a className="nav-link d-flex align-items-center gap-0 px-3 py-1 rounded-3 text-dark hover-bg-light" href="#">
+          <a className="nav-link d-flex align-items-center gap-0 px-3 py-1 rounded-3 text-dark hover-bg-light"
+            href="#" onClick={handleNav}>
             <i className="bi bi-play-btn fs-5 text-secondary"></i>
             <span className="fw-medium">Videos</span>
           </a>

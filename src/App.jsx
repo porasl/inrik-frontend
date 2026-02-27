@@ -4,6 +4,8 @@ import Sidebar from './components/Sidebar';
 import Rightbar from './components/Rightbar';
 import VideoCard from './components/VideoCard';
 import UploadModal from './components/UploadModal';
+import VideoWatchPage from './components/VideoWatchPage';
+import SliceCarousel from './components/SliceCarousel';
 
 /* ─── Server config ─── */
 const Application_IP = "192.168.4.63";
@@ -87,6 +89,9 @@ function App() {
   const [page, setPage] = useState(0);
   const [hasNext, setHasNext] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
+  /* ─── Watch page state ─── */
+  const [watchingPost, setWatchingPost] = useState(null);
 
   /* ─── Upload modal ─── */
   const [showUpload, setShowUpload] = useState(false);
@@ -280,41 +285,57 @@ function App() {
       />
 
       <div className="app-body-wrapper">
-        <Sidebar />
+        <Sidebar onHome={() => setWatchingPost(null)} />
 
         <main className="main-content">
-          <div className="video-grid d-flex flex-wrap gap-3">
-            {posts.map(post => (
-              <VideoCard
-                key={post.id}
-                post={post}
-                publicBase={PUBLIC_BASE}
-                onDelete={() => handleDeletePost(post.id)}
-              />
-            ))}
-          </div>
-
-          {/* Load more */}
-          {hasNext && !isLoading && (
-            <div className="text-center my-4">
-              <button
-                className="btn btn-outline-secondary"
-                onClick={() => fetchPosts(page + 1, true)}
-              >
-                Load more
-              </button>
-            </div>
-          )}
-          {isLoading && (
-            <div className="text-center my-4">
-              <div className="spinner-border text-secondary" role="status">
-                <span className="visually-hidden">Loading…</span>
+          {watchingPost ? (
+            /* ── WATCH PAGE ── */
+            <VideoWatchPage
+              post={watchingPost}
+              allPosts={posts}
+              onWatch={(p) => setWatchingPost(p)}
+              onHome={() => setWatchingPost(null)}
+            />
+          ) : (
+            /* ── VIDEO GRID ── */
+            <>
+              <SliceCarousel onWatch={(p) => setWatchingPost(p)} />
+              <div className="video-grid d-flex flex-wrap gap-3">
+                {posts.map(post => (
+                  <VideoCard
+                    key={post.id}
+                    post={post}
+                    publicBase={PUBLIC_BASE}
+                    onDelete={() => handleDeletePost(post.id)}
+                    onWatch={(p) => setWatchingPost(p)}
+                  />
+                ))}
               </div>
-            </div>
+
+              {/* Load more */}
+              {hasNext && !isLoading && (
+                <div className="text-center my-4">
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={() => fetchPosts(page + 1, true)}
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+              {isLoading && (
+                <div className="text-center my-4">
+                  <div className="spinner-border text-secondary" role="status">
+                    <span className="visually-hidden">Loading…</span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
 
-        <Rightbar connections={connections} />
+        {/* Only show connections rightbar on feed view */}
+        {!watchingPost && <Rightbar connections={connections} />}
       </div>
 
       {/* Mobile bottom nav */}
