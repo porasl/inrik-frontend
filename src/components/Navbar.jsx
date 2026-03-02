@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 
-const APPLICATION_IP = "192.168.4.63";
+const APPLICATION_IP = "192.168.4.76";
 const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
 
 export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {

@@ -8,7 +8,7 @@ import VideoWatchPage from './components/VideoWatchPage';
 import SliceCarousel from './components/SliceCarousel';
 
 /* ─── Server config ─── */
-const Application_IP = "192.168.4.63";
+const Application_IP = "192.168.4.76";
 const API_BASE = ""; // Empty string routes API calls to Vite proxy instead of causing CORS 403 on backend
 const NOTIFY_URL = `http://${Application_IP}:8084`;
 const PUBLIC_BASE = `http://${Application_IP}:3000`; // static file server (no proxy needed)
