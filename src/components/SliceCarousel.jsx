@@ -16,7 +16,10 @@ function toPublicUrl(fsPath) {
 /* ── Fetch all slice posts (mirrors app.js fetchAllSlicePosts) ── */
 async function fetchSlicePosts(pageSize = 30) {
     const token = localStorage.getItem("token");
-    if (!token) return [];
+    // Build headers — include auth only if logged in
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     const query = `
     query($page: Int!, $size: Int!) {
       getAllPostsPaged(page: $page, size: $size) {
@@ -47,10 +50,7 @@ async function fetchSlicePosts(pageSize = 30) {
     while (true) {
         const res = await fetch(`${API_BASE}/graphql`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-            },
+            headers,
             body: JSON.stringify({ query, variables: { page, size: pageSize } }),
         });
         const json = await res.json();
@@ -87,6 +87,47 @@ function SliceCard({ post, onWatch }) {
     const [liked, setLiked] = useState(!!post.isLikedByCurrentUser);
     const [likeCount, setLikeCount] = useState(post.likes || 0);
 
+    // Sync state when props change
+    useEffect(() => {
+        setLiked(!!post.isLikedByCurrentUser);
+        setLikeCount(post.likes || 0);
+    }, [post.isLikedByCurrentUser, post.likes]);
+
+    const [resolvedAvatar, setResolvedAvatar] = useState(avatarUrl);
+    const [resolvedName, setResolvedName] = useState(ownerEmail || 'User');
+    const [avatarError, setAvatarError] = useState(false);
+
+    useEffect(() => {
+        if (!ownerEmail) return;
+
+        fetch(`/graphql`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
+                variables: { email: ownerEmail }
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                const profile = data?.data?.getUserProfile;
+                const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
+                if (fetchedName) setResolvedName(fetchedName);
+
+                const url = profile?.profileImageUrl;
+                if (url) {
+                    setResolvedAvatar(toPublicUrl(url));
+                } else {
+                    const local = ownerEmail.split('@')[0];
+                    setResolvedAvatar(toPublicUrl(`/profileImages/${local}.jpg`));
+                }
+            })
+            .catch(() => {
+                const local = ownerEmail.split('@')[0];
+                setResolvedAvatar(toPublicUrl(`/profileImages/${local}.jpg`));
+            });
+    }, [ownerEmail]);
+
     const handleLike = async (e) => {
         e.stopPropagation();
         const token = localStorage.getItem("token");
@@ -95,16 +136,25 @@ function SliceCard({ post, onWatch }) {
         setLiked(newLiked);
         setLikeCount(c => newLiked ? c + 1 : Math.max(0, c - 1));
         try {
-            await fetch(`${API_BASE}/graphql`, {
+            const res = await fetch(`${API_BASE}/graphql`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({
-                    query: `mutation { ${newLiked ? 'likePost' : 'unlikePost'}(postId: "${post.id}") }`
+                    query: `mutation { toggleLike(postId: "${post.id}") { id likes isLikedByCurrentUser } }`
                 })
             });
-        } catch {
+            const json = await res.json();
+            if (json.errors) throw new Error(json.errors[0].message);
+
+            const updated = json.data?.toggleLike;
+            if (updated) {
+                setLikeCount(updated.likes);
+                setLiked(updated.isLikedByCurrentUser);
+            }
+        } catch (err) {
+            console.error("Slice like failed: ", err);
             setLiked(!newLiked);
-            setLikeCount(likeCount);
+            setLikeCount(c => newLiked ? c - 1 : c + 1);
         }
     };
 
@@ -129,10 +179,10 @@ function SliceCard({ post, onWatch }) {
             <div className="slice-meta">
                 <div className="slice-meta-top">
                     {/* Owner avatar */}
-                    <div className="slice-owner">
-                        {avatarUrl
-                            ? <img src={avatarUrl} alt={ownerEmail} className="slice-owner-img" onError={e => e.target.style.display = 'none'} />
-                            : <span>{initials}</span>
+                    <div className="slice-owner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={resolvedName}>
+                        {resolvedAvatar && !avatarError
+                            ? <img src={resolvedAvatar} alt={resolvedName} className="slice-owner-img" onError={() => setAvatarError(true)} />
+                            : <i className="bi bi-person-circle text-white bg-dark rounded-circle" style={{ fontSize: 22, height: 26, width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
                         }
                     </div>
 

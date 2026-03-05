@@ -15,19 +15,80 @@ function toPublicUrl(fsPath) {
 }
 
 /* ── tiny avatar ── */
+const avatarCache = {};
+
 function Avatar({ user = {}, size = 40 }) {
-    const name = user.name || user.email || "User";
-    const initials = name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
-    const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
-    const bg = colors[name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length];
-    const avatarUrl = user.avatar ? toPublicUrl(user.avatar) : null;
+    const userEmail = user.email || user.author || '';
+
+    const fallbackName = [user.userFirstName, user.userLastName].filter(Boolean).join(' ')
+        || user.name || user.author || userEmail || 'User';
+
+    const [avatarUrl, setAvatarUrl] = useState(() => {
+        const raw = user.avatar || user.userProfileImageUrl || null;
+        return (raw && !raw.includes('@')) ? toPublicUrl(raw) : null;
+    });
+
+    const [resolvedName, setResolvedName] = useState(fallbackName);
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        if (!userEmail) return;
+
+        if (avatarCache[userEmail]) {
+            setAvatarUrl(avatarCache[userEmail].url);
+            setResolvedName(avatarCache[userEmail].name);
+            return;
+        }
+
+        fetch(`/graphql`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
+                variables: { email: userEmail }
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                const profile = data?.data?.getUserProfile;
+                const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
+                const finalName = fetchedName || fallbackName;
+
+                const url = profile?.profileImageUrl;
+                if (url) {
+                    const fullUrl = toPublicUrl(url);
+                    avatarCache[userEmail] = { url: fullUrl, name: finalName };
+                    setAvatarUrl(fullUrl);
+                    setResolvedName(finalName);
+                } else {
+                    const local = userEmail.split('@')[0];
+                    const attemptUrl = toPublicUrl(`/profileImages/${local}.jpg`);
+                    avatarCache[userEmail] = { url: attemptUrl, name: finalName };
+                    setAvatarUrl(attemptUrl);
+                    setResolvedName(finalName);
+                }
+            }).catch(() => {
+                const local = userEmail.split('@')[0];
+                setAvatarUrl(toPublicUrl(`/profileImages/${local}.jpg`));
+                setResolvedName(fallbackName);
+            });
+    }, [userEmail, fallbackName]);
+
     return (
-        <div className="rounded-circle overflow-hidden flex-shrink-0"
-            style={{ width: size, height: size, background: bg, border: '2px solid #eee' }}>
-            {avatarUrl
-                ? <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
-                : <div className="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style={{ fontSize: size * 0.35 }}>{initials}</div>
-            }
+        <div className="rounded-circle overflow-hidden flex-shrink-0 bg-light d-flex align-items-center justify-content-center"
+            style={{ width: size, height: size, border: '1px solid #eee', cursor: 'help' }}
+            title={resolvedName}
+        >
+            {avatarUrl && !hasError ? (
+                <img
+                    src={avatarUrl}
+                    alt={resolvedName}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { setHasError(true); e.target.style.display = 'none'; }}
+                />
+            ) : (
+                <i className="bi bi-person-circle text-secondary" style={{ fontSize: size * 0.8, lineHeight: 1 }}></i>
+            )}
         </div>
     );
 }
@@ -167,6 +228,13 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
     const [likeCount, setLikeCount] = useState(post.likes || 0);
     const [views, setViews] = useState(post.views || 0);
 
+    // Sync state when navigating between different videos
+    useEffect(() => {
+        setLiked(!!post.isLikedByCurrentUser);
+        setLikeCount(post.likes || 0);
+        setViews(post.views || 0);
+    }, [post.id, post.likes, post.isLikedByCurrentUser, post.views]);
+
     /* Build full HLS url */
     const hls0 = post.hlsVideoUrls?.[0] || "";
     const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : (post.hlsUrl || "");
@@ -205,14 +273,18 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
         const token = localStorage.getItem("token");
         if (!token) return;
         try {
-            await fetch(`${API_BASE}/graphql`, {
+            const res = await fetch(`${API_BASE}/graphql`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({
-                    query: `mutation { incrementPostView(postId: "${post.id}") }`
+                    query: `mutation { incrementPostViews(postId: "${post.id}") { id views } }`
                 })
             });
-            setViews(v => v + 1);
+            const json = await res.json();
+            const updated = json.data?.incrementPostViews;
+            if (updated) {
+                setViews(updated.views);
+            }
         } catch { }
     };
 
@@ -223,17 +295,26 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
         setLiked(newLiked);
         setLikeCount(c => newLiked ? c + 1 : Math.max(0, c - 1));
         try {
-            await fetch(`${API_BASE}/graphql`, {
+            const res = await fetch(`${API_BASE}/graphql`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
                 body: JSON.stringify({
-                    query: `mutation { ${newLiked ? 'likePost' : 'unlikePost'}(postId: "${post.id}") }`
+                    query: `mutation { toggleLike(postId: "${post.id}") { id likes isLikedByCurrentUser } }`
                 })
             });
-        } catch {
+            const json = await res.json();
+            if (json.errors) throw new Error(json.errors[0].message);
+
+            const updated = json.data?.toggleLike;
+            if (updated) {
+                setLikeCount(updated.likes);
+                setLiked(updated.isLikedByCurrentUser);
+            }
+        } catch (err) {
+            console.error("Watch page like failed:", err);
             /* revert on failure */
-            setLiked(liked);
-            setLikeCount(likeCount);
+            setLiked(!newLiked);
+            setLikeCount(c => newLiked ? c - 1 : c + 1);
         }
     };
 
@@ -270,7 +351,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
 
                     {/* Owner + views */}
                     <div className="d-flex align-items-center gap-2">
-                        <Avatar user={owner} size={40} />
+                        <Avatar user={post} size={40} />
                         <div>
                             <div className="fw-semibold" style={{ fontSize: 14 }}>{ownerName}</div>
                             <div className="text-secondary" style={{ fontSize: 12 }}>

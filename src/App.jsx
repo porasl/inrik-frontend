@@ -174,17 +174,18 @@ function App() {
      FETCH POSTS  (mirrors app.js fetchAllSlicePosts / GraphQL pagination)
   ──────────────────────────────────────────── */
   const fetchPosts = async (pageNum = 0, append = false) => {
+    if (isLoading || !hasNext) return;
     const token = localStorage.getItem("token");
-    if (!token || isLoading || !hasNext) return;
 
     setIsLoading(true);
     try {
+      // Build headers — include auth only when a token exists
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch(`${API_BASE}/graphql`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page: pageNum, size: 15 } }),
       });
 
@@ -194,11 +195,15 @@ function App() {
 
       const items = (data.items || []).map(p => ({
         ...p,
-        // Normalise media URLs the same way app.js does
         thumbnailUrl: toPublicUrl(p.videoImagePath || (p.imageUrls?.[0] ?? "")),
         hlsUrl: p.hlsVideoUrls?.[0]
           ? `${PUBLIC_BASE}/` + p.hlsVideoUrls[0].split("webdata/")[1]
           : "",
+        // Map flat user fields into nested user object that VideoCard/VideoWatchPage expect
+        user: {
+          name: [p.userFirstName, p.userLastName].filter(Boolean).join(" ") || p.author || p.email || "User",
+          avatar: p.userProfileImageUrl || null,
+        },
       }));
 
       setPosts(prev => append ? [...prev, ...items] : items);
@@ -239,12 +244,10 @@ function App() {
     }
   };
 
-  /* ─── Initial load ─── */
+  /* ─── Initial load — always fetch posts (public visible without login) ─── */
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchPosts(0, false);
-      fetchConnections();
-    }
+    fetchPosts(0, false);
+    if (isLoggedIn) fetchConnections();
   }, [isLoggedIn]);
 
   /* ────────────────────────────────────────────

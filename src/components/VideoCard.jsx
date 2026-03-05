@@ -6,67 +6,103 @@ const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
-  if (/^https?:\/\//i.test(fsPath)) return fsPath; // Already a full URL
-
+  if (/^https?:\/\//i.test(fsPath)) return fsPath;
   const norm = String(fsPath).replace(/\\/g, "/");
-
-  // If it's a video path
   if (norm.indexOf("/videos/") >= 0) {
     const rel = norm.slice(norm.indexOf("/videos/"));
     return `${PUBLIC_BASE}${rel}`;
   }
-
-  // If it's a profile image path (likely starts with /images/ or /profile/)
   const cleanPath = norm.startsWith("/") ? norm : `/${norm}`;
   return `${PUBLIC_BASE}${cleanPath}`;
 }
 
+/* ── Format seconds → m:ss ── */
+function formatDuration(seconds) {
+  if (!seconds || isNaN(seconds) || !isFinite(seconds)) return "";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/* ── Owner avatar with initials fallback ── */
+const avatarCache = {};
+
 function OwnerAvatar({ post }) {
-  // 1. Extract the user object from the GraphQL response
   const user = post.user || {};
+  const ownerEmail = post.email || post.author || '';
 
-  // 2. Map GraphQL 'name' to display logic
-  // Your query returns 'name', not 'firstName'/'lastName'
-  const displayName = user.name || post.author || "User";
+  const fallbackName = [post.userFirstName, post.userLastName].filter(Boolean).join(' ')
+    || user.name || post.author || ownerEmail || 'User';
 
-  // 3. Generate initials from the single 'name' string
-  const initials = displayName
-    .split(" ")
-    .map(word => word.charAt(0))
-    .join("")
-    .toUpperCase() || "U";
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    const raw = post.userProfileImageUrl || user.avatar || null;
+    return (raw) ? toPublicUrl(raw) : null;
+  });
 
-  // 4. Use the same color logic based on the name string
-  const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
-  const colorIdx = displayName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length;
+  const [resolvedName, setResolvedName] = useState(fallbackName);
+  const [hasError, setHasError] = useState(false);
 
-  // 5. Use the 'avatar' field from your GraphQL query
-  // Ensure we pass it through toPublicUrl to prepending the IP/Port 3000
-  const avatarUrl = toPublicUrl(user.avatar);
+  useEffect(() => {
+    if (!ownerEmail) return;
+    if (avatarCache[ownerEmail]) {
+      setAvatarUrl(avatarCache[ownerEmail].url);
+      setResolvedName(avatarCache[ownerEmail].name);
+      return;
+    }
+
+    // Attempt to resolve avatar and real name via GraphQL API
+    fetch(`/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
+        variables: { email: ownerEmail }
+      })
+    })
+      .then(r => r.json())
+      .then(data => {
+        const profile = data?.data?.getUserProfile;
+        const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
+        const finalName = fetchedName || fallbackName;
+
+        const url = profile?.profileImageUrl;
+        if (url) {
+          const fullUrl = toPublicUrl(url);
+          avatarCache[ownerEmail] = { url: fullUrl, name: finalName };
+          setAvatarUrl(fullUrl);
+          setResolvedName(finalName);
+        } else {
+          const local = ownerEmail.split('@')[0];
+          const probeUrl = toPublicUrl(`/profileImages/${local}.jpg`);
+          avatarCache[ownerEmail] = { url: probeUrl, name: finalName };
+          setAvatarUrl(probeUrl);
+          setResolvedName(finalName);
+        }
+      })
+      .catch(() => {
+        const local = ownerEmail.split('@')[0];
+        setAvatarUrl(toPublicUrl(`/profileImages/${local}.jpg`));
+        setResolvedName(fallbackName); // Ensure name is set even on fetch error
+      });
+  }, [ownerEmail, fallbackName]);
 
   return (
-    <div className="d-flex align-items-center gap-2">
+    <div className="d-flex align-items-center gap-2" title={resolvedName} style={{ cursor: 'help' }}>
       <div
-        className="rounded-circle overflow-hidden flex-shrink-0 shadow-sm"
-        style={{ width: 28, height: 28, background: colors[colorIdx], border: '1px solid #eee' }}
+        className="rounded-circle overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center bg-light"
+        style={{ width: 30, height: 30, flexShrink: 0 }}
       >
-        {avatarUrl ? (
+        {avatarUrl && !hasError ? (
           <img
             src={avatarUrl}
-            alt={displayName}
+            alt={resolvedName}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            // If the image fails to load, this prevents a broken icon
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={(e) => { setHasError(true); e.target.style.display = 'none'; }}
           />
         ) : (
-          <div className="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style={{ fontSize: 10 }}>
-            {initials.slice(0, 2)}
-          </div>
+          <i className="bi bi-person-circle text-secondary" style={{ fontSize: 30, lineHeight: 1 }}></i>
         )}
       </div>
-      <span className="text-truncate text-secondary fw-medium" style={{ fontSize: 12, maxWidth: 110 }}>
-        {displayName}
-      </span>
     </div>
   );
 }
@@ -74,7 +110,6 @@ function OwnerAvatar({ post }) {
 /* ── EMBED MODAL COMPONENT ── */
 function EmbedModal({ postId, onClose }) {
   const iframeCode = `<iframe src="${window.location.origin}/embed/${postId}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`;
-
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
       <div className="modal-content-custom bg-white p-4 shadow-lg rounded" style={{ maxWidth: 520, width: '90%' }} onClick={e => e.stopPropagation()}>
@@ -83,18 +118,9 @@ function EmbedModal({ postId, onClose }) {
           <button className="btn-close" onClick={onClose}></button>
         </div>
         <p className="text-secondary small mb-2">Copy and paste this code into your website:</p>
-        <textarea
-          className="form-control bg-light mb-3"
-          rows="3"
-          readOnly
-          value={iframeCode}
-          style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
-        />
+        <textarea className="form-control bg-light mb-3" rows="3" readOnly value={iframeCode} style={{ fontSize: '0.8rem', fontFamily: 'monospace' }} />
         <div className="d-flex justify-content-end gap-2">
-          <button className="btn btn-primary btn-sm px-3" onClick={() => {
-            navigator.clipboard.writeText(iframeCode);
-            alert("Copied to clipboard!");
-          }}>
+          <button className="btn btn-primary btn-sm px-3" onClick={() => { navigator.clipboard.writeText(iframeCode); alert("Copied to clipboard!"); }}>
             <i className="bi bi-clipboard me-1"></i>Copy
           </button>
           <button className="btn btn-light btn-sm border" onClick={onClose}>Close</button>
@@ -104,63 +130,118 @@ function EmbedModal({ postId, onClose }) {
   );
 }
 
-/* ── MAIN VIDEOCARD COMPONENT ── */
+/* ═══════════════════════════════════════════
+   MAIN VIDEOCARD COMPONENT
+═══════════════════════════════════════════ */
 export default function VideoCard({ post, onDelete, onWatch }) {
-  // 1. ALL HOOKS DECLARED AT THE TOP (The Fix for the Uncaught Error)
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [showEmbed, setShowEmbed] = useState(false);
+  const [liked, setLiked] = useState(!!post.isLikedByCurrentUser);
+  const [likeCount, setLikeCount] = useState(post.likes || 0);
+  const [views, setViews] = useState(post.views || 0);
+  const [duration, setDuration] = useState(""); // video length for thumbnail badge
 
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const menuRef = useRef(null);
 
-
   const hls0 = post.hlsVideoUrls?.[0] || "";
   const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
   const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
 
-  const getAvatarUrl = (avatar) => {
-    if (!avatar) return null;
-    return avatar.startsWith('http') ? avatar : `${PUBLIC_BASE}${avatar}`;
-  };
-
-  // 2. ALL EFFECTS DECLARED BEFORE THE EARLY RETURN
+  // Reset likes/views if post data changes (handles navigation from other pages)
   useEffect(() => {
-    const clickHandler = (e) => {
+    setLiked(!!post.isLikedByCurrentUser);
+    setLikeCount(post.likes || 0);
+    setViews(post.views || 0);
+  }, [post.likes, post.isLikedByCurrentUser, post.views]);
+
+  /* Close dropdown on outside click */
+  useEffect(() => {
+    const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
     };
-    document.addEventListener('mousedown', clickHandler);
-    return () => document.removeEventListener('mousedown', clickHandler);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  /* Load HLS on hover, capture duration from loadedmetadata */
   useEffect(() => {
     if (isHovered && hlsUrl && videoRef.current) {
+      const video = videoRef.current;
+
+      const onMeta = () => {
+        if (video.duration && isFinite(video.duration)) {
+          setDuration(formatDuration(video.duration));
+        }
+      };
+      video.addEventListener('loadedmetadata', onMeta);
+
       if (Hls.isSupported()) {
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.loadSource(hlsUrl);
-        hls.attachMedia(videoRef.current);
+        hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          videoRef.current.play().catch(() => { });
+          video.play().catch(() => { });
         });
         hlsRef.current = hls;
-      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        videoRef.current.src = hlsUrl;
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = hlsUrl;
       }
+
+      return () => {
+        video.removeEventListener('loadedmetadata', onMeta);
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+      };
     }
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
   }, [isHovered, hlsUrl]);
 
-  // 3. EARLY RETURN AFTER HOOKS (This prevents the React error)
+  /* Like / unlike — uses toggleLike mutation */
+  const toggleLike = async (e) => {
+    e.stopPropagation();
+    const token = localStorage.getItem("token");
+    if (!token) { alert("Please log in to like."); return; }
+
+    const newLiked = !liked;
+    setLiked(newLiked);
+    setLikeCount(c => newLiked ? c + 1 : Math.max(0, c - 1));
+
+    try {
+      const res = await fetch(`/graphql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ query: `mutation { toggleLike(postId: "${post.id}") { id likes isLikedByCurrentUser } }` })
+      });
+      const json = await res.json();
+      if (json.errors) throw new Error(json.errors[0].message);
+
+      // Update with exact numbers from backend if returned
+      const updatedPost = json.data?.toggleLike;
+      if (updatedPost) {
+        setLikeCount(updatedPost.likes);
+        setLiked(updatedPost.isLikedByCurrentUser);
+      }
+    } catch (err) {
+      console.error("Like toggle failed:", err);
+      // Revert on failure
+      setLiked(!newLiked);
+      setLikeCount(c => newLiked ? c - 1 : c + 1);
+    }
+  };
+
+  /* Click card → watch page + bump local view count */
+  const handleWatch = () => {
+    setViews(v => v + 1);
+    onWatch?.(post);
+  };
+
   if (isHidden) return null;
 
-  // 4. MAIN JSX
   return (
     <>
       <div
@@ -168,8 +249,9 @@ export default function VideoCard({ post, onDelete, onWatch }) {
         style={{ width: 300, background: '#fff', borderRadius: '12px', cursor: 'pointer' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={() => onWatch?.(post)}
+        onClick={handleWatch}
       >
+        {/* ── Thumbnail / hover video ── */}
         <div className="position-relative bg-black" style={{ height: 170 }}>
           {isHovered && hlsUrl ? (
             <video
@@ -190,10 +272,17 @@ export default function VideoCard({ post, onDelete, onWatch }) {
             />
           )}
 
-          <span className="position-absolute bottom-0 end-0 bg-black bg-opacity-75 text-white px-2 py-1 m-2 rounded" style={{ fontSize: '0.7rem' }}>
-            <i className="bi bi-eye me-1"></i>{post.views || 0}
-          </span>
+          {/* Duration badge (bottom-right of thumbnail) */}
+          {duration && (
+            <span
+              className="position-absolute bottom-0 end-0 bg-black bg-opacity-75 text-white px-2 py-1 m-2 rounded"
+              style={{ fontSize: '0.7rem', fontWeight: 600 }}
+            >
+              {duration}
+            </span>
+          )}
 
+          {/* Three-dot menu (top-right) */}
           <div className="position-absolute top-0 end-0 m-2" ref={menuRef} style={{ zIndex: 100 }}>
             <button
               className="btn btn-sm bg-white bg-opacity-75 rounded-circle shadow-sm d-flex align-items-center justify-content-center"
@@ -209,14 +298,11 @@ export default function VideoCard({ post, onDelete, onWatch }) {
                   onClick={(e) => { e.stopPropagation(); setIsHidden(true); setMenuOpen(false); }}>
                   <i className="bi bi-eye-slash"></i> Hide
                 </button>
-
                 <button className="dropdown-item py-2 px-3 small d-flex align-items-center gap-2 text-dark"
                   onClick={(e) => { e.stopPropagation(); setShowEmbed(true); setMenuOpen(false); }}>
                   <i className="bi bi-code-slash"></i> Embed
                 </button>
-
                 <hr className="my-1" />
-
                 <button className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -230,19 +316,32 @@ export default function VideoCard({ post, onDelete, onWatch }) {
           </div>
         </div>
 
+        {/* ── Card info row ── */}
         <div className="p-3">
           <h6 className="text-truncate fw-bold mb-2" title={post.title} style={{ color: '#2c3e50' }}>
             {post.title || "Untitled Video"}
           </h6>
 
-          <div className="d-flex align-items-center justify-content-between mt-2">
+          <div className="d-flex align-items-center justify-content-between mt-1">
             <OwnerAvatar post={post} />
+
             <div className="d-flex align-items-center gap-3">
-              <div className="d-flex align-items-center gap-1 text-secondary" style={{ fontSize: 13 }}>
-                <i className={`bi ${post.isLikedByCurrentUser ? 'bi-heart-fill text-danger' : 'bi-heart'}`}></i>
-                <span>{post.likes || 0}</span>
+              {/* View count */}
+              <div className="d-flex align-items-center gap-1 text-secondary" style={{ fontSize: 13 }} title={`${views} Views`}>
+                <i className="bi bi-eye"></i>
+                <span>{views}</span>
               </div>
-              <i className="bi bi-chat text-secondary" style={{ fontSize: 13 }}></i>
+
+              {/* Like button */}
+              <button
+                className="btn btn-link p-0 d-flex align-items-center gap-1 text-decoration-none"
+                style={{ fontSize: 13, color: liked ? '#e74a3b' : '#6c757d', border: 'none', background: 'none' }}
+                onClick={toggleLike}
+                title={liked ? 'Unlike' : 'Like'}
+              >
+                <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'}`}></i>
+                <span>{likeCount}</span>
+              </button>
             </div>
           </div>
         </div>
