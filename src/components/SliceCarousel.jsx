@@ -179,10 +179,10 @@ function SliceCard({ post, onWatch }) {
             <div className="slice-meta">
                 <div className="slice-meta-top">
                     {/* Owner avatar */}
-                    <div className="slice-owner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={resolvedName}>
+                    <div className="slice-owner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'][resolvedName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 7] }} title={resolvedName}>
                         {resolvedAvatar && !avatarError
                             ? <img src={resolvedAvatar} alt={resolvedName} className="slice-owner-img" onError={() => setAvatarError(true)} />
-                            : <i className="bi bi-person-circle text-white bg-dark rounded-circle" style={{ fontSize: 22, height: 26, width: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' }}></i>
+                            : <span className="text-white fw-bold" style={{ fontSize: 13 }}>{resolvedName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "👤"}</span>
                         }
                     </div>
 
