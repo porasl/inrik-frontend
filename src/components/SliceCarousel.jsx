@@ -201,9 +201,7 @@ function SliceCard({ post, onWatch }) {
                     </div>
                 </div>
 
-                <div className="slice-title" title={post.title || "Untitled"}>
-                    {post.title || "Untitled"}
-                </div>
+
             </div>
         </article>
     );
