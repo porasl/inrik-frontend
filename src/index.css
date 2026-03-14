@@ -1,8 +1,8 @@
 /* --- 1. Variables & Global Reset --- */
 :root {
   --nav-h: 65px;
-  --left-w: 100px;
-  --right-w: 300px;
+  --left-w: 80px;
+  --right-w: 225px;
 
   --bg-primary: #ffffff;
   --bg-secondary: #f8f9fa;
@@ -193,6 +193,27 @@ html {
   /* No overflow-y:auto here — the full page scrolls, scrollbar stays at browser right edge */
 }
 
+.video-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem !important;
+  align-items: start;
+}
+
+.video-grid > * {
+  min-width: 0;
+}
+
+.video-card {
+  width: 100%;
+  max-width: none;
+}
+
+.video-card-media {
+  aspect-ratio: 16 / 9;
+  min-height: 160px;
+}
+
 /* --- 6. Rightbar — STICKY --- */
 .rightbar {
   position: sticky;
@@ -231,7 +252,7 @@ html {
 /* Breakpoint 2: Tablet - Slim Sidebar */
 @media (max-width: 992px) {
   :root {
-    --left-w: 80px;
+    --left-w: 64px;
   }
 
   .auth-links-container {
@@ -257,6 +278,14 @@ html {
   .main-content {
     padding: 15px;
     padding-bottom: 80px;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-card-media {
+    min-height: 0;
   }
 
   .login-form input {

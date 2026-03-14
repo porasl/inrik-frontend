@@ -249,14 +249,14 @@ export default function VideoCard({ post, onDelete, onWatch }) {
   return (
     <>
       <div
-        className="card-clean hover-lift overflow-hidden position-relative shadow-sm"
-        style={{ width: 300, background: '#fff', borderRadius: '12px', cursor: 'pointer' }}
+        className="video-card card-clean hover-lift overflow-hidden position-relative shadow-sm"
+        style={{ background: '#fff', borderRadius: '12px', cursor: 'pointer' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleWatch}
       >
         {/* ── Thumbnail / hover video ── */}
-        <div className="position-relative bg-black" style={{ height: 170 }}>
+        <div className="video-card-media position-relative bg-black">
           {isHovered && hlsUrl ? (
             <video
               ref={videoRef}

@@ -101,14 +101,21 @@ function App() {
   /* ─── Upload modal ─── */
   const [showUpload, setShowUpload] = useState(false);
 
+  /* ─── Active sidebar section ─── */
+  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice'
+
   /* Helper: reset to home feed */
-  const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); };
+  const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); setActiveSection('home'); };
+
+  /* Helper: go to Videos — open watch page on the first available post */
+  const goVideos = () => { setShowSlicePage(false); setSliceStartId(null); setActiveSection('videos'); setWatchingPost(posts[0] ?? null); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
     setSliceStartId(postId);
     setShowSlicePage(true);
     setWatchingPost(null);
+    setActiveSection('slice');
   };
 
   /* ────────────────────────────────────────────
@@ -392,7 +399,8 @@ function App() {
       <div className="app-body-wrapper">
         <Sidebar
           onHome={goHome}
-          onSlice={() => { setShowSlicePage(true); setWatchingPost(null); }}
+          onVideos={goVideos}
+          onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
         />
 
         <main className="main-content">
@@ -408,7 +416,7 @@ function App() {
               onHome={goHome}
             />
           ) : (
-            /* ── VIDEO GRID ── */
+            /* ── HOME FEED ── */
             <>
               <SliceCarousel onWatch={(p) => openSlicePage(p.id)} />
               <div className="video-grid d-flex flex-wrap gap-3">
@@ -445,7 +453,7 @@ function App() {
           )}
         </main>
 
-        {/* Only show connections rightbar on feed view */}
+        {/* Only show connections rightbar on feed/videos view */}
         {!watchingPost && !showSlicePage && <Rightbar connections={connections} />}
       </div>
 
