@@ -474,8 +474,8 @@ html {
 #slice-carousel {
   position: relative;
   --slice-gap: 16px;
-  --slice-card-w: clamp(140px, 22vw, 210px);
-  --slice-thumb-h: 230px;
+  --slice-card-w: clamp(112px, 17.6vw, 168px);
+  --slice-thumb-h: 221px;
   --slice-edge-pad: 12px;
   margin-bottom: 4px;
 }
@@ -659,7 +659,379 @@ html {
 
 @media (max-width: 600px) {
   #slice-carousel {
-    --slice-card-w: clamp(130px, 60vw, 200px);
+    --slice-card-w: clamp(104px, 48vw, 160px);
     --slice-gap: 10px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   12. SLICE PAGE (YouTube Shorts-style full-screen)
+═══════════════════════════════════════════════════ */
+
+/* When SlicePage is active, strip padding from main-content */
+.main-content:has(> .slice-page-container),
+.main-content:has(> .slice-page-loading),
+.main-content:has(> .slice-page-empty) {
+  padding: 0 !important;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Outer container — fills the content area */
+.slice-page-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - var(--nav-h));
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* ── Single player ── */
+.slice-page-player {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.slice-page-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* ── Gradient overlays ── */
+.slice-page-top-gradient {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 120px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Bottom info (owner + title) ── */
+.slice-page-info {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 16px 16px 20px;
+  background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, transparent 100%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slice-page-owner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slice-page-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.slice-page-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slice-page-avatar span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.slice-page-owner-name {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+.slice-page-title {
+  color: rgba(255,255,255,0.9);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* ── Progress counter ── */
+.slice-page-progress {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  z-index: 5;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
+/* ── Pause icon flash ── */
+.slice-pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+  animation: pauseFade 0.6s ease forwards;
+}
+
+.slice-pause-overlay .bi {
+  font-size: 72px;
+  color: rgba(255,255,255,0.85);
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+}
+
+@keyframes pauseFade {
+  0%   { opacity: 1; transform: scale(1); }
+  60%  { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
+/* ── Right-side action buttons ── */
+.slice-page-actions {
+  position: absolute;
+  right: 14px;
+  bottom: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  z-index: 5;
+}
+
+.slice-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  transition: transform 0.15s;
+}
+
+.slice-action-btn .bi {
+  font-size: 28px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+}
+
+.slice-action-btn:hover {
+  transform: scale(1.15);
+}
+
+.slice-action-btn.liked .bi {
+  color: #ff4d6d;
+}
+
+.slice-action-btn.liked {
+  animation: likeHeartPop 0.3s ease;
+}
+
+@keyframes likeHeartPop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+.slice-action-btn.static {
+  cursor: default;
+}
+
+/* ── Prev / Next navigation arrows ── */
+.slice-page-nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.slice-page-nav:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+.slice-page-nav--prev { top: 14px; }
+.slice-page-nav--next { bottom: 14px; }
+
+.slice-page-nav.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Thumbnail strip ── */
+.slice-page-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  background: #111;
+  width: 100%;
+  max-width: 420px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-shrink: 0;
+}
+
+.slice-page-strip::-webkit-scrollbar { display: none; }
+
+.slice-strip-dot {
+  flex-shrink: 0;
+  width: 48px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #333;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.slice-strip-dot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.slice-strip-dot-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #444;
+}
+
+.slice-strip-dot.active {
+  border-color: #fff;
+  transform: scale(1.08);
+}
+
+/* ── Loading state ── */
+.slice-page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - var(--nav-h));
+  background: #000;
+  gap: 20px;
+  color: rgba(255,255,255,0.7);
+  font-size: 15px;
+}
+
+.slice-page-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255,255,255,0.15);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty state ── */
+.slice-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - var(--nav-h));
+  background: #111;
+  gap: 12px;
+  color: rgba(255,255,255,0.6);
+  text-align: center;
+  padding: 32px;
+}
+
+.slice-page-empty .bi {
+  font-size: 56px;
+  color: rgba(255,255,255,0.25);
+  margin-bottom: 8px;
+}
+
+.slice-page-empty h3 {
+  color: rgba(255,255,255,0.85);
+  margin: 0;
+}
+
+.slice-page-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .slice-page-player {
+    max-width: 100%;
+  }
+
+  .slice-page-strip {
+    max-width: 100%;
+  }
+
+  .slice-page-actions {
+    right: 8px;
+    bottom: 80px;
+    gap: 16px;
+  }
+
+  .slice-action-btn .bi {
+    font-size: 24px;
   }
 }

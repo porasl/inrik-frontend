@@ -6,6 +6,7 @@ import VideoCard from './components/VideoCard';
 import UploadModal from './components/UploadModal';
 import VideoWatchPage from './components/VideoWatchPage';
 import SliceCarousel from './components/SliceCarousel';
+import SlicePage from './components/SlicePage';
 
 /* ─── Server config ─── */
 const Application_IP = "192.168.4.76";
@@ -93,8 +94,22 @@ function App() {
   /* ─── Watch page state ─── */
   const [watchingPost, setWatchingPost] = useState(null);
 
+  /* ─── Slice page state ─── */
+  const [showSlicePage, setShowSlicePage] = useState(false);
+  const [sliceStartId, setSliceStartId] = useState(null);
+
   /* ─── Upload modal ─── */
   const [showUpload, setShowUpload] = useState(false);
+
+  /* Helper: reset to home feed */
+  const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); };
+
+  /* Helper: open slice page at a specific post */
+  const openSlicePage = (postId = null) => {
+    setSliceStartId(postId);
+    setShowSlicePage(true);
+    setWatchingPost(null);
+  };
 
   /* ────────────────────────────────────────────
      LOGIN  (mirrors app.js loginForm submit)
@@ -171,23 +186,114 @@ function App() {
   };
 
   /* ────────────────────────────────────────────
+     REFRESH ACCESS TOKEN
+     Calls /api/auth/refresh-token with the stored
+     refresh token. Returns the new access token, or
+     null if refresh fails (triggers logout).
+  ──────────────────────────────────────────── */
+  const refreshAccessToken = async () => {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (!refreshToken) {
+      handleLogout();
+      return null;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh-token`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${refreshToken}` },
+      });
+      if (!res.ok) {
+        handleLogout();
+        return null;
+      }
+      const data = await res.json();
+      const newToken = data.access_token;
+      if (!newToken) { handleLogout(); return null; }
+      localStorage.setItem("token", newToken);
+      if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
+      return newToken;
+    } catch {
+      handleLogout();
+      return null;
+    }
+  };
+
+  /* ────────────────────────────────────────────
+     AUTH FETCH
+     Drop-in replacement for fetch() that:
+       1. Attaches the Bearer token automatically.
+       2. On 401, tries to refresh the token once.
+       3. Retries the original request with the new token.
+       4. If refresh also fails, logs the user out.
+  ──────────────────────────────────────────── */
+  const authFetch = async (url, options = {}) => {
+    const token = localStorage.getItem("token");
+    const headers = {
+      ...(options.headers || {}),
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    };
+
+    let res = await fetch(url, { ...options, headers });
+
+    if (res.status === 401) {
+      // Token expired — try to refresh
+      const newToken = await refreshAccessToken();
+      if (!newToken) return res; // logout already triggered
+
+      // Retry with the fresh token
+      const retryHeaders = { ...headers, "Authorization": `Bearer ${newToken}` };
+      res = await fetch(url, { ...options, headers: retryHeaders });
+
+      // If still 401 after refresh, force logout
+      if (res.status === 401) handleLogout();
+    }
+
+    return res;
+  };
+
+  /* ────────────────────────────────────────────
+     STARTUP TOKEN CHECK
+     On mount, if a token exists but looks expired
+     (or on any 401 at startup), silently refresh it
+     so connections and feed load correctly.
+  ──────────────────────────────────────────── */
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || !isLoggedIn) return;
+
+    // Decode JWT payload (no library needed — just base64)
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const expiresAt = payload.exp * 1000; // convert to ms
+      const nowMs = Date.now();
+      const fiveMinMs = 5 * 60 * 1000;
+
+      if (expiresAt - nowMs < fiveMinMs) {
+        // Token is expired or expires within 5 minutes — refresh now
+        refreshAccessToken();
+      }
+    } catch {
+      // Malformed token — try to refresh or logout
+      refreshAccessToken();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ────────────────────────────────────────────
      FETCH POSTS  (mirrors app.js fetchAllSlicePosts / GraphQL pagination)
   ──────────────────────────────────────────── */
   const fetchPosts = async (pageNum = 0, append = false) => {
     if (isLoading || !hasNext) return;
-    const token = localStorage.getItem("token");
 
     setIsLoading(true);
     try {
-      // Build headers — include auth only when a token exists
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/graphql`, {
+      const res = await authFetch(`${API_BASE}/graphql`, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page: pageNum, size: 15 } }),
       });
+
+      if (!res.ok) throw new Error(`GraphQL request failed: ${res.status}`);
 
       const json = await res.json();
       const data = json?.data?.getAllPostsPaged;
@@ -220,15 +326,11 @@ function App() {
      FETCH CONNECTIONS
   ──────────────────────────────────────────── */
   const fetchConnections = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("token")) return;
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me/connections`, {
+      const res = await authFetch(`${API_BASE}/api/auth/me/connections`, {
         method: "GET",
-        headers: {
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`
-        }
+        headers: { "Accept": "application/json" },
       });
       if (!res.ok) throw new Error("Failed to load connections");
       const data = await res.json();
@@ -236,7 +338,7 @@ function App() {
         id: conn.id || conn.email || Math.random(),
         name: [conn.firstname, conn.lastname].filter(Boolean).join(" ") || conn.email,
         avatar: conn.profileImageUrl ? toPublicUrl(conn.profileImageUrl) : null,
-        status: 'offline' // Adjust as needed based on backend
+        status: 'offline'
       }));
       setConnections(mappedConnections);
     } catch (err) {
@@ -288,21 +390,27 @@ function App() {
       />
 
       <div className="app-body-wrapper">
-        <Sidebar onHome={() => setWatchingPost(null)} />
+        <Sidebar
+          onHome={goHome}
+          onSlice={() => { setShowSlicePage(true); setWatchingPost(null); }}
+        />
 
         <main className="main-content">
-          {watchingPost ? (
+          {showSlicePage ? (
+            /* ── SLICE PAGE ── */
+            <SlicePage startPostId={sliceStartId} />
+          ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
               post={watchingPost}
               allPosts={posts}
               onWatch={(p) => setWatchingPost(p)}
-              onHome={() => setWatchingPost(null)}
+              onHome={goHome}
             />
           ) : (
             /* ── VIDEO GRID ── */
             <>
-              <SliceCarousel onWatch={(p) => setWatchingPost(p)} />
+              <SliceCarousel onWatch={(p) => openSlicePage(p.id)} />
               <div className="video-grid d-flex flex-wrap gap-3">
                 {posts.map(post => (
                   <VideoCard
@@ -338,7 +446,7 @@ function App() {
         </main>
 
         {/* Only show connections rightbar on feed view */}
-        {!watchingPost && <Rightbar connections={connections} />}
+        {!watchingPost && !showSlicePage && <Rightbar connections={connections} />}
       </div>
 
       {/* Mobile bottom nav */}
