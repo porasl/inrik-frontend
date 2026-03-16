@@ -243,7 +243,7 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
 /* ═══════════════════════════════════════
    MAIN SlicePage COMPONENT
 ═══════════════════════════════════════ */
-export default function SlicePage({ startPostId = null }) {
+export default function SlicePage({ startPostId = null, onClose }) {
   const [posts, setPosts] = useState([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -279,6 +279,14 @@ export default function SlicePage({ startPostId = null }) {
   if (loading) {
     return (
       <div className="slice-page-loading">
+        <button
+          className="slice-page-close"
+          onClick={onClose}
+          type="button"
+          aria-label="Close Slice page"
+        >
+          <i className="bi bi-x-lg" />
+        </button>
         <div className="slice-page-spinner" />
         <p>Loading Slices…</p>
       </div>
@@ -288,6 +296,14 @@ export default function SlicePage({ startPostId = null }) {
   if (!posts.length) {
     return (
       <div className="slice-page-empty">
+        <button
+          className="slice-page-close"
+          onClick={onClose}
+          type="button"
+          aria-label="Close Slice page"
+        >
+          <i className="bi bi-x-lg" />
+        </button>
         <i className="bi bi-film" />
         <h3>No Slice videos yet</h3>
         <p>Upload a short video and mark it as a Slice to see it here.</p>
@@ -301,6 +317,15 @@ export default function SlicePage({ startPostId = null }) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      <button
+        className="slice-page-close"
+        onClick={(e) => { e.stopPropagation(); onClose?.(); }}
+        type="button"
+        aria-label="Close Slice page"
+      >
+        <i className="bi bi-x-lg" />
+      </button>
+
       <SlicePlayer
         key={posts[index].id}
         post={posts[index]}

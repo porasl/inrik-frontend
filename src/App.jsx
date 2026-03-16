@@ -406,7 +406,7 @@ function App() {
         <main className="main-content">
           {showSlicePage ? (
             /* ── SLICE PAGE ── */
-            <SlicePage startPostId={sliceStartId} />
+            <SlicePage startPostId={sliceStartId} onClose={goHome} />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
