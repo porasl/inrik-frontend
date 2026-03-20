@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
-
-const APPLICATION_IP = "192.168.4.76";
-const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
+import { PUBLIC_BASE } from '../../app.config.js';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";

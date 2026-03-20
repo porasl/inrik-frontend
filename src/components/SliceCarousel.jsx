@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const APPLICATION_IP = "192.168.4.76";
-const PUBLIC_BASE = `http://${APPLICATION_IP}:3000`;
-const API_BASE = "";
+import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -265,7 +262,7 @@ export default function SliceCarousel({ onWatch }) {
     if (loading) {
         return (
             <div id="slice-carousel" className="mb-3">
-                <div className="d-flex gap-3 px-2 overflow-hidden" style={{ height: 280 }}>
+                <div className="d-flex gap-3 px-2 overflow-hidden" style={{ height: 322 }}>
                     {[1, 2, 3, 4, 5].map(i => (
                         <div key={i} className="flex-shrink-0 rounded-3 bg-light" style={{ width: 180, height: '100%', opacity: 0.6 }}></div>
                     ))}

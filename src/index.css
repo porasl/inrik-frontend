@@ -504,7 +504,7 @@ html {
   position: relative;
   --slice-gap: 16px;
   --slice-card-w: clamp(112px, 17.6vw, 168px);
-  --slice-thumb-h: 221px;
+  --slice-thumb-h: 254px;
   --slice-edge-pad: 12px;
   margin-bottom: 4px;
 }

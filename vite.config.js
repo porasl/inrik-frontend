@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-
-const BACKEND = 'http://192.168.4.76:8082';
+import { API_ORIGIN } from './app.config.js'
 
 export default defineConfig({
   plugins: [react()],
@@ -12,22 +11,22 @@ export default defineConfig({
     proxy: {
       // All /graphql and /api/* requests are forwarded to the Java backend
       '/graphql': {
-        target: BACKEND,
+        target: API_ORIGIN,
         changeOrigin: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('Origin', BACKEND);
-            proxyReq.setHeader('Referer', BACKEND + '/');
+            proxyReq.setHeader('Origin', API_ORIGIN);
+            proxyReq.setHeader('Referer', API_ORIGIN + '/');
           });
         }
       },
       '/api': {
-        target: BACKEND,
+        target: API_ORIGIN,
         changeOrigin: true,
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('Origin', BACKEND);
-            proxyReq.setHeader('Referer', BACKEND + '/');
+            proxyReq.setHeader('Origin', API_ORIGIN);
+            proxyReq.setHeader('Referer', API_ORIGIN + '/');
           });
         }
       },
