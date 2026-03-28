@@ -9,9 +9,6 @@ import SliceCarousel from './components/SliceCarousel';
 import SlicePage from './components/SlicePage';
 import { API_BASE, NOTIFY_URL, PUBLIC_BASE } from '../app.config.js';
 
-/* ─── Server config ─── */
-// Empty string routes API calls to Vite proxy instead of causing CORS 403 on backend
-
 /* ─── GraphQL query (mirrors app.js fetchAllSlicePosts / setupGraphQLInfiniteScroll) ─── */
 const GET_POSTS_QUERY = `
   query($page: Int!, $size: Int!) {
@@ -59,7 +56,6 @@ const GET_DATA_QUERY = `
     }
   }
 `;
-/* ─── Helper: convert FS path → public URL (mirrors app.js toPublicUrl) ─── */
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
   if (/^https?:\/\//i.test(fsPath)) return fsPath;
