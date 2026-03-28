@@ -3,7 +3,7 @@ import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome }) {
   const [showUpload, setShowUpload] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -177,11 +177,18 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
                 </div>
               )}
             </div>
-            <img
-              src="resources/images/inrik_logo3_white.png"
-              className="company-logo"
-              alt="Logo"
-            />
+            <button
+              type="button"
+              onClick={onHome}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
+              aria-label="Go to home"
+            >
+              <img
+                src="resources/images/inrik_logo3_white.png"
+                className="company-logo"
+                alt="Logo"
+              />
+            </button>
           </div>
 
           {!isLoggedIn ? (
@@ -263,9 +270,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
                     {profileImg ? (
                       <img src={profileImg} alt="User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <div className="w-100 h-100 d-flex align-items-center justify-content-center fw-bold text-secondary">
-                        {(user?.email || user?.name || 'U').charAt(0).toUpperCase()}
-                      </div>
+                      <i className="bi bi-person-fill text-secondary d-flex justify-content-center align-items-center w-100 h-100"></i>
                     )}
                   </div>
                   <span className="text-dark small fw-bold d-none d-md-inline ms-1">

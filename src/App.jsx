@@ -396,6 +396,7 @@ function App() {
         onLogin={handleLogin}
         onLogout={handleLogout}
         onUploadClick={() => setShowUpload(true)}
+         onHome={goHome}
       />
 
       <div className="app-body-wrapper">
