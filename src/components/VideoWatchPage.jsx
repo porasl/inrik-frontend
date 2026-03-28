@@ -322,7 +322,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
             <div className="video-watch-left">
 
                 {/* Video player */}
-                <div className="rounded-3 overflow-hidden bg-black w-100 shadow" style={{ aspectRatio: '16/9' }}>
+                <div className="rounded-3 overflow-hidden bg-black w-100 shadow video-watch-player" style={{ aspectRatio: '16/9' }}>
                     {hlsUrl ? (
                         <video
                             ref={videoRef}
@@ -344,7 +344,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                 </h5>
 
                 {/* Meta row */}
-                <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
+                <div className="video-watch-meta d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
 
                     {/* Owner + views */}
                     <div className="d-flex align-items-center gap-2">
@@ -358,17 +358,18 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                     </div>
 
                     {/* Actions */}
-                    <div className="d-flex align-items-center gap-2">
+                    <div className="video-watch-actions d-flex align-items-center gap-2">
                         <button
                             className={`btn btn-sm d-flex align-items-center gap-2 fw-semibold px-3 ${liked ? 'btn-danger' : 'btn-outline-secondary'}`}
                             onClick={toggleLike}
                             style={{ borderRadius: 20 }}
                         >
                             <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'}`}></i>
-                            {likeCount.toLocaleString()}
+                            <span className="d-none d-md-inline">{likeCount.toLocaleString()}</span>
+                            <span className="d-md-none">{likeCount}</span>
                         </button>
                         <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 px-3" style={{ borderRadius: 20 }}>
-                            <i className="bi bi-share"></i> Share
+                            <i className="bi bi-share"></i> <span className="d-none d-md-inline">Share</span>
                         </button>
                     </div>
                 </div>
@@ -394,6 +395,36 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                     {related.map(p => (
                         <RelatedVideoRow key={p.id} post={p} onWatch={onWatch} />
                     ))}
+                </div>
+            </div>
+
+            {/* ── MOBILE: Horizontal thumbnail carousel at bottom ── */}
+            <div className="video-watch-mobile-carousel d-md-none">
+                <div className="px-3 mb-2" style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Up Next</div>
+                <div className="d-flex gap-2 overflow-x-auto pb-2 px-3" style={{ scrollBehavior: 'smooth' }}>
+                    {related.map(p => {
+                        const thumb = toPublicUrl(p.videoImagePath || (p.imageUrls?.[0] ?? "")) || p.thumbnailUrl || "";
+                        return (
+                            <div
+                                key={p.id}
+                                className="flex-shrink-0 rounded-2 overflow-hidden cursor-pointer"
+                                style={{ width: 100, height: 56, backgroundColor: '#e9ecef' }}
+                                onClick={() => onWatch(p)}
+                            >
+                                {thumb ? (
+                                    <img
+                                        src={thumb}
+                                        alt={p.title}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                ) : (
+                                    <div className="w-100 h-100 d-flex align-items-center justify-content-center text-secondary">
+                                        <i className="bi bi-play-circle" style={{ fontSize: '1.2rem' }}></i>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>

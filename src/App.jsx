@@ -381,7 +381,7 @@ function App() {
      RENDER
   ──────────────────────────────────────────── */
   return (
-    <div className="app-container">
+    <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'}`}>
       <Navbar
         isLoggedIn={isLoggedIn}
         user={user}
@@ -453,7 +453,10 @@ function App() {
 
       {/* Mobile bottom nav */}
       <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+        <button
+          className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+          onClick={goHome}
+        >
           <i className="bi bi-house-door fs-4"></i>
           <span style={{ fontSize: '10px' }}>Home</span>
         </button>
@@ -467,7 +470,10 @@ function App() {
         >
           <i className="bi bi-plus-circle-fill" style={{ fontSize: '2rem', marginTop: '-12px' }}></i>
         </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+        <button
+          className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+          onClick={goVideos}
+        >
           <i className="bi bi-play-btn fs-4"></i>
           <span style={{ fontSize: '10px' }}>Videos</span>
         </button>
