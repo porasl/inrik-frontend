@@ -27,6 +27,14 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
 
   useEffect(() => {
     setShowMobileMenu(false);
+    if (!isLoggedIn) {
+      setEmail('');
+      setPassword('');
+      const active = document.activeElement;
+      if (active && typeof active.blur === 'function') {
+        active.blur();
+      }
+    }
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -56,9 +64,10 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
     };
   }, [showMobileMenu]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin(email, password);
+    await onLogin(email, password);
+    setActiveModal(null);
   };
 
   const closeMobileMenu = () => setShowMobileMenu(false);
@@ -69,7 +78,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
         <div className="header-inner px-3">
           {/* --- LOGO --- */}
           <div className="logo-container">
-            <div className="mobile-menu-anchor d-md-none" ref={mobileMenuRef}>
+            <div className="mobile-menu-anchor d-lg-none" ref={mobileMenuRef}>
               <button
                 type="button"
                 className="btn btn-sm btn-outline-secondary mobile-header-menu-btn mobile-menu-left"
@@ -90,6 +99,16 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
                 <div className="mobile-header-menu-panel">
                   {!isLoggedIn ? (
                     <>
+                      <button
+                        type="button"
+                        className="mobile-header-menu-item"
+                        onClick={() => {
+                          setActiveModal('login');
+                          closeMobileMenu();
+                        }}
+                      >
+                        <i className="bi bi-box-arrow-in-right me-2"></i> Login
+                      </button>
                       <button
                         type="button"
                         className="mobile-header-menu-item"
@@ -166,41 +185,26 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
           </div>
 
           {!isLoggedIn ? (
-            <div className="header-auth-area d-flex align-items-center gap-2">
-              {/* LOGIN GROUP (Inputs on top, links underneath) */}
+            <div className="header-auth-area d-none d-lg-flex align-items-center gap-2">
               <div className="login-section-wrapper d-flex flex-column align-items-end">
-                <form onSubmit={handleSubmit} className="login-header-form d-flex align-items-center gap-2">
-                  <input
-                    type="email"
-                    className="form-control form-control-sm login-header-input"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                  <input
-                    type="password"
-                    className="form-control form-control-sm login-header-input"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button className="btn btn-primary btn-sm px-3 fw-bold login-header-btn" type="submit">
+                <div className="d-flex align-items-center gap-2">
+                  <button
+                    className="btn btn-primary btn-sm px-3 fw-bold login-header-btn"
+                    type="button"
+                    onClick={() => setActiveModal('login')}
+                  >
                     Login
                   </button>
-                </form>
-
-                {/* Links aligned under the inputs */}
-                <div className="login-sub-links d-flex gap-3 mt-1 pe-5">
                   <button
-                    className="btn btn-link p-0 header-sub-link"
-                    style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
-                    onClick={() => setActiveModal('register')}
+                    className="btn btn-outline-secondary btn-sm px-3"
                     type="button"
+                    onClick={() => setActiveModal('register')}
                   >
                     Sign On
                   </button>
+                </div>
+
+                <div className="login-sub-links d-flex gap-3 mt-1 pe-1">
                   <button
                     className="btn btn-link p-0 header-sub-link"
                     style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
@@ -280,6 +284,39 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout }) {
       </nav>
 
       {/* --- AUTH MODALS --- */}
+      {activeModal === 'login' && (
+        <div className="modal-overlay" aria-modal="true">
+          <div className="modal-content-custom" style={{ maxWidth: 420 }}>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="mb-0 fw-bold">Login</h5>
+              <button type="button" className="btn btn-sm btn-light" onClick={() => setActiveModal(null)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="d-flex flex-column gap-2">
+              <input
+                type="email"
+                className="form-control"
+                style={{ fontSize: '16px' }}
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                className="form-control"
+                style={{ fontSize: '16px' }}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button className="btn btn-primary mt-2" type="submit">Login</button>
+            </form>
+          </div>
+        </div>
+      )}
       {activeModal === 'register' && <RegisterModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'forgot' && <ForgotPasswordModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'activate' && <ActivateModal onClose={() => setActiveModal(null)} />}

@@ -162,6 +162,10 @@ function App() {
         avatar: profileUrl || null,
       };
       setUser(userData);
+      setWatchingPost(null);
+      setShowSlicePage(false);
+      setSliceStartId(null);
+      setActiveSection('home');
       setIsLoggedIn(true);
     } catch (err) {
       console.error("Login error:", err);
@@ -184,6 +188,10 @@ function App() {
     setConnections([]);
     setPage(0);
     setHasNext(true);
+    setWatchingPost(null);
+    setShowSlicePage(false);
+    setSliceStartId(null);
+    setActiveSection('home');
   };
 
   /* ────────────────────────────────────────────
@@ -452,7 +460,7 @@ function App() {
       </div>
 
       {/* Mobile bottom nav */}
-      <div className="mobile-nav d-md-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
+      <div className="mobile-nav d-lg-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
         <button
           className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
           onClick={goHome}

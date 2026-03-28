@@ -352,7 +352,7 @@ html {
 }
 
 /* Breakpoint 3: Mobile - Hide Sidebar */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   :root {
     --nav-h: 88px;
   }
@@ -416,6 +416,7 @@ html {
   .nav-right-group {
     margin-left: auto;
     gap: 5px !important;
+  }
 
   .nav-user-block {
     padding-right: 6px !important;
@@ -488,7 +489,7 @@ html {
   }
 
   .app-container.is-logged-in .main-content {
-    padding-top: 8px;
+    padding: 8px 15px 80px;
   }
 
   .video-grid {
@@ -518,7 +519,7 @@ html {
   }
 
   .app-container.is-logged-in .main-content {
-    padding-top: 6px;
+    padding: 6px 12px 80px;
   }
 
   .mobile-header-menu-panel {
@@ -576,13 +577,13 @@ html {
 }
 
 /* Mobile nav */
-@media (min-width: 768px) {
+@media (min-width: 992px) {
   .mobile-nav {
     display: none !important;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   .mobile-nav {
     height: auto;
     min-height: 70px;
@@ -592,6 +593,46 @@ html {
   .main-content {
     margin-bottom: 80px;
     padding: 15px;
+  }
+}
+
+/* Keep side gutters on larger mobile and tablet-sized screens */
+@media (max-width: 1200px) {
+  .header-bar {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  .header-inner.px-3 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .main-content {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  .app-container.is-logged-in .main-content {
+    padding-left: max(14px, env(safe-area-inset-left)) !important;
+    padding-right: max(14px, env(safe-area-inset-right)) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .header-bar {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+
+  .main-content {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+
+  .app-container.is-logged-in .main-content {
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
   }
 }
 
