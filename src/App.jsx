@@ -113,7 +113,7 @@ function App() {
   };
 
   /* ────────────────────────────────────────────
-     LOGIN  (mirrors app.js loginForm submit)
+     LOGIN 
   ──────────────────────────────────────────── */
   const handleLogin = async (email, password) => {
     try {
@@ -174,7 +174,7 @@ function App() {
   };
 
   /* ────────────────────────────────────────────
-     LOGOUT  (mirrors app.js cleanSession)
+     LOGOUT  
   ──────────────────────────────────────────── */
   const handleLogout = () => {
     [
@@ -362,7 +362,7 @@ function App() {
   }, [isLoggedIn]);
 
   /* ────────────────────────────────────────────
-     DELETE POST  (mirrors app.js handleAction 'delete')
+     DELETE POST  
   ──────────────────────────────────────────── */
   const handleDeletePost = async (postId) => {
     if (!window.confirm("Are you sure you want to delete this video? This cannot be undone.")) return;
@@ -385,9 +385,9 @@ function App() {
     }
   };
 
-  /* ────────────────────────────────────────────
+  /* ─────────
      RENDER
-  ──────────────────────────────────────────── */
+  ───────────── */
   return (
     <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'}`}>
       <Navbar
