@@ -1,18 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
-  const [uploadedFiles, setUploadedFiles] = useState([]); // List of {name, format}
+  const [uploadItems, setUploadItems] = useState([]); // List of {id, name, format, kind, progress, status, previewUrl}
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [isMemory, setIsMemory] = useState(false);
   const [isEvent, setIsEvent] = useState(false);
   const [isSlice, setIsSlice] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const removedIdsRef = useRef(new Set());
 
-  // 1. Initial/Subsequent Upload
-  const handleFileChange = async (selectedFile) => {
-    if (!selectedFile) return;
-    setUploading(true);
+  useEffect(() => {
+    return () => {
+      uploadItems.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, [uploadItems]);
+
+  const getFileKind = (file) => {
+    const mime = (file?.type || '').toLowerCase();
+    const ext = (file?.name?.split('.').pop() || '').toLowerCase();
+
+    if (mime.startsWith('video/')) return 'Video';
+    if (mime.startsWith('audio/')) return 'Audio';
+    if (mime.startsWith('image/')) return 'Image';
+
+    if (['mp3', 'wav', 'aac', 'ogg', 'm4a', 'flac'].includes(ext)) return 'Audio';
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v'].includes(ext)) return 'Video';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'Image';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel';
+    if (['doc', 'docx', 'txt', 'rtf', 'pdf'].includes(ext)) return 'Document';
+    if (['php'].includes(ext)) return 'Code';
+
+    return 'File';
+  };
+
+  const getKindIcon = (kind) => {
+    if (kind === 'Video') return 'bi-film';
+    if (kind === 'Audio') return 'bi-music-note-beamed';
+    if (kind === 'Image') return 'bi-image';
+    if (kind === 'Excel') return 'bi-file-earmark-spreadsheet';
+    if (kind === 'Document') return 'bi-file-earmark-text';
+    if (kind === 'Code') return 'bi-file-earmark-code';
+    return 'bi-file-earmark';
+  };
+
+  const hasPreview = (kind) => kind === 'Image' || kind === 'Video' || kind === 'Audio';
+
+  const updateItem = (id, patch) => {
+    setUploadItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
+  const uploadSingleFile = (selectedFile, onProgress) => {
+    if (!selectedFile) return Promise.resolve({ ok: false, error: 'No file selected' });
 
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
@@ -20,7 +62,6 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     const formData = new FormData();
     formData.append("file", selectedFile);
 
-    // Ensure we send "0" or valid ID, never null/undefined strings
     const savedPostId = localStorage.getItem("postId");
     formData.append("postId", savedPostId && savedPostId !== "undefined" ? savedPostId : "");
 
@@ -28,49 +69,115 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     formData.append("author", userId || "");
     formData.append("description", description || "");
 
-    // Backend often expects "true"/"false" as strings or 1/0 for multipart
     formData.append("ispublic", String(isPublic));
     formData.append("ismemory", String(isMemory));
     formData.append("isevent", String(isEvent));
     formData.append("isslice", String(isSlice));
 
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${apiBase}/api/upload`, true);
+
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let data = {};
+          try {
+            data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+          } catch (parseError) {
+            resolve({ ok: false, error: `Invalid server response: ${parseError.message}` });
+            return;
+          }
+
+          if (data.id) {
+            localStorage.setItem("postId", data.id);
+          }
+          resolve({ ok: true, data });
+          return;
+        }
+
+        resolve({ ok: false, error: `Server returned ${xhr.status}: ${xhr.responseText || 'Upload failed'}` });
+      };
+
+      xhr.onerror = () => {
+        resolve({ ok: false, error: 'Network error during upload' });
+      };
+
+      xhr.send(formData);
+    });
+  };
+
+  // 1. Initial/Subsequent Upload (supports multiple files)
+  const handleFileChange = async (selectedFiles) => {
+    const files = Array.from(selectedFiles || []);
+    if (!files.length) return;
+
+    const newItems = files.map((file) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const kind = getFileKind(file);
+      const ext = (file.name.split('.').pop() || 'FILE').toUpperCase();
+      const previewUrl = hasPreview(kind) ? URL.createObjectURL(file) : '';
+      return {
+        id,
+        file,
+        name: file.name,
+        format: ext,
+        kind,
+        progress: 0,
+        status: 'queued',
+        error: '' ,
+        previewUrl
+      };
+    });
+
+    setUploadItems((prev) => [...prev, ...newItems]);
+
+    setUploading(true);
+
     try {
-      const response = await fetch(`${apiBase}/api/upload`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-          // Note: Do NOT set 'Content-Type' header here, 
-          // the browser must set it automatically for FormData
-        },
-        body: formData
-      });
+      for (let i = 0; i < newItems.length; i += 1) {
+        const current = newItems[i];
+        if (removedIdsRef.current.has(current.id)) continue;
 
-      // Handle non-JSON errors (like the 500 error you saw)
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Server Error Text:", errorText);
-        throw new Error(`Server returned ${response.status}: ${errorText}`);
+        setUploadStatus(`Uploading ${i + 1} of ${newItems.length}: ${current.name}`);
+        updateItem(current.id, { status: 'uploading', progress: 0, error: '' });
+
+        const result = await uploadSingleFile(current.file, (percent) => {
+          if (!removedIdsRef.current.has(current.id)) {
+            updateItem(current.id, { progress: percent });
+          }
+        });
+
+        if (removedIdsRef.current.has(current.id)) continue;
+
+        if (result.ok) {
+          updateItem(current.id, { status: 'uploaded', progress: 100 });
+        } else {
+          updateItem(current.id, { status: 'failed', error: result.error || 'Upload failed' });
+        }
       }
-
-      const data = await response.json();
-
-      if (data.id) {
-        localStorage.setItem("postId", data.id);
-        const fileExt = selectedFile.name.split('.').pop().toUpperCase();
-        setUploadedFiles(prev => [...prev, { name: selectedFile.name, format: fileExt }]);
-      }
-    } catch (err) {
-      console.error("Upload error details:", err);
-      alert("Upload failed. Check console for server error message.");
     } finally {
       setUploading(false);
+      setUploadStatus('');
     }
   };
 
   // 2. Final Submit (Update the post metadata)
   const handleFinalSubmit = async () => {
     const savedPostId = localStorage.getItem("postId");
-    if (!savedPostId || uploadedFiles.length === 0) {
+    const successfulItems = uploadItems.filter((item) => item.status === 'uploaded');
+
+    if (!savedPostId || successfulItems.length === 0) {
       alert("Please upload at least one file first.");
       return;
     }
@@ -106,9 +213,21 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     }
   };
 
+  const handleRemoveItem = (itemId) => {
+    removedIdsRef.current.add(itemId);
+
+    setUploadItems((prev) => {
+      const target = prev.find((item) => item.id === itemId);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((item) => item.id !== itemId);
+    });
+  };
+
   const onDrop = (e) => {
     e.preventDefault();
-    handleFileChange(e.dataTransfer.files[0]);
+    handleFileChange(e.dataTransfer.files);
   };
 
   return (
@@ -129,25 +248,73 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
           {uploading ? (
             <div className="py-2">
               <div className="spinner-border spinner-border-sm text-primary me-2"></div>
-              <span className="small">Syncing with server...</span>
+              <span className="small">{uploadStatus || 'Syncing with server...'}</span>
             </div>
           ) : (
             <>
-              <p className="small mb-2 text-muted">Drag & Drop or browse to add more files</p>
-              <input type="file" className="d-none" id="multiInput" onChange={e => handleFileChange(e.target.files[0])} />
+              <p className="small mb-2 text-muted">Drag & Drop or browse to add multiple files (video, mp3, image, docs, excel, php)</p>
+              <input
+                type="file"
+                className="d-none"
+                id="multiInput"
+                multiple
+                accept="video/*,audio/*,image/*,.mp3,.wav,.aac,.ogg,.m4a,.flac,.mp4,.mov,.avi,.mkv,.webm,.m4v,.jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.xls,.xlsx,.csv,.doc,.docx,.txt,.rtf,.pdf,.php"
+                onChange={e => {
+                  handleFileChange(e.target.files);
+                  e.target.value = '';
+                }}
+              />
               <label htmlFor="multiInput" className="btn btn-sm btn-outline-primary">Add File</label>
             </>
           )}
         </div>
 
         {/* Uploaded Files List */}
-        {uploadedFiles.length > 0 && (
-          <div className="uploaded-list mb-3 border rounded p-2" style={{ maxHeight: '120px', overflowY: 'auto', backgroundColor: '#fff' }}>
+        {uploadItems.length > 0 && (
+          <div className="uploaded-list mb-3 border rounded p-2" style={{ maxHeight: '220px', overflowY: 'auto', backgroundColor: '#fff' }}>
             <label className="x-small fw-bold text-uppercase text-secondary mb-1 d-block" style={{ fontSize: '10px' }}>Attached to Post:</label>
-            {uploadedFiles.map((f, index) => (
-              <div key={index} className="d-flex justify-content-between align-items-center border-bottom py-1">
-                <span className="small text-truncate me-2" style={{ maxWidth: '200px' }}>{f.name}</span>
-                <span className="badge bg-dark" style={{ fontSize: '10px' }}>{f.format}</span>
+            {uploadItems.map((f) => (
+              <div key={f.id} className="d-flex justify-content-between align-items-start border-bottom py-2 gap-2">
+                <div className="d-flex align-items-start gap-2 flex-grow-1" style={{ minWidth: 0 }}>
+                  <div className="border rounded d-flex align-items-center justify-content-center bg-light" style={{ width: '42px', height: '42px', flexShrink: 0 }}>
+                    {f.kind === 'Image' && f.previewUrl ? (
+                      <img src={f.previewUrl} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} />
+                    ) : (
+                      <i className={`bi ${getKindIcon(f.kind)} text-secondary`} style={{ fontSize: '18px' }}></i>
+                    )}
+                  </div>
+
+                  <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                    <div className="small text-truncate me-2" title={f.name}>{f.name}</div>
+                    <div className="d-flex align-items-center gap-1 flex-wrap mt-1">
+                      <span className="badge bg-secondary" style={{ fontSize: '10px' }}>{f.kind}</span>
+                      <span className="badge bg-dark" style={{ fontSize: '10px' }}>{f.format}</span>
+                      {f.status === 'uploading' && <span className="badge bg-info text-dark" style={{ fontSize: '10px' }}>{f.progress}%</span>}
+                      {f.status === 'uploaded' && <span className="badge bg-success" style={{ fontSize: '10px' }}>Uploaded</span>}
+                      {f.status === 'failed' && <span className="badge bg-danger" style={{ fontSize: '10px' }}>Failed</span>}
+                    </div>
+
+                    {(f.status === 'uploading' || f.status === 'queued') && (
+                      <div className="progress mt-1" style={{ height: '4px' }}>
+                        <div className="progress-bar" role="progressbar" style={{ width: `${Math.max(2, f.progress)}%` }} aria-valuenow={f.progress} aria-valuemin="0" aria-valuemax="100" />
+                      </div>
+                    )}
+
+                    {f.error && (
+                      <div className="text-danger" style={{ fontSize: '11px' }}>{f.error}</div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger"
+                  onClick={() => handleRemoveItem(f.id)}
+                  title="Remove"
+                  disabled={f.status === 'uploading'}
+                >
+                  <i className="bi bi-x"></i>
+                </button>
               </div>
             ))}
           </div>
@@ -176,7 +343,9 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
         <div className="d-flex justify-content-end gap-2 pt-2 border-top">
           <button className="btn btn-light btn-sm border" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary btn-sm px-4 fw-bold" onClick={handleFinalSubmit}>
-            {uploadedFiles.length > 1 ? `Submit ${uploadedFiles.length} Items` : "Submit Post"}
+            {uploadItems.filter((item) => item.status === 'uploaded').length > 1
+              ? `Submit ${uploadItems.filter((item) => item.status === 'uploaded').length} Items`
+              : "Submit Post"}
           </button>
         </div>
       </div>
