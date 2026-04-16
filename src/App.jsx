@@ -7,6 +7,7 @@ import UploadModal from './components/UploadModal';
 import VideoWatchPage from './components/VideoWatchPage';
 import SliceCarousel from './components/SliceCarousel';
 import SlicePage from './components/SlicePage';
+import AudioPage from './components/AudioPage';
 import { API_BASE, NOTIFY_URL, PUBLIC_BASE } from '../app.config.js';
 
 /* ─── GraphQL query (mirrors app.js fetchAllSlicePosts / setupGraphQLInfiniteScroll) ─── */
@@ -96,13 +97,16 @@ function App() {
   const [showUpload, setShowUpload] = useState(false);
 
   /* ─── Active sidebar section ─── */
-  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice'
+  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio'
 
   /* Helper: reset to home feed */
   const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); setActiveSection('home'); };
 
   /* Helper: go to Videos — open watch page on the first available post */
   const goVideos = () => { setShowSlicePage(false); setSliceStartId(null); setActiveSection('videos'); setWatchingPost(posts[0] ?? null); };
+
+  /* Helper: show audio page */
+  const goAudio = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('audio'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -403,6 +407,7 @@ function App() {
         <Sidebar
           onHome={goHome}
           onVideos={goVideos}
+          onAudio={goAudio}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
         />
 
@@ -410,6 +415,16 @@ function App() {
           {showSlicePage ? (
             /* ── SLICE PAGE ── */
             <SlicePage startPostId={sliceStartId} onClose={goHome} />
+          ) : activeSection === 'audio' ? (
+            /* ── AUDIO PAGE ── */
+            <AudioPage
+              posts={posts}
+              isLoggedIn={isLoggedIn}
+              onUploadAudio={() => setShowUpload(true)}
+              hasNext={hasNext}
+              isLoading={isLoading}
+              onLoadMore={() => fetchPosts(page + 1, true)}
+            />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
@@ -486,7 +501,7 @@ function App() {
           <i className="bi bi-play-btn fs-4"></i>
           <span style={{ fontSize: '10px' }}>Videos</span>
         </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goAudio}>
           <i className="bi bi-music-note-beamed fs-4"></i>
           <span style={{ fontSize: '10px' }}>Audio</span>
         </button>

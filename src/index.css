@@ -382,7 +382,7 @@ html {
 
   .logo-container {
     width: auto;
-    padding-left: 0;
+    padding-left: 8px;
     display: flex;
     align-items: center;
   }
