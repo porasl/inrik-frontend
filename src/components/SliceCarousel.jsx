@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from '../services/postsService';
+import { getUserProfileCached } from '../services/userProfileService';
+import useDelayedVisibility from '../hooks/useDelayedVisibility';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -8,60 +11,6 @@ function toPublicUrl(fsPath) {
     const idx = norm.indexOf("/videos/");
     const rel = idx >= 0 ? norm.slice(idx) : (norm.startsWith("/") ? norm : `/${norm}`);
     return `${PUBLIC_BASE}${rel}`;
-}
-
-/* ── Fetch all slice posts (mirrors app.js fetchAllSlicePosts) ── */
-async function fetchSlicePosts(pageSize = 30) {
-    const token = localStorage.getItem("token");
-    // Build headers — include auth only if logged in
-    const headers = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-    const query = `
-    query($page: Int!, $size: Int!) {
-      getAllPostsPaged(page: $page, size: $size) {
-        items {
-          id
-          title: description
-          imageUrls
-          videoImagePath
-          hlsVideoUrls
-          slice
-          views
-          likes
-          isLikedByCurrentUser
-          userProfileImageUrl
-          userFirstName
-          userLastName
-          email
-          author
-        }
-        pageInfo { page size hasNext }
-      }
-    }
-  `;
-
-    let page = 0;
-    let all = [];
-
-    while (true) {
-        const res = await fetch(`${API_BASE}/graphql`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ query, variables: { page, size: pageSize } }),
-        });
-        const json = await res.json();
-        const data = json?.data?.getAllPostsPaged;
-        if (!data) break;
-
-        /* Only keep slice === true */
-        const sliceItems = (data.items || []).filter(p => p.slice === true);
-        all = all.concat(sliceItems);
-
-        if (!data.pageInfo?.hasNext) break;
-        page += 1;
-    }
-    return all;
 }
 
 /* ── Single slice card ── */
@@ -97,17 +46,8 @@ function SliceCard({ post, onWatch }) {
     useEffect(() => {
         if (!ownerEmail) return;
 
-        fetch(`/graphql`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
-                variables: { email: ownerEmail }
-            })
-        })
-            .then(r => r.json())
-            .then(data => {
-                const profile = data?.data?.getUserProfile;
+        getUserProfileCached(ownerEmail)
+            .then((profile) => {
                 const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
                 if (fetchedName) setResolvedName(fetchedName);
 
@@ -210,15 +150,44 @@ function SliceCard({ post, onWatch }) {
 export default function SliceCarousel({ onWatch }) {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const showRefreshing = useDelayedVisibility(isRefreshing, {
+        showDelayMs: 120,
+        minVisibleMs: 420,
+    });
     const railRef = useRef(null);
     const prevRef = useRef(null);
     const nextRef = useRef(null);
+    const didRunInitialFetch = useRef(false);
 
     useEffect(() => {
-        fetchSlicePosts(30)
+        if (didRunInitialFetch.current) return;
+        didRunInitialFetch.current = true;
+
+        getSlicePostsCached()
             .then(setPosts)
             .catch(err => console.error("Slice fetch error:", err))
             .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = subscribePostsCacheUpdates(({ key, items }) => {
+            const tokenKey = localStorage.getItem('token') || 'anonymous';
+            if (key !== tokenKey) return;
+            setPosts(items.filter((p) => p.slice === true));
+        });
+
+        return unsubscribe;
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = subscribePostsRefreshStatus(({ key, refreshing }) => {
+            const tokenKey = localStorage.getItem('token') || 'anonymous';
+            if (key !== tokenKey) return;
+            setIsRefreshing(refreshing);
+        });
+
+        return unsubscribe;
     }, []);
 
     /* Arrow visibility (mirrors app.js updateArrows) */
@@ -275,6 +244,14 @@ export default function SliceCarousel({ onWatch }) {
 
     return (
         <div id="slice-carousel" className="mb-3">
+            {showRefreshing && (
+                <div className="mb-2 px-2">
+                    <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
+                        <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                        Refreshing slices...
+                    </span>
+                </div>
+            )}
             <div className="slice-wrap">
                 {/* Rail */}
                 <div className="slice-rail" ref={railRef}>

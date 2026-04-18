@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { getUserProfileCached } from '../services/userProfileService';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -37,17 +38,8 @@ function Avatar({ user = {}, size = 40 }) {
             return;
         }
 
-        fetch(`/graphql`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
-                variables: { email: userEmail }
-            })
-        })
-            .then(r => r.json())
-            .then(data => {
-                const profile = data?.data?.getUserProfile;
+        getUserProfileCached(userEmail)
+            .then((profile) => {
                 const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
                 const finalName = fetchedName || fallbackName;
 

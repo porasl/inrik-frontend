@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { PUBLIC_BASE } from '../../app.config.js';
+import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from '../services/postsService';
+import useDelayedVisibility from '../hooks/useDelayedVisibility';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -8,41 +10,6 @@ function toPublicUrl(fsPath) {
   const idx = norm.indexOf("/videos/");
   const rel = idx >= 0 ? norm.slice(idx) : (norm.startsWith("/") ? norm : `/${norm}`);
   return `${PUBLIC_BASE}${rel}`;
-}
-
-/* ── Fetch all slice posts ── */
-async function fetchSlicePosts(pageSize = 50) {
-  const token = localStorage.getItem("token");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  const query = `
-    query($page: Int!, $size: Int!) {
-      getAllPostsPaged(page: $page, size: $size) {
-        items {
-          id title: description imageUrls videoImagePath
-          hlsVideoUrls slice views likes isLikedByCurrentUser
-          userProfileImageUrl userFirstName userLastName email author
-        }
-        pageInfo { page size hasNext }
-      }
-    }
-  `;
-
-  let page = 0, all = [];
-  while (true) {
-    const res = await fetch(`${API_BASE}/graphql`, {
-      method: "POST", headers,
-      body: JSON.stringify({ query, variables: { page, size: pageSize } }),
-    });
-    const json = await res.json();
-    const data = json?.data?.getAllPostsPaged;
-    if (!data) break;
-    all = all.concat((data.items || []).filter(p => p.slice === true));
-    if (!data.pageInfo?.hasNext) break;
-    page += 1;
-  }
-  return all;
 }
 
 /* ── Single full-screen Slice player ── */
@@ -244,9 +211,30 @@ export default function SlicePage({ startPostId = null, onClose }) {
   const [posts, setPosts] = useState([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const showRefreshing = useDelayedVisibility(isRefreshing, {
+    showDelayMs: 120,
+    minVisibleMs: 420,
+  });
+  const didRunInitialFetch = useRef(false);
+  const activePostIdRef = useRef(null);
 
   useEffect(() => {
-    fetchSlicePosts(50)
+    activePostIdRef.current = posts[index]?.id || null;
+  }, [posts, index]);
+
+  useEffect(() => {
+    if (didRunInitialFetch.current && posts.length) {
+      if (startPostId) {
+        const idx = posts.findIndex((p) => p.id === startPostId);
+        if (idx >= 0) setIndex(idx);
+      }
+      return;
+    }
+
+    didRunInitialFetch.current = true;
+
+    getSlicePostsCached()
       .then(fetched => {
         setPosts(fetched);
         // Jump to the clicked post if a startPostId was provided
@@ -257,7 +245,45 @@ export default function SlicePage({ startPostId = null, onClose }) {
       })
       .catch(err => console.error("SlicePage fetch error:", err))
       .finally(() => setLoading(false));
-  }, [startPostId]);
+  }, [startPostId, posts]);
+
+  useEffect(() => {
+    const unsubscribe = subscribePostsCacheUpdates(({ key, items }) => {
+      const tokenKey = localStorage.getItem('token') || 'anonymous';
+      if (key !== tokenKey) return;
+
+      const nextSlicePosts = items.filter((p) => p.slice === true);
+      setPosts(nextSlicePosts);
+
+      if (!nextSlicePosts.length) {
+        setIndex(0);
+        return;
+      }
+
+      const currentId = activePostIdRef.current;
+      if (currentId) {
+        const nextIdx = nextSlicePosts.findIndex((p) => p.id === currentId);
+        if (nextIdx >= 0) {
+          setIndex(nextIdx);
+          return;
+        }
+      }
+
+      setIndex((prev) => Math.max(0, Math.min(prev, nextSlicePosts.length - 1)));
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribePostsRefreshStatus(({ key, refreshing }) => {
+      const tokenKey = localStorage.getItem('token') || 'anonymous';
+      if (key !== tokenKey) return;
+      setIsRefreshing(refreshing);
+    });
+
+    return unsubscribe;
+  }, []);
 
   const goNext = useCallback(() => setIndex(i => Math.min(i + 1, posts.length - 1)), [posts.length]);
   const goPrev = useCallback(() => setIndex(i => Math.max(i - 1, 0)), []);
@@ -314,6 +340,15 @@ export default function SlicePage({ startPostId = null, onClose }) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {showRefreshing && (
+        <div className="position-absolute top-0 start-0 m-3" style={{ zIndex: 30 }}>
+          <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
+            <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+            Refreshing slices...
+          </span>
+        </div>
+      )}
+
       <button
         className="slice-page-close"
         onClick={(e) => { e.stopPropagation(); onClose?.(); }}

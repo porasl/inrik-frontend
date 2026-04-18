@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Rightbar from './components/Rightbar';
@@ -8,55 +8,12 @@ import VideoWatchPage from './components/VideoWatchPage';
 import SliceCarousel from './components/SliceCarousel';
 import SlicePage from './components/SlicePage';
 import AudioPage from './components/AudioPage';
-import { API_BASE, NOTIFY_URL, PUBLIC_BASE } from '../app.config.js';
+import PhotoPage from './components/PhotoPage';
+import { API_BASE, PUBLIC_BASE } from '../app.config.js';
+import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
+import { invalidatePhotoCache } from './services/photoService';
+import useDelayedVisibility from './hooks/useDelayedVisibility';
 
-/* ─── GraphQL query (mirrors app.js fetchAllSlicePosts / setupGraphQLInfiniteScroll) ─── */
-const GET_POSTS_QUERY = `
-  query($page: Int!, $size: Int!) {
-    getAllPostsPaged(page: $page, size: $size) {
-      items {
-        id
-        title: description
-        imageUrls
-        videoImagePath
-        hlsVideoUrls
-        slice
-        views
-        likes
-        isLikedByCurrentUser
-        userProfileImageUrl
-        userFirstName
-        userLastName
-        email
-        author
-      }
-      pageInfo { page size hasNext }
-    }
-  }
-`;
-
-const GET_DATA_QUERY = `
-  query GetInitialData {
-    allPosts {
-      id
-      title
-      videoUrl
-      thumbnailUrl
-      likeCount
-      viewCount
-      # We need to fetch the nested user data for the avatar
-      user {
-        avatar
-        name
-      }
-    }
-    userConnections {
-      id
-      name
-      avatar
-    }
-  }
-`;
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
   if (/^https?:\/\//i.test(fsPath)) return fsPath;
@@ -98,6 +55,17 @@ function App() {
 
   /* ─── Active sidebar section ─── */
   const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio'
+  const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
+  const showFeedRefreshing = useDelayedVisibility(isFeedRefreshing, {
+    showDelayMs: 240,
+    minVisibleMs: 700,
+  });
+  const didRunInitialFetch = useRef(false);
+  const pageRef = useRef(0);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   /* Helper: reset to home feed */
   const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); setActiveSection('home'); };
@@ -107,6 +75,9 @@ function App() {
 
   /* Helper: show audio page */
   const goAudio = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('audio'); };
+
+  /* Helper: show photos page */
+  const goPhotos = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('photos'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -295,35 +266,16 @@ function App() {
   /* ────────────────────────────────────────────
      FETCH POSTS  (mirrors app.js fetchAllSlicePosts / GraphQL pagination)
   ──────────────────────────────────────────── */
-  const fetchPosts = async (pageNum = 0, append = false) => {
-    if (isLoading || !hasNext) return;
+  const fetchPosts = async (pageNum = 0, append = false, forceRefresh = false) => {
+    if (isLoading) return;
+    if (pageNum > 0 && !hasNext) return;
 
     setIsLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/graphql`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page: pageNum, size: 15 } }),
-      });
-
-      if (!res.ok) throw new Error(`GraphQL request failed: ${res.status}`);
-
-      const json = await res.json();
-      const data = json?.data?.getAllPostsPaged;
+      const data = await getPagedPosts({ page: pageNum, size: 15, forceRefresh });
       if (!data) return;
 
-      const items = (data.items || []).map(p => ({
-        ...p,
-        thumbnailUrl: toPublicUrl(p.videoImagePath || (p.imageUrls?.[0] ?? "")),
-        hlsUrl: p.hlsVideoUrls?.[0]
-          ? `${PUBLIC_BASE}/` + p.hlsVideoUrls[0].split("webdata/")[1]
-          : "",
-        // Map flat user fields into nested user object that VideoCard/VideoWatchPage expect
-        user: {
-          name: [p.userFirstName, p.userLastName].filter(Boolean).join(" ") || p.author || p.email || "User",
-          avatar: p.userProfileImageUrl || null,
-        },
-      }));
+      const items = data.items || [];
 
       setPosts(prev => append ? [...prev, ...items] : items);
       setHasNext(data.pageInfo?.hasNext ?? false);
@@ -361,9 +313,41 @@ function App() {
 
   /* ─── Initial load — always fetch posts (public visible without login) ─── */
   useEffect(() => {
-    fetchPosts(0, false);
+    if (!didRunInitialFetch.current) {
+      didRunInitialFetch.current = true;
+      fetchPosts(0, false);
+    }
     if (isLoggedIn) fetchConnections();
+    if (!isLoggedIn) {
+      invalidatePostsCache();
+      invalidatePhotoCache();
+    }
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    const unsubscribe = subscribePostsCacheUpdates(({ key, items }) => {
+      const tokenKey = localStorage.getItem('token') || 'anonymous';
+      if (key !== tokenKey) return;
+
+      const loadedPages = pageRef.current + 1;
+      const end = loadedPages * 15;
+      const nextItems = items.slice(0, end);
+      setPosts(nextItems);
+      setHasNext(end < items.length);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribePostsRefreshStatus(({ key, refreshing }) => {
+      const tokenKey = localStorage.getItem('token') || 'anonymous';
+      if (key !== tokenKey) return;
+      setIsFeedRefreshing(refreshing);
+    });
+
+    return unsubscribe;
+  }, []);
 
   /* ────────────────────────────────────────────
      DELETE POST  
@@ -382,6 +366,7 @@ function App() {
       });
       const result = await response.json();
       if (result.errors) throw new Error(result.errors[0].message);
+      invalidatePostsCache();
       setPosts(prev => prev.filter(p => p.id !== postId));
     } catch (err) {
       console.error("Delete failed:", err);
@@ -408,13 +393,29 @@ function App() {
           onHome={goHome}
           onVideos={goVideos}
           onAudio={goAudio}
+          onPhotos={goPhotos}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
         />
 
         <main className="main-content">
+          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && !showSlicePage && (
+            <div className="mb-2">
+              <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
+                <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+                Refreshing feed...
+              </span>
+            </div>
+          )}
+
           {showSlicePage ? (
             /* ── SLICE PAGE ── */
             <SlicePage startPostId={sliceStartId} onClose={goHome} />
+          ) : activeSection === 'photos' ? (
+            /* ── PHOTOS PAGE ── */
+            <PhotoPage
+              isLoggedIn={isLoggedIn}
+              onUpload={() => setShowUpload(true)}
+            />
           ) : activeSection === 'audio' ? (
             /* ── AUDIO PAGE ── */
             <AudioPage
@@ -484,7 +485,7 @@ function App() {
           <i className="bi bi-house-door fs-4"></i>
           <span style={{ fontSize: '10px' }}>Home</span>
         </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none">
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPhotos}>
           <i className="bi bi-images fs-4"></i>
           <span style={{ fontSize: '10px' }}>Photos</span>
         </button>
@@ -513,7 +514,12 @@ function App() {
           apiBase={API_BASE}
           publicBase={PUBLIC_BASE}
           onClose={() => setShowUpload(false)}
-          onUploaded={() => { setShowUpload(false); fetchPosts(0, false); }}
+          onUploaded={() => {
+            setShowUpload(false);
+            invalidatePostsCache();
+            invalidatePhotoCache();
+            fetchPosts(0, false, true);
+          }}
         />
       )}
     </div>

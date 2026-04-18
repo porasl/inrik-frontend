@@ -1,0 +1,202 @@
+import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+
+const GET_POSTS_QUERY = `
+  query($page: Int!, $size: Int!) {
+    getAllPostsPaged(page: $page, size: $size) {
+      items {
+        id
+        title: description
+        imageUrls
+        videoImagePath
+        hlsVideoUrls
+        slice
+        views
+        likes
+        isLikedByCurrentUser
+        userProfileImageUrl
+        userFirstName
+        userLastName
+        email
+        author
+      }
+      pageInfo { page size hasNext }
+    }
+  }
+`;
+
+const cacheByToken = new Map();
+const inflightByToken = new Map();
+const POSTS_CACHE_TTL_MS = 60 * 1000;
+const postsCacheListeners = new Set();
+const postsStatusListeners = new Set();
+
+function emitPostsCacheUpdate(payload) {
+  postsCacheListeners.forEach((listener) => {
+    try {
+      listener(payload);
+    } catch {
+      // Ignore listener errors to keep cache updates resilient.
+    }
+  });
+}
+
+function emitPostsRefreshStatus(payload) {
+  postsStatusListeners.forEach((listener) => {
+    try {
+      listener(payload);
+    } catch {
+      // Ignore listener errors to keep cache status updates resilient.
+    }
+  });
+}
+
+function toPublicUrl(fsPath) {
+  if (!fsPath) return '';
+  if (/^https?:\/\//i.test(fsPath)) return fsPath;
+  const norm = String(fsPath).replace(/\\/g, '/');
+  const idx = norm.indexOf('/videos/');
+  const rel = idx >= 0 ? norm.slice(idx) : (norm.startsWith('/') ? norm : `/${norm}`);
+  return `${PUBLIC_BASE}${rel}`;
+}
+
+function mapPost(post) {
+  return {
+    ...post,
+    thumbnailUrl: toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? '')),
+    hlsUrl: post.hlsVideoUrls?.[0]
+      ? `${PUBLIC_BASE}/` + post.hlsVideoUrls[0].split('webdata/')[1]
+      : '',
+    user: {
+      name: [post.userFirstName, post.userLastName].filter(Boolean).join(' ') || post.author || post.email || 'User',
+      avatar: post.userProfileImageUrl || null,
+    },
+  };
+}
+
+function getTokenKey() {
+  return localStorage.getItem('token') || 'anonymous';
+}
+
+async function fetchAllPostsFromGraphql(pageSize = 30) {
+  const token = localStorage.getItem('token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let page = 0;
+  let all = [];
+
+  while (true) {
+    const res = await fetch(`${API_BASE}/graphql`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page, size: pageSize } }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`GraphQL request failed: ${res.status}`);
+    }
+
+    const json = await res.json();
+    const data = json?.data?.getAllPostsPaged;
+    if (!data) break;
+
+    all = all.concat((data.items || []).map(mapPost));
+
+    if (!data.pageInfo?.hasNext) break;
+    page += 1;
+  }
+
+  return all;
+}
+
+export async function getAllPostsCached({ forceRefresh = false, pageSize = 30 } = {}) {
+  const key = getTokenKey();
+  const now = Date.now();
+  const cached = cacheByToken.get(key);
+
+  const startRefresh = () => {
+    if (inflightByToken.has(key)) return inflightByToken.get(key);
+
+    emitPostsRefreshStatus({ key, refreshing: true });
+
+    const promise = fetchAllPostsFromGraphql(pageSize)
+      .then((items) => {
+        cacheByToken.set(key, { items, fetchedAt: Date.now() });
+        emitPostsCacheUpdate({ key, items });
+        emitPostsRefreshStatus({ key, refreshing: false });
+        inflightByToken.delete(key);
+        return items;
+      })
+      .catch((err) => {
+        emitPostsRefreshStatus({ key, refreshing: false });
+        inflightByToken.delete(key);
+        throw err;
+      });
+
+    inflightByToken.set(key, promise);
+    return promise;
+  };
+
+  if (!forceRefresh && cached) {
+    const age = now - cached.fetchedAt;
+    if (age <= POSTS_CACHE_TTL_MS) {
+      return cached.items;
+    }
+
+    // Return stale data immediately and refresh in the background.
+    startRefresh();
+    return cached.items;
+  }
+
+  if (inflightByToken.has(key)) {
+    return inflightByToken.get(key);
+  }
+
+  return startRefresh();
+}
+
+export async function getPagedPosts({ page = 0, size = 15, forceRefresh = false } = {}) {
+  const all = await getAllPostsCached({ forceRefresh });
+  const start = page * size;
+  const end = start + size;
+  const items = all.slice(start, end);
+
+  return {
+    items,
+    pageInfo: {
+      page,
+      size,
+      hasNext: end < all.length,
+    },
+  };
+}
+
+export async function getSlicePostsCached({ forceRefresh = false } = {}) {
+  const all = await getAllPostsCached({ forceRefresh });
+  return all.filter((p) => p.slice === true);
+}
+
+export function invalidatePostsCache() {
+  cacheByToken.clear();
+  inflightByToken.clear();
+}
+
+export function subscribePostsCacheUpdates(listener) {
+  if (typeof listener !== 'function') {
+    return () => {};
+  }
+  postsCacheListeners.add(listener);
+  return () => {
+    postsCacheListeners.delete(listener);
+  };
+}
+
+export function subscribePostsRefreshStatus(listener) {
+  if (typeof listener !== 'function') {
+    return () => {};
+  }
+  postsStatusListeners.add(listener);
+  return () => {
+    postsStatusListeners.delete(listener);
+  };
+}

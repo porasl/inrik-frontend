@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { PUBLIC_BASE } from '../../app.config.js';
+import { getUserProfileCached } from '../services/userProfileService';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -48,18 +49,8 @@ function OwnerAvatar({ post }) {
       return;
     }
 
-    // Attempt to resolve avatar and real name via GraphQL API
-    fetch(`/graphql`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: `query GetUserProfile($email: String!) { getUserProfile(email: $email) { firstname lastname profileImageUrl } }`,
-        variables: { email: ownerEmail }
-      })
-    })
-      .then(r => r.json())
-      .then(data => {
-        const profile = data?.data?.getUserProfile;
+    getUserProfileCached(ownerEmail)
+      .then((profile) => {
         const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : null;
         const finalName = fetchedName || fallbackName;
 
