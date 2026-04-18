@@ -15,7 +15,7 @@ The React Compiler is not enabled on this template because of its impact on dev 
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
 
-
+//Setting the Session time configuration values
 set the session timeout 
 application.security.jwt.expiration	86400000 (1 day)	2592000000 (30 days)
 application.security.jwt.refresh-token.expiration	604800000 (7 days)	7776000000 (90 days)
