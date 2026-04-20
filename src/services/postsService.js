@@ -59,15 +59,57 @@ function toPublicUrl(fsPath) {
   return `${PUBLIC_BASE}${rel}`;
 }
 
+function isNumericLike(value) {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
+function resolveHlsUrl(post) {
+  const raw = String(post?.hlsVideoUrls?.[0] || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const norm = raw.replace(/\\/g, '/');
+  const webdataIdx = norm.indexOf('webdata/');
+  if (webdataIdx >= 0) {
+    return `${PUBLIC_BASE}/${norm.slice(webdataIdx + 'webdata/'.length)}`;
+  }
+
+  const videosIdx = norm.indexOf('/videos/');
+  if (videosIdx >= 0) {
+    return `${PUBLIC_BASE}${norm.slice(videosIdx)}`;
+  }
+
+  if (norm.startsWith('videos/')) {
+    return `${PUBLIC_BASE}/${norm}`;
+  }
+
+  return '';
+}
+
+function resolveThumbnailUrl(post) {
+  const candidates = [post?.videoImagePath, post?.imageUrls?.[0]].filter(Boolean);
+  for (const value of candidates) {
+    const raw = String(value).trim();
+    if (!raw || isNumericLike(raw) || raw.includes('@')) continue;
+    const resolved = toPublicUrl(raw);
+    if (resolved) return resolved;
+  }
+  return '';
+}
+
 function mapPost(post) {
+  const authorValue = String(post.author || '').trim();
+  const displayName = [post.userFirstName, post.userLastName].filter(Boolean).join(' ')
+    || (!isNumericLike(authorValue) ? authorValue : '')
+    || post.email
+    || 'User';
+
   return {
     ...post,
-    thumbnailUrl: toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? '')),
-    hlsUrl: post.hlsVideoUrls?.[0]
-      ? `${PUBLIC_BASE}/` + post.hlsVideoUrls[0].split('webdata/')[1]
-      : '',
+    thumbnailUrl: resolveThumbnailUrl(post),
+    hlsUrl: resolveHlsUrl(post),
     user: {
-      name: [post.userFirstName, post.userLastName].filter(Boolean).join(' ') || post.author || post.email || 'User',
+      name: displayName,
       avatar: post.userProfileImageUrl || null,
     },
   };

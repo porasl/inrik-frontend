@@ -11,6 +11,41 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
   const [uploadStatus, setUploadStatus] = useState('');
   const removedIdsRef = useRef(new Set());
 
+  const decodeJwtPayload = (token) => {
+    if (!token) return null;
+    try {
+      return JSON.parse(atob(token.split('.')[1] || ''));
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveAuthorIdentity = () => {
+    const token = localStorage.getItem("token");
+    const payload = decodeJwtPayload(token);
+    const email = (localStorage.getItem("email") || '').trim();
+    const author = (localStorage.getItem("author") || '').trim();
+    const userId = (localStorage.getItem("userId") || '').trim();
+    const tokenEmail = String(
+      payload?.email || payload?.preferred_username || payload?.upn || ''
+    ).trim();
+
+    const authorEmail = email || (author.includes('@') ? author : '') || tokenEmail;
+    return {
+      userId,
+      author: authorEmail,
+      email: authorEmail,
+    };
+  };
+
+  const buildEffectiveDescription = (fileName = '') => {
+    const text = String(description || '').trim();
+    if (text) return text;
+
+    const base = String(fileName || '').replace(/\.[^.]+$/, '').trim();
+    return base || 'Uploaded Video';
+  };
+
   useEffect(() => {
     return () => {
       uploadItems.forEach((item) => {
@@ -57,7 +92,12 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     if (!selectedFile) return Promise.resolve({ ok: false, error: 'No file selected' });
 
     const token = localStorage.getItem("token");
-    const userId = localStorage.getItem("userId");
+    const { userId, author, email } = resolveAuthorIdentity();
+    const effectiveDescription = buildEffectiveDescription(selectedFile.name);
+
+    if (!author) {
+      return Promise.resolve({ ok: false, error: 'Missing author email. Please logout and login again.' });
+    }
 
     const formData = new FormData();
     formData.append("file", selectedFile);
@@ -66,8 +106,9 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     formData.append("postId", savedPostId && savedPostId !== "undefined" ? savedPostId : "");
 
     formData.append("userId", userId || "");
-    formData.append("author", userId || "");
-    formData.append("description", description || "");
+    formData.append("author", author);
+    formData.append("email", email || author);
+    formData.append("description", effectiveDescription);
 
     formData.append("ispublic", String(isPublic));
     formData.append("ismemory", String(isMemory));
@@ -183,15 +224,26 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     }
 
     const token = localStorage.getItem("token");
+    const { userId, author, email } = resolveAuthorIdentity();
+    const effectiveDescription = buildEffectiveDescription(successfulItems[0]?.name || '');
+
+    if (!author) {
+      alert('Missing author email. Please logout and login again.');
+      return;
+    }
+
     const updatePayload = {
       id: savedPostId,
-      description: description,
+      description: effectiveDescription,
       ispublic: isPublic,
       ismemory: isMemory,
       isevent: isEvent,
       isslice: isSlice,
-      author: localStorage.getItem("userId") || ""
+      userId: userId || '',
+      author
     };
+
+    updatePayload.email = email || author;
 
     try {
       const res = await fetch(`${apiBase}/api/posts/update`, {

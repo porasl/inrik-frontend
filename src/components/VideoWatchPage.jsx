@@ -12,14 +12,108 @@ function toPublicUrl(fsPath) {
     return `${PUBLIC_BASE}${rel}`;
 }
 
+function isNumericLike(value) {
+    return /^\d+$/.test(String(value || '').trim());
+}
+
+function getOwnerDisplayName(post) {
+    const authorValue = String(post?.author || '').trim();
+    const userNameValue = String(post?.user?.name || '').trim();
+    return [post?.userFirstName, post?.userLastName].filter(Boolean).join(' ')
+        || (!isNumericLike(userNameValue) ? userNameValue : '')
+        || (!isNumericLike(authorValue) ? authorValue : '')
+        || post?.email
+        || 'User';
+}
+
+function resolveThumbnailUrl(post) {
+    const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+    const candidates = [
+        post?.videoImagePath,
+        post?.thumbnailUrl,
+        ...toArray(post?.imageUrls),
+        post?.imageUrl,
+    ].filter(Boolean);
+
+    const validImageExt = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i;
+
+    for (const candidate of candidates) {
+        const raw = String(candidate).trim();
+        if (!raw || isNumericLike(raw) || raw.includes('@')) continue;
+
+        const resolved = toPublicUrl(raw);
+        if (!resolved) continue;
+
+        const looksLikeImage = validImageExt.test(resolved)
+            || resolved.includes('/images/')
+            || resolved.includes('/videos/')
+            || resolved.includes('/thumbnails/')
+            || resolved.startsWith('data:image/');
+
+        if (looksLikeImage) return resolved;
+    }
+
+    return '';
+}
+
+function resolvePlayableVideoUrl(post) {
+    const toArray = (value) => Array.isArray(value) ? value : (value ? [value] : []);
+    const candidates = [
+        ...toArray(post?.hlsVideoUrls),
+        ...toArray(post?.videoUrls),
+        post?.hlsUrl,
+        post?.videoUrl,
+        post?.videoPath,
+    ].filter(Boolean);
+
+    const normalize = (value) => {
+        const raw = String(value).trim();
+        if (!raw) return '';
+
+        if (/^https?:\/\//i.test(raw)) return raw;
+
+        const norm = raw.replace(/\\/g, '/');
+        const webdataIdx = norm.indexOf('webdata/');
+        if (webdataIdx >= 0) {
+            return `${PUBLIC_BASE}/${norm.slice(webdataIdx + 'webdata/'.length)}`;
+        }
+
+        const videosIdx = norm.indexOf('/videos/');
+        if (videosIdx >= 0) {
+            return `${PUBLIC_BASE}${norm.slice(videosIdx)}`;
+        }
+
+        if (norm.startsWith('videos/')) {
+            return `${PUBLIC_BASE}/${norm}`;
+        }
+
+        return '';
+    };
+
+    const validExt = /\.(m3u8|mp4|mov|m4v|webm|avi|mkv)(\?|$)/i;
+    return candidates
+        .map(normalize)
+        .find((u) => u && validExt.test(u)) || '';
+}
+
+function isHiddenVideoTitle(title) {
+    const normalized = String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return normalized === 'untitled video' || normalized === 'untilted video';
+}
+
 /* ── tiny avatar ── */
 const avatarCache = {};
 
 function Avatar({ user = {}, size = 40 }) {
-    const userEmail = user.email || user.author || '';
+    const authorValue = String(user.author || '').trim();
+    const userNameValue = String(user.name || '').trim();
+    const userEmail = user.email || (authorValue.includes('@') ? authorValue : '');
 
     const fallbackName = [user.userFirstName, user.userLastName].filter(Boolean).join(' ')
-        || user.name || user.author || userEmail || 'User';
+        || (!isNumericLike(userNameValue) ? userNameValue : '')
+        || (!isNumericLike(authorValue) ? authorValue : '')
+        || userEmail
+        || 'User';
 
     const [avatarUrl, setAvatarUrl] = useState(() => {
         const raw = user.avatar || user.userProfileImageUrl || null;
@@ -84,8 +178,8 @@ function Avatar({ user = {}, size = 40 }) {
 
 /* ── related video row in right sidebar ── */
 function RelatedVideoRow({ post, onWatch }) {
-    const thumb = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
-    const owner = post.user?.name || post.author || "User";
+    const thumb = resolveThumbnailUrl(post);
+    const owner = getOwnerDisplayName(post);
     return (
         <div
             className="d-flex gap-2 p-2 rounded-3 cursor-pointer"
@@ -224,30 +318,30 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
         setViews(post.views || 0);
     }, [post.id, post.likes, post.isLikedByCurrentUser, post.views]);
 
-    /* Build full HLS url */
-    const hls0 = post.hlsVideoUrls?.[0] || "";
-    const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : (post.hlsUrl || "");
+    /* Build playable video url */
+    const playableVideoUrl = resolvePlayableVideoUrl(post);
+    const isHlsVideo = /\.m3u8(\?|$)/i.test(playableVideoUrl);
 
-    const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
+    const thumbSrc = resolveThumbnailUrl(post);
     const owner = post.user || {};
-    const ownerName = owner.name || post.author || "Unknown";
+    const ownerName = owner.name || getOwnerDisplayName(post);
 
     /* Related videos = everything except the current one */
-    const related = allPosts.filter(p => p.id !== post.id);
+    const related = allPosts.filter((p) => p.id !== post.id && !!resolvePlayableVideoUrl(p) && !isHiddenVideoTitle(p?.title));
 
     /* ── Mount / destroy HLS ── */
     useEffect(() => {
-        if (!videoRef.current || !hlsUrl) return;
-        if (Hls.isSupported()) {
+        if (!videoRef.current || !playableVideoUrl) return;
+        if (isHlsVideo && Hls.isSupported()) {
             const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-            hls.loadSource(hlsUrl);
+            hls.loadSource(playableVideoUrl);
             hls.attachMedia(videoRef.current);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 videoRef.current?.play().catch(() => { });
             });
             hlsRef.current = hls;
-        } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-            videoRef.current.src = hlsUrl;
+        } else {
+            videoRef.current.src = playableVideoUrl;
             videoRef.current.play().catch(() => { });
         }
         /* Increment view count */
@@ -256,7 +350,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
             hlsRef.current?.destroy();
             hlsRef.current = null;
         };
-    }, [post.id]);
+    }, [post.id, playableVideoUrl, isHlsVideo]);
 
     const incrementView = async () => {
         const token = localStorage.getItem("token");
@@ -315,7 +409,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
 
                 {/* Video player */}
                 <div className="rounded-3 overflow-hidden bg-black w-100 shadow video-watch-player" style={{ aspectRatio: '16/9' }}>
-                    {hlsUrl ? (
+                    {playableVideoUrl ? (
                         <video
                             ref={videoRef}
                             controls
@@ -395,7 +489,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                 <div className="px-3 mb-2" style={{ fontSize: 12, fontWeight: 600, color: '#666' }}>Up Next</div>
                 <div className="d-flex gap-2 overflow-x-auto pb-2 px-3" style={{ scrollBehavior: 'smooth' }}>
                     {related.map(p => {
-                        const thumb = toPublicUrl(p.videoImagePath || (p.imageUrls?.[0] ?? "")) || p.thumbnailUrl || "";
+                        const thumb = resolveThumbnailUrl(p);
                         return (
                             <div
                                 key={p.id}

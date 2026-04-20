@@ -23,6 +23,47 @@ function toPublicUrl(fsPath) {
   return `${PUBLIC_BASE}${rel}`;
 }
 
+function decodeJwtPayload(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
+
+function extractUserId({ token, responseData, fallbackEmail }) {
+  const payload = decodeJwtPayload(token);
+  const candidates = [
+    responseData?.userId,
+    responseData?.userid,
+    responseData?.id,
+    responseData?.sub,
+    payload?.userId,
+    payload?.userid,
+    payload?.id,
+    payload?.uid,
+    payload?.sub,
+    fallbackEmail,
+  ];
+
+  const resolved = candidates.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+  return resolved ? String(resolved) : "";
+}
+
+function syncStoredUserId(token, responseData, fallbackEmail) {
+  const resolvedUserId = extractUserId({ token, responseData, fallbackEmail });
+  if (resolvedUserId) {
+    localStorage.setItem("userId", resolvedUserId);
+  }
+  return resolvedUserId;
+}
+
+function isHiddenVideoTitle(title) {
+  const normalized = String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return normalized === 'untitled video' || normalized === 'untilted video';
+}
+
 function App() {
   /* ─── Auth state ─── */
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
@@ -62,16 +103,47 @@ function App() {
   });
   const didRunInitialFetch = useRef(false);
   const pageRef = useRef(0);
+  const loadMoreSentinelRef = useRef(null);
+  const autoLoadLockRef = useRef(false);
 
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
 
+  const visibleVideoPosts = posts.filter((post) => !isHiddenVideoTitle(post?.title));
+  const mainFeedPosts = visibleVideoPosts.filter((post) => post?.slice !== true);
+
+  useEffect(() => {
+    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && !showSlicePage && !watchingPost;
+    if (!shouldAutoLoad) return;
+
+    const target = loadMoreSentinelRef.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        if (!hasNext || isLoading || autoLoadLockRef.current) return;
+
+        autoLoadLockRef.current = true;
+        fetchPosts(pageRef.current + 1, true)
+          .finally(() => {
+            autoLoadLockRef.current = false;
+          });
+      },
+      { root: null, rootMargin: '220px 0px', threshold: 0.01 },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [activeSection, showSlicePage, watchingPost, hasNext, isLoading]);
+
   /* Helper: reset to home feed */
   const goHome = () => { setWatchingPost(null); setShowSlicePage(false); setSliceStartId(null); setActiveSection('home'); };
 
   /* Helper: go to Videos — open watch page on the first available post */
-  const goVideos = () => { setShowSlicePage(false); setSliceStartId(null); setActiveSection('videos'); setWatchingPost(posts[0] ?? null); };
+  const goVideos = () => { setShowSlicePage(false); setSliceStartId(null); setActiveSection('videos'); setWatchingPost(visibleVideoPosts[0] ?? null); };
 
   /* Helper: show audio page */
   const goAudio = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('audio'); };
@@ -108,7 +180,7 @@ function App() {
       localStorage.setItem("refresh_token", data.refresh_token || "");
       localStorage.setItem("email", email);
       localStorage.setItem("userName", email);
-      localStorage.setItem("userId", email);
+      syncStoredUserId(token, data, email);
       localStorage.setItem("author", email);
 
       const firstName = data.firstname || data.first_name || "";
@@ -194,6 +266,7 @@ function App() {
       const newToken = data.access_token;
       if (!newToken) { handleLogout(); return null; }
       localStorage.setItem("token", newToken);
+      syncStoredUserId(newToken, data, localStorage.getItem("email") || "");
       if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
       return newToken;
     } catch {
@@ -245,9 +318,15 @@ function App() {
     const token = localStorage.getItem("token");
     if (!token || !isLoggedIn) return;
 
+    syncStoredUserId(token, null, localStorage.getItem("email") || "");
+
     // Decode JWT payload (no library needed — just base64)
     try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
+      const payload = decodeJwtPayload(token);
+      if (!payload) {
+        refreshAccessToken();
+        return;
+      }
       const expiresAt = payload.exp * 1000; // convert to ms
       const nowMs = Date.now();
       const fiveMinMs = 5 * 60 * 1000;
@@ -413,6 +492,7 @@ function App() {
           ) : activeSection === 'photos' ? (
             /* ── PHOTOS PAGE ── */
             <PhotoPage
+              posts={posts}
               isLoggedIn={isLoggedIn}
               onUpload={() => setShowUpload(true)}
             />
@@ -439,7 +519,7 @@ function App() {
             <>
               <SliceCarousel onWatch={(p) => openSlicePage(p.id)} />
               <div className="video-grid d-flex flex-wrap gap-3">
-                {posts.map(post => (
+                {mainFeedPosts.map(post => (
                   <VideoCard
                     key={post.id}
                     post={post}
@@ -450,17 +530,8 @@ function App() {
                 ))}
               </div>
 
-              {/* Load more */}
-              {hasNext && !isLoading && (
-                <div className="text-center my-4">
-                  <button
-                    className="btn btn-outline-secondary"
-                    onClick={() => fetchPosts(page + 1, true)}
-                  >
-                    Load more
-                  </button>
-                </div>
-              )}
+              {/* Infinite-scroll sentinel */}
+              {hasNext && <div ref={loadMoreSentinelRef} style={{ height: 1 }} aria-hidden="true" />}
               {isLoading && (
                 <div className="text-center my-4">
                   <div className="spinner-border text-secondary" role="status">

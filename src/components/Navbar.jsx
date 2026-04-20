@@ -184,7 +184,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome }) 
               aria-label="Go to home"
             >
               <img
-                src="resources/images/inrik_logo3_white.png"
+                src="/resources/images/inrik_logo.png"
                 className="company-logo"
                 alt="Logo"
               />

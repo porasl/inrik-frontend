@@ -15,6 +15,80 @@ function toPublicUrl(fsPath) {
   return `${PUBLIC_BASE}${cleanPath}`;
 }
 
+function isNumericLike(value) {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
+function resolveThumbnailUrl(post) {
+  const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+  const candidates = [
+    post?.videoImagePath,
+    post?.thumbnailUrl,
+    ...toArray(post?.imageUrls),
+    post?.imageUrl,
+  ].filter(Boolean);
+
+  const validImageExt = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i;
+
+  for (const candidate of candidates) {
+    const raw = String(candidate).trim();
+    if (!raw || isNumericLike(raw) || raw.includes('@')) continue;
+
+    const resolved = toPublicUrl(raw);
+    if (!resolved) continue;
+
+    const looksLikeImage = validImageExt.test(resolved)
+      || resolved.includes('/images/')
+      || resolved.includes('/videos/')
+      || resolved.includes('/thumbnails/')
+      || resolved.startsWith('data:image/');
+
+    if (looksLikeImage) return resolved;
+  }
+
+  return '';
+}
+
+function resolvePlayableVideoUrl(post) {
+  const toArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+  const candidates = [
+    ...toArray(post?.hlsVideoUrls),
+    ...toArray(post?.videoUrls),
+    post?.hlsUrl,
+    post?.videoUrl,
+    post?.videoPath,
+  ].filter(Boolean);
+
+  const normalize = (value) => {
+    const raw = String(value).trim();
+    if (!raw) return '';
+
+    if (/^https?:\/\//i.test(raw)) return raw;
+
+    const norm = raw.replace(/\\/g, '/');
+    const webdataIdx = norm.indexOf('webdata/');
+    if (webdataIdx >= 0) {
+      return `${PUBLIC_BASE}/${norm.slice(webdataIdx + 'webdata/'.length)}`;
+    }
+
+    const videosIdx = norm.indexOf('/videos/');
+    if (videosIdx >= 0) {
+      return `${PUBLIC_BASE}${norm.slice(videosIdx)}`;
+    }
+
+    if (norm.startsWith('videos/')) {
+      return `${PUBLIC_BASE}/${norm}`;
+    }
+
+    return '';
+  };
+
+  const validExt = /\.(m3u8|mp4|mov|m4v|webm|avi|mkv)(\?|$)/i;
+  return candidates
+    .map(normalize)
+    .find((u) => u && (validExt.test(u) || /\.m3u8(\?|$)/i.test(u))) || '';
+}
+
 /* ── Format seconds → m:ss ── */
 function formatDuration(seconds) {
   if (!seconds || isNaN(seconds) || !isFinite(seconds)) return "";
@@ -28,18 +102,28 @@ const avatarCache = {};
 
 function OwnerAvatar({ post }) {
   const user = post.user || {};
-  const ownerEmail = post.email || post.author || '';
+  const authorValue = String(post.author || '').trim();
+  const userNameValue = String(user.name || '').trim();
+  const ownerEmail = post.email || user.email || (authorValue.includes('@') ? authorValue : '');
 
   const fallbackName = [post.userFirstName, post.userLastName].filter(Boolean).join(' ')
-    || user.name || post.author || ownerEmail || 'User';
+    || (!isNumericLike(userNameValue) ? userNameValue : '')
+    || (!isNumericLike(authorValue) ? authorValue : '')
+    || ownerEmail
+    || 'User';
 
   const [avatarUrl, setAvatarUrl] = useState(() => {
     const raw = post.userProfileImageUrl || user.avatar || null;
-    return (raw) ? toPublicUrl(raw) : null;
+    if (!raw || String(raw).includes('@')) return null;
+    return toPublicUrl(raw);
   });
 
   const [resolvedName, setResolvedName] = useState(fallbackName);
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [avatarUrl]);
 
   useEffect(() => {
     if (!ownerEmail) return;
@@ -58,18 +142,21 @@ function OwnerAvatar({ post }) {
         if (url) {
           const fullUrl = toPublicUrl(url);
           avatarCache[ownerEmail] = { url: fullUrl, name: finalName };
+          setHasError(false);
           setAvatarUrl(fullUrl);
           setResolvedName(finalName);
         } else {
           const local = ownerEmail.split('@')[0];
           const probeUrl = toPublicUrl(`/profileImages/${local}.jpg`);
           avatarCache[ownerEmail] = { url: probeUrl, name: finalName };
+          setHasError(false);
           setAvatarUrl(probeUrl);
           setResolvedName(finalName);
         }
       })
       .catch(() => {
         const local = ownerEmail.split('@')[0];
+        setHasError(false);
         setAvatarUrl(toPublicUrl(`/profileImages/${local}.jpg`));
         setResolvedName(fallbackName); // Ensure name is set even on fetch error
       });
@@ -140,9 +227,11 @@ export default function VideoCard({ post, onDelete, onWatch }) {
   const hlsRef = useRef(null);
   const menuRef = useRef(null);
 
-  const hls0 = post.hlsVideoUrls?.[0] || "";
-  const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
-  const thumbSrc = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? "")) || post.thumbnailUrl || "";
+  const playableVideoUrl = resolvePlayableVideoUrl(post);
+  const isHlsVideo = /\.m3u8(\?|$)/i.test(playableVideoUrl);
+  const thumbSrc = resolveThumbnailUrl(post);
+
+  if (!playableVideoUrl) return null;
 
   // Reset likes/views if post data changes (handles navigation from other pages)
   useEffect(() => {
@@ -162,7 +251,7 @@ export default function VideoCard({ post, onDelete, onWatch }) {
 
   /* Load HLS on hover, capture duration from loadedmetadata */
   useEffect(() => {
-    if (isHovered && hlsUrl && videoRef.current) {
+    if (isHovered && playableVideoUrl && videoRef.current) {
       const video = videoRef.current;
 
       const onMeta = () => {
@@ -172,16 +261,17 @@ export default function VideoCard({ post, onDelete, onWatch }) {
       };
       video.addEventListener('loadedmetadata', onMeta);
 
-      if (Hls.isSupported()) {
+      if (isHlsVideo && Hls.isSupported()) {
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hls.loadSource(hlsUrl);
+        hls.loadSource(playableVideoUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           video.play().catch(() => { });
         });
         hlsRef.current = hls;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = hlsUrl;
+      } else {
+        video.src = playableVideoUrl;
+        video.play().catch(() => { });
       }
 
       return () => {
@@ -192,7 +282,7 @@ export default function VideoCard({ post, onDelete, onWatch }) {
         }
       };
     }
-  }, [isHovered, hlsUrl]);
+  }, [isHovered, playableVideoUrl, isHlsVideo]);
 
   /* Like / unlike — uses toggleLike mutation */
   const toggleLike = async (e) => {
@@ -246,7 +336,7 @@ export default function VideoCard({ post, onDelete, onWatch }) {
       >
         {/* ── Thumbnail / hover video ── */}
         <div className="video-card-media position-relative bg-black">
-          {isHovered && hlsUrl ? (
+          {isHovered && playableVideoUrl ? (
             <video
               ref={videoRef}
               muted
