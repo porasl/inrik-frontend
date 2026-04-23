@@ -382,12 +382,114 @@ function App() {
         id: conn.id || conn.email || Math.random(),
         name: [conn.firstname, conn.lastname].filter(Boolean).join(" ") || conn.email,
         avatar: conn.profileImageUrl ? toPublicUrl(conn.profileImageUrl) : null,
-        status: 'offline'
+        status: 'offline',
+        pending: false,
       }));
-      setConnections(mappedConnections);
+      setConnections((prev) => {
+        const pendingById = new Map(prev.filter((c) => c.pending).map((c) => [String(c.id), c]));
+        return mappedConnections.map((conn) => {
+          const pendingConn = pendingById.get(String(conn.id));
+          return pendingConn ? { ...conn, pending: true } : conn;
+        });
+      });
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const searchUserById = async (targetUserId) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error('Please log in first.');
+    const userId = String(targetUserId || '').trim();
+    if (!userId) throw new Error('Missing userId.');
+
+    const tryEndpoints = [
+      { url: `${API_BASE}/api/auth/users/${encodeURIComponent(userId)}`, method: 'GET' },
+      { url: `${API_BASE}/api/auth/user/${encodeURIComponent(userId)}`, method: 'GET' },
+      { url: `${API_BASE}/api/auth/search?userId=${encodeURIComponent(userId)}`, method: 'GET' },
+    ];
+
+    for (const endpoint of tryEndpoints) {
+      try {
+        const res = await authFetch(endpoint.url, {
+          method: endpoint.method,
+          headers: { "Accept": "application/json" },
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const payload = data?.user || data;
+        return {
+          id: payload?.id || payload?.userId || userId,
+          name: [payload?.firstname || payload?.firstName, payload?.lastname || payload?.lastName]
+            .filter(Boolean)
+            .join(' ') || payload?.name || payload?.email || `User ${userId}`,
+          email: payload?.email || '',
+        };
+      } catch {
+        // Try next endpoint.
+      }
+    }
+
+    return { id: userId, name: `User ${userId}`, email: '' };
+  };
+
+  const addConnectionByUserId = async (targetUser) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error('Please log in first.');
+    const userId = String(targetUser?.id || targetUser || '').trim();
+    if (!userId) throw new Error('Missing userId.');
+
+    const payload = {
+      targetUserId: userId,
+      userId,
+      autoAccept: true,
+    };
+
+    const tryEndpoints = [
+      `${API_BASE}/api/auth/me/connections`,
+      `${API_BASE}/api/auth/connections/add`,
+      `${API_BASE}/api/auth/connections/request`,
+    ];
+
+    let accepted = false;
+    for (const url of tryEndpoints) {
+      try {
+        const res = await authFetch(url, {
+          method: 'POST',
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) continue;
+        accepted = true;
+        break;
+      } catch {
+        // Try next endpoint.
+      }
+    }
+
+    if (!accepted) {
+      throw new Error('No available connection API endpoint responded successfully.');
+    }
+
+    setConnections((prev) => {
+      const existing = prev.find((c) => String(c.id) === userId);
+      if (existing) {
+        return prev.map((c) => String(c.id) === userId ? { ...c, pending: true } : c);
+      }
+
+      const pendingConnection = {
+        id: userId,
+        name: targetUser?.name || `User ${userId}`,
+        email: targetUser?.email || '',
+        avatar: null,
+        status: 'offline',
+        pending: true,
+      };
+      return [pendingConnection, ...prev];
+    });
   };
 
   /* ─── Initial load — always fetch posts (public visible without login) ─── */
@@ -544,7 +646,14 @@ function App() {
         </main>
 
         {/* Only show connections rightbar on feed/videos view */}
-        {!watchingPost && !showSlicePage && <Rightbar connections={connections} />}
+        {!watchingPost && !showSlicePage && (
+          <Rightbar
+            connections={connections}
+            isLoggedIn={isLoggedIn}
+            onSearchUserById={searchUserById}
+            onAddConnection={addConnectionByUserId}
+          />
+        )}
       </div>
 
       {/* Mobile bottom nav */}
