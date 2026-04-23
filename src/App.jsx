@@ -392,8 +392,10 @@ function App() {
           return pendingConn ? { ...conn, pending: true } : conn;
         });
       });
+      return mappedConnections;
     } catch (err) {
       console.error(err);
+      return [];
     }
   };
 
@@ -403,66 +405,115 @@ function App() {
     const userId = String(targetUserId || '').trim();
     if (!userId) throw new Error('Missing userId.');
 
-    const tryEndpoints = [
-      { url: `${API_BASE}/api/auth/users/${encodeURIComponent(userId)}`, method: 'GET' },
-      { url: `${API_BASE}/api/auth/user/${encodeURIComponent(userId)}`, method: 'GET' },
-      { url: `${API_BASE}/api/auth/search?userId=${encodeURIComponent(userId)}`, method: 'GET' },
+    const maybeInt = Number.parseInt(userId, 10);
+    const hasInt = Number.isFinite(maybeInt);
+
+    const graphqlCandidates = [
+      {
+        query: `query($id: ID!) { getUserById(id: $id) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { id: userId },
+        pick: (data) => data?.getUserById,
+      },
+      {
+        query: `query($id: Int!) { getUserById(id: $id) { id userId firstname lastname email profileImageUrl } }`,
+        variables: hasInt ? { id: maybeInt } : null,
+        pick: (data) => data?.getUserById,
+      },
+      {
+        query: `query($userId: ID!) { userById(userId: $userId) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { userId },
+        pick: (data) => data?.userById,
+      },
+      {
+        query: `query($userId: Int!) { userById(userId: $userId) { id userId firstname lastname email profileImageUrl } }`,
+        variables: hasInt ? { userId: maybeInt } : null,
+        pick: (data) => data?.userById,
+      },
+      {
+        query: `query($userId: String!) { searchUserById(userId: $userId) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { userId },
+        pick: (data) => data?.searchUserById,
+      },
     ];
 
-    for (const endpoint of tryEndpoints) {
+    for (const candidate of graphqlCandidates) {
+      if (!candidate.variables) continue;
       try {
-        const res = await authFetch(endpoint.url, {
-          method: endpoint.method,
-          headers: { "Accept": "application/json" },
+        const res = await authFetch(`${API_BASE}/graphql`, {
+          method: 'POST',
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: candidate.query, variables: candidate.variables }),
         });
         if (!res.ok) continue;
-        const data = await res.json();
-        const payload = data?.user || data;
+
+        const json = await res.json();
+        if (json?.errors?.length) continue;
+
+        const payload = candidate.pick(json?.data || {});
+        if (!payload) continue;
+
         return {
           id: payload?.id || payload?.userId || userId,
-          name: [payload?.firstname || payload?.firstName, payload?.lastname || payload?.lastName]
+          name: [payload?.firstname, payload?.lastname]
             .filter(Boolean)
-            .join(' ') || payload?.name || payload?.email || `User ${userId}`,
+            .join(' ') || payload?.email || `User ${userId}`,
           email: payload?.email || '',
+          profileImageUrl: payload?.profileImageUrl || '',
+          avatar: payload?.profileImageUrl ? toPublicUrl(payload.profileImageUrl) : null,
         };
       } catch {
-        // Try next endpoint.
+        // Try next GraphQL shape.
       }
     }
 
-    return { id: userId, name: `User ${userId}`, email: '' };
+    // Keep popup flow working even when backend query names differ.
+    return { id: userId, name: `User ${userId}`, email: '', profileImageUrl: '', avatar: null };
   };
 
   const addConnectionByUserId = async (targetUser) => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error('Please log in first.');
     const userId = String(targetUser?.id || targetUser || '').trim();
+    const targetEmail = String(targetUser?.email || '').trim();
     if (!userId) throw new Error('Missing userId.');
-
-    const payload = {
-      targetUserId: userId,
-      userId,
-      autoAccept: true,
-    };
+    if (!targetEmail) throw new Error('Target user email is required. Search must return a valid email.');
 
     const tryEndpoints = [
-      `${API_BASE}/api/auth/me/connections`,
-      `${API_BASE}/api/auth/connections/add`,
-      `${API_BASE}/api/auth/connections/request`,
+      { url: `${API_BASE}/api/auth/me/connections`, body: { targetEmail } },
+      { url: `${API_BASE}/api/auth/connections/add`, body: { targetEmail } },
+      { url: `${API_BASE}/api/auth/connections/request`, body: { targetEmail, autoAccept: true } },
     ];
 
     let accepted = false;
-    for (const url of tryEndpoints) {
+    for (const endpoint of tryEndpoints) {
       try {
-        const res = await authFetch(url, {
+        const res = await authFetch(endpoint.url, {
           method: 'POST',
           headers: {
             "Accept": "application/json",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(endpoint.body),
         });
         if (!res.ok) continue;
+
+        let body = null;
+        try {
+          body = await res.json();
+        } catch {
+          body = null;
+        }
+
+        const explicitFailure = body && (
+          body.success === false
+          || body.ok === false
+          || (typeof body.status === 'string' && body.status.toLowerCase() === 'failed')
+        );
+
+        if (explicitFailure) continue;
         accepted = true;
         break;
       } catch {
@@ -474,22 +525,23 @@ function App() {
       throw new Error('No available connection API endpoint responded successfully.');
     }
 
-    setConnections((prev) => {
-      const existing = prev.find((c) => String(c.id) === userId);
-      if (existing) {
-        return prev.map((c) => String(c.id) === userId ? { ...c, pending: true } : c);
-      }
-
-      const pendingConnection = {
-        id: userId,
-        name: targetUser?.name || `User ${userId}`,
-        email: targetUser?.email || '',
-        avatar: null,
-        status: 'offline',
-        pending: true,
-      };
-      return [pendingConnection, ...prev];
+    const refreshed = await fetchConnections();
+    const persisted = refreshed.some((conn) => {
+      const connId = String(conn.id || '').trim();
+      const connEmail = String(conn.email || '').trim().toLowerCase();
+      return connId === userId || (targetEmail && connEmail === targetEmail.toLowerCase());
     });
+
+    if (!persisted) {
+      throw new Error('Backend did not persist the connection request yet.');
+    }
+
+    setConnections((prev) => prev.map((c) => {
+      const connId = String(c.id || '').trim();
+      const connEmail = String(c.email || '').trim().toLowerCase();
+      const isTarget = connId === userId || (targetEmail && connEmail === targetEmail.toLowerCase());
+      return isTarget ? { ...c, pending: true } : c;
+    }));
   };
 
   /* ─── Initial load — always fetch posts (public visible without login) ─── */

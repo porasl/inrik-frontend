@@ -62,6 +62,13 @@ export default function Rightbar({
   return (
     <aside id="rightbar-id" className="rightbar">
       <div className="rightbar-inner">
+        <div className="d-flex align-items-center justify-content-between mb-3">
+          <h6 className="m-0 fw-bold">Connections ({connections.length})</h6>
+          <button className="btn btn-sm btn-outline-secondary" type="button">
+            <i className="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+
         {isLoggedIn && (
           <div className="mb-3">
             <div className="input-group input-group-sm">
@@ -87,13 +94,6 @@ export default function Rightbar({
             </div>
           </div>
         )}
-
-        <div className="d-flex align-items-center justify-content-between mb-3">
-          <h6 className="m-0 fw-bold">Connections ({connections.length})</h6>
-          <button className="btn btn-sm btn-outline-secondary" type="button">
-            <i className="bi bi-arrow-clockwise"></i>
-          </button>
-        </div>
 
         {searchError && (
           <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{searchError}</div>
@@ -175,8 +175,23 @@ export default function Rightbar({
             onClick={(e) => e.stopPropagation()}
           >
             <h6 className="mb-2 fw-bold">User Found</h6>
-            <div className="fw-semibold text-dark" style={{ fontSize: '0.95rem' }}>{searchResult.name || 'User'}</div>
-            <div className="text-secondary" style={{ fontSize: '0.82rem' }}>userId: {searchResult.id}</div>
+            <div className="d-flex align-items-center gap-2 mb-2">
+              {searchResult.avatar ? (
+                <img
+                  src={searchResult.avatar}
+                  alt={searchResult.name || 'User'}
+                  className="rounded-circle object-fit-cover"
+                  style={{ width: 42, height: 42 }}
+                />
+              ) : (
+                <div className="rounded-circle bg-light d-flex align-items-center justify-content-center text-secondary" style={{ width: 42, height: 42 }}>
+                  <i className="bi bi-person-fill"></i>
+                </div>
+              )}
+              <div>
+                <div className="fw-semibold text-dark" style={{ fontSize: '0.95rem' }}>{searchResult.name || 'User'}</div>
+              </div>
+            </div>
             {searchResult.email && (
               <div className="text-secondary" style={{ fontSize: '0.82rem' }}>{searchResult.email}</div>
             )}
