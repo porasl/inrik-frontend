@@ -64,6 +64,95 @@ function isHiddenVideoTitle(title) {
   return normalized === 'untitled video' || normalized === 'untilted video';
 }
 
+function collectConnectionStatusMarkers(value, depth = 0, markers = []) {
+  if (depth > 3 || value == null) return markers;
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectConnectionStatusMarkers(item, depth + 1, markers));
+    return markers;
+  }
+
+  if (typeof value !== 'object') return markers;
+
+  Object.entries(value).forEach(([key, entry]) => {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    const isStatusLikeKey = /(status|state|pending|request|invite|friend)/i.test(normalizedKey);
+
+    if (typeof entry === 'string' && isStatusLikeKey) {
+      markers.push(entry);
+    } else if (typeof entry === 'boolean' && isStatusLikeKey && entry) {
+      markers.push(normalizedKey);
+    } else if (entry && typeof entry === 'object') {
+      collectConnectionStatusMarkers(entry, depth + 1, markers);
+    }
+  });
+
+  return markers;
+}
+
+function normalizeConnectionStatusMarkers(connection) {
+  return collectConnectionStatusMarkers(connection)
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isPendingConnection(connection) {
+  const booleanFlags = [
+    connection?.pending,
+    connection?.isPending,
+    connection?.requestPending,
+    connection?.hasPendingRequest,
+    connection?.pendingRequest,
+  ];
+
+  if (booleanFlags.some((flag) => flag === true)) {
+    return true;
+  }
+
+  const statusValues = [
+    connection?.status,
+    connection?.connectionStatus,
+    connection?.requestStatus,
+    connection?.inviteStatus,
+    connection?.state,
+    connection?.connectionState,
+    connection?.friendStatus,
+    connection?.friendshipStatus,
+    connection?.approvalStatus,
+    connection?.request?.status,
+    connection?.invite?.status,
+    connection?.connection?.status,
+    ...normalizeConnectionStatusMarkers(connection),
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  return statusValues.some((value) => (
+    value === 'pending'
+    || value === 'pending_connection'
+    || value === 'pending-connection'
+    || value === 'requested'
+    || value === 'request_sent'
+    || value === 'request-sent'
+    || value === 'sent'
+    || value === 'awaiting_acceptance'
+    || value === 'awaiting-acceptance'
+    || value === 'waiting'
+  ));
+}
+
+function getConnectionPresenceStatus(connection) {
+  const statusValues = [
+    connection?.presenceStatus,
+    connection?.onlineStatus,
+    connection?.status,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  return statusValues.includes('online') ? 'online' : 'offline';
+}
+
 function App() {
   /* ─── Auth state ─── */
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
@@ -378,12 +467,24 @@ function App() {
       });
       if (!res.ok) throw new Error("Failed to load connections");
       const data = await res.json();
-      const mappedConnections = data.map(conn => ({
-        id: conn.id || conn.email || Math.random(),
-        name: [conn.firstname, conn.lastname].filter(Boolean).join(" ") || conn.email,
-        avatar: conn.profileImageUrl ? toPublicUrl(conn.profileImageUrl) : null,
-        status: 'offline',
-        pending: false,
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.connections)
+          ? data.connections
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+      const mappedConnections = list.map(conn => ({
+        id: conn.id || conn.userId || conn.email || Math.random(),
+        name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
+        email: conn.email || conn.userEmail || '',
+        avatar: (conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
+          ? toPublicUrl(conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
+          : null,
+        status: getConnectionPresenceStatus(conn),
+        pending: isPendingConnection(conn),
+        requestStatus: conn.requestStatus || conn.request?.status || conn.status || conn.connectionStatus || conn.connectionState || conn.state || '',
+        rawConnection: conn,
       }));
       setConnections((prev) => {
         const pendingById = new Map(prev.filter((c) => c.pending).map((c) => [String(c.id), c]));

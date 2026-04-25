@@ -1,5 +1,39 @@
 import React, { useState } from 'react';
 
+function shouldShowPendingBadge(connection) {
+  if (connection?.pending === true) return true;
+
+  const markers = [
+    connection?.requestStatus,
+    connection?.status,
+    connection?.connectionStatus,
+    connection?.connectionState,
+    connection?.inviteStatus,
+    connection?.state,
+    connection?.rawConnection?.status,
+    connection?.rawConnection?.requestStatus,
+    connection?.rawConnection?.connectionStatus,
+    connection?.rawConnection?.connectionState,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  const rawMarkers = JSON.stringify(connection?.rawConnection || {})
+    .toLowerCase();
+
+  return markers.some((value) => (
+    value === 'pending'
+    || value === 'pending_connection'
+    || value === 'pending-connection'
+    || value === 'requested'
+    || value === 'request_sent'
+    || value === 'request-sent'
+    || value === 'awaiting_acceptance'
+    || value === 'awaiting-acceptance'
+    || value === 'waiting'
+  )) || rawMarkers.includes('pending');
+}
+
 export default function Rightbar({
   connections = [],
   isLoggedIn = false,
@@ -102,9 +136,13 @@ export default function Rightbar({
         {/* --- CONTACT LIST --- */}
         <ul className="list-unstyled mb-0">
           {filteredConnections.length > 0 ? (
-            filteredConnections.map(conn => (
-              <li key={conn.id} className="d-flex align-items-center gap-3 mb-2 p-2 rounded hover-bg-light cursor-pointer transition-base">
-                <div className="position-relative">
+            filteredConnections.map((conn) => {
+              const isPending = shouldShowPendingBadge(conn);
+
+              return (
+              <li key={conn.id} className="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded hover-bg-light cursor-pointer transition-base">
+                <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
+                  <div className="position-relative flex-shrink-0">
                   {conn.avatar ? (
                     <img
                       src={conn.avatar}
@@ -122,13 +160,27 @@ export default function Rightbar({
                     className={`position-absolute bottom-0 end-0 border border-white rounded-circle p-1 ${conn.status === 'online' ? 'bg-success' : 'bg-secondary'}`}
                     style={{ width: '12px', height: '12px' }}
                   ></span>
+                  </div>
+                  <div className="d-flex flex-column min-w-0">
+                    <span className="fw-medium text-dark text-truncate" style={{ minWidth: 0 }}>{conn.name}</span>
+                    {isPending && (
+                      <span className="text-warning-emphasis fw-semibold" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
+                        PENDING
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="fw-medium text-dark">{conn.name}</span>
-                {conn.pending && (
-                  <span className="badge text-bg-warning ms-auto">Pending</span>
+                {isPending && (
+                  <span
+                    className="badge flex-shrink-0"
+                    style={{ backgroundColor: '#ffe08a', color: '#7a4b00', fontWeight: 700, letterSpacing: '0.06em' }}
+                  >
+                    PENDING
+                  </span>
                 )}
               </li>
-            ))
+              );
+            })
           ) : (
             <li className="p-3 text-muted text-center small bg-light rounded-3">
               <i className="bi bi-people fs-4 d-block mb-2 text-secondary-subtle"></i>
