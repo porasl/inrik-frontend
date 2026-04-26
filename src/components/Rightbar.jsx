@@ -161,14 +161,7 @@ export default function Rightbar({
                     style={{ width: '12px', height: '12px' }}
                   ></span>
                   </div>
-                  <div className="d-flex flex-column min-w-0">
-                    <span className="fw-medium text-dark text-truncate" style={{ minWidth: 0 }}>{conn.name}</span>
-                    {isPending && (
-                      <span className="text-warning-emphasis fw-semibold" style={{ fontSize: '11px', letterSpacing: '0.08em' }}>
-                        PENDING
-                      </span>
-                    )}
-                  </div>
+                  <span className="fw-medium text-dark text-truncate" style={{ minWidth: 0 }}>{conn.name}</span>
                 </div>
                 {isPending && (
                   <span
