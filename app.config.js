@@ -1,10 +1,38 @@
-export const APPLICATION_IP = '192.168.4.95';
+import { LOCAL_CONFIG } from './local.config.js';
 
-export const API_PORT = 8082;
-export const NOTIFY_PORT = 8084;
-export const PUBLIC_PORT = 3000;
+const readConfig = (key, fallback = '') => {
+	const value = LOCAL_CONFIG?.[key];
+	return value == null || value === '' ? fallback : value;
+};
 
-export const API_BASE = '';
-export const API_ORIGIN = `http://${APPLICATION_IP}:${API_PORT}`;
-export const NOTIFY_URL = `http://${APPLICATION_IP}:${NOTIFY_PORT}`;
-export const PUBLIC_BASE = `http://${APPLICATION_IP}:${PUBLIC_PORT}`;
+const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
+
+const APP_PROTOCOL = readConfig('APP_PROTOCOL', 'http');
+const browserHost = globalThis.window?.location?.hostname || '';
+const APPLICATION_HOST = readConfig(
+	'APPLICATION_HOST',
+	browserHost,
+);
+
+const buildOrigin = (originKey, portKey) => {
+	const explicitOrigin = trimTrailingSlash(readConfig(originKey));
+	if (explicitOrigin) return explicitOrigin;
+
+	const port = readConfig(portKey);
+	if (!APPLICATION_HOST) return '';
+
+	return port
+		? `${APP_PROTOCOL}://${APPLICATION_HOST}:${port}`
+		: `${APP_PROTOCOL}://${APPLICATION_HOST}`;
+};
+
+export const APPLICATION_IP = APPLICATION_HOST;
+
+export const API_PORT = readConfig('API_PORT');
+export const NOTIFY_PORT = readConfig('NOTIFY_PORT');
+export const PUBLIC_PORT = readConfig('PUBLIC_PORT');
+
+export const API_BASE = trimTrailingSlash(readConfig('API_BASE', ''));
+export const API_ORIGIN = buildOrigin('API_ORIGIN', 'API_PORT');
+export const NOTIFY_URL = buildOrigin('NOTIFY_URL', 'NOTIFY_PORT');
+export const PUBLIC_BASE = buildOrigin('PUBLIC_BASE', 'PUBLIC_PORT');

@@ -1,0 +1,11 @@
+export const LOCAL_CONFIG = {
+  APP_PROTOCOL: 'http',
+  APPLICATION_HOST: '192.168.4.95',
+  API_PORT: '8082',
+  NOTIFY_PORT: '8084',
+  PUBLIC_PORT: '3000',
+  API_BASE: '',
+  API_ORIGIN: '',
+  NOTIFY_URL: '',
+  PUBLIC_BASE: '',
+};

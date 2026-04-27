@@ -13,6 +13,7 @@ import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
 import useDelayedVisibility from './hooks/useDelayedVisibility';
+import ConnectionRequestsModal from './components/ConnectionRequestsModal';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -141,6 +142,85 @@ function isPendingConnection(connection) {
   ));
 }
 
+function matchesCurrentUser(value, currentUserId, currentUserEmail) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return false;
+
+  return normalized === String(currentUserId || '').trim().toLowerCase()
+    || normalized === String(currentUserEmail || '').trim().toLowerCase();
+}
+
+function isIncomingConnectionRequest(connection, currentUserId, currentUserEmail) {
+  if (!isPendingConnection(connection)) return false;
+
+  const incomingFlags = [
+    connection?.incoming,
+    connection?.isIncoming,
+    connection?.requestReceived,
+    connection?.receivedRequest,
+    connection?.pendingIncoming,
+    connection?.rawConnection?.incoming,
+    connection?.rawConnection?.isIncoming,
+    connection?.rawConnection?.requestReceived,
+    connection?.rawConnection?.receivedRequest,
+    connection?.rawConnection?.pendingIncoming,
+  ];
+
+  if (incomingFlags.includes(true)) return true;
+
+  const directionValues = [
+    connection?.direction,
+    connection?.requestDirection,
+    connection?.requestType,
+    connection?.rawConnection?.direction,
+    connection?.rawConnection?.requestDirection,
+    connection?.rawConnection?.requestType,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (directionValues.some((value) => value === 'incoming' || value === 'received' || value === 'inbound')) {
+    return true;
+  }
+
+  const receiverCandidates = [
+    connection?.receiverId,
+    connection?.recipientId,
+    connection?.targetUserId,
+    connection?.targetEmail,
+    connection?.receiverEmail,
+    connection?.recipientEmail,
+    connection?.rawConnection?.receiverId,
+    connection?.rawConnection?.recipientId,
+    connection?.rawConnection?.targetUserId,
+    connection?.rawConnection?.targetEmail,
+    connection?.rawConnection?.receiverEmail,
+    connection?.rawConnection?.recipientEmail,
+  ];
+
+  const senderCandidates = [
+    connection?.senderId,
+    connection?.requesterId,
+    connection?.requestFrom,
+    connection?.requestedBy,
+    connection?.senderEmail,
+    connection?.requesterEmail,
+    connection?.rawConnection?.senderId,
+    connection?.rawConnection?.requesterId,
+    connection?.rawConnection?.requestFrom,
+    connection?.rawConnection?.requestedBy,
+    connection?.rawConnection?.senderEmail,
+    connection?.rawConnection?.requesterEmail,
+  ];
+
+  const receiverMatchesCurrentUser = receiverCandidates.some((value) => matchesCurrentUser(value, currentUserId, currentUserEmail));
+  const senderMatchesCurrentUser = senderCandidates.some((value) => matchesCurrentUser(value, currentUserId, currentUserEmail));
+
+  if (receiverMatchesCurrentUser && !senderMatchesCurrentUser) return true;
+
+  return !senderMatchesCurrentUser;
+}
+
 function getConnectionPresenceStatus(connection) {
   const statusValues = [
     connection?.presenceStatus,
@@ -182,6 +262,9 @@ function App() {
 
   /* ─── Upload modal ─── */
   const [showUpload, setShowUpload] = useState(false);
+
+  /* ─── Incoming connection requests popup ─── */
+  const [incomingRequests, setIncomingRequests] = useState([]);
 
   /* ─── Active sidebar section ─── */
   const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio'
@@ -474,6 +557,8 @@ function App() {
           : Array.isArray(data?.items)
             ? data.items
             : [];
+      const currentUserId = localStorage.getItem('userId') || user?.email || '';
+      const currentUserEmail = localStorage.getItem('email') || user?.email || '';
       const mappedConnections = list.map(conn => ({
         id: conn.id || conn.userId || conn.email || Math.random(),
         name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
@@ -486,16 +571,22 @@ function App() {
         requestStatus: conn.requestStatus || conn.request?.status || conn.status || conn.connectionStatus || conn.connectionState || conn.state || '',
         rawConnection: conn,
       }));
+      let resolvedConnections = mappedConnections;
       setConnections((prev) => {
         const pendingById = new Map(prev.filter((c) => c.pending).map((c) => [String(c.id), c]));
-        return mappedConnections.map((conn) => {
+        resolvedConnections = mappedConnections.map((conn) => {
           const pendingConn = pendingById.get(String(conn.id));
           return pendingConn ? { ...conn, pending: true } : conn;
         });
+        return resolvedConnections;
       });
-      return mappedConnections;
+      setIncomingRequests(
+        resolvedConnections.filter((conn) => isIncomingConnectionRequest(conn.rawConnection || conn, currentUserId, currentUserEmail))
+      );
+      return resolvedConnections;
     } catch (err) {
       console.error(err);
+      setIncomingRequests([]);
       return [];
     }
   };
@@ -572,6 +663,36 @@ function App() {
 
     // Keep popup flow working even when backend query names differ.
     return { id: userId, name: `User ${userId}`, email: '', profileImageUrl: '', avatar: null };
+  };
+
+  /* ────────────────────────────────────────────
+     INCOMING CONNECTION REQUESTS
+  ──────────────────────────────────────────── */
+  const fetchIncomingRequests = async () => {
+    return fetchConnections();
+  };
+
+  const acceptConnectionRequest = async (req) => {
+    const userId = String(req.id || '').trim();
+    if (!userId) return;
+    const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/accept`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error('Failed to accept connection request.');
+    setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
+    await fetchConnections();
+  };
+
+  const rejectConnectionRequest = async (req) => {
+    const userId = String(req.id || '').trim();
+    if (!userId) return;
+    const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/reject`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error('Failed to reject connection request.');
+    setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
   };
 
   const addConnectionByUserId = async (targetUser) => {
@@ -651,7 +772,7 @@ function App() {
       didRunInitialFetch.current = true;
       fetchPosts(0, false);
     }
-    if (isLoggedIn) fetchConnections();
+    if (isLoggedIn) { fetchConnections(); fetchIncomingRequests(); }
     if (!isLoggedIn) {
       invalidatePostsCache();
       invalidatePhotoCache();
@@ -808,6 +929,16 @@ function App() {
           />
         )}
       </div>
+
+      {/* Incoming connection requests popup */}
+      {incomingRequests.length > 0 && (
+        <ConnectionRequestsModal
+          requests={incomingRequests}
+          onAccept={acceptConnectionRequest}
+          onReject={rejectConnectionRequest}
+          onClose={() => setIncomingRequests([])}
+        />
+      )}
 
       {/* Mobile bottom nav */}
       <div className="mobile-nav d-lg-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
