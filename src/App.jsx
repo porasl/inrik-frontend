@@ -672,8 +672,23 @@ function App() {
     return fetchConnections();
   };
 
+  const resolveConnectionUserId = (req) => {
+    const raw = req.rawConnection || {};
+    // Prefer numeric/string IDs from the raw payload; avoid using email as ID
+    const candidates = [
+      raw.senderId, raw.requesterId, raw.requestFrom, raw.requestedBy,
+      raw.userId, raw.id,
+      req.id,
+    ];
+    const numericId = candidates.find((v) => v != null && String(v).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v)));
+    if (numericId != null) return String(numericId).trim();
+    // Fall back to email if nothing else available
+    const emailId = candidates.find((v) => v != null && String(v).trim() !== '');
+    return emailId != null ? String(emailId).trim() : '';
+  };
+
   const acceptConnectionRequest = async (req) => {
-    const userId = String(req.id || '').trim();
+    const userId = resolveConnectionUserId(req);
     if (!userId) return;
     const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/accept`, {
       method: 'POST',
@@ -685,7 +700,7 @@ function App() {
   };
 
   const rejectConnectionRequest = async (req) => {
-    const userId = String(req.id || '').trim();
+    const userId = resolveConnectionUserId(req);
     if (!userId) return;
     const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/reject`, {
       method: 'POST',
