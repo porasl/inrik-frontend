@@ -335,6 +335,7 @@ function App() {
      LOGIN 
   ──────────────────────────────────────────── */
   const handleLogin = async (email, password) => {
+    setIncomingRequests([]);
     try {
       const response = await fetch(`${API_BASE}/api/auth/authenticate`, {
         method: "POST",
@@ -405,6 +406,7 @@ function App() {
     setUser(null);
     setPosts([]);
     setConnections([]);
+    setIncomingRequests([]);
     setPage(0);
     setHasNext(true);
     setWatchingPost(null);
@@ -456,22 +458,25 @@ function App() {
        4. If refresh also fails, logs the user out.
   ──────────────────────────────────────────── */
   const authFetch = async (url, options = {}) => {
+    const { noAutoLogout, ...fetchOptions } = options;
     const token = localStorage.getItem("token");
     const headers = {
-      ...(options.headers || {}),
+      ...(fetchOptions.headers || {}),
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     };
 
-    let res = await fetch(url, { ...options, headers });
+    let res = await fetch(url, { ...fetchOptions, headers });
 
     if (res.status === 401) {
+      if (noAutoLogout) return res; // caller handles 401 without logout
+
       // Token expired — try to refresh
       const newToken = await refreshAccessToken();
       if (!newToken) return res; // logout already triggered
 
       // Retry with the fresh token
       const retryHeaders = { ...headers, "Authorization": `Bearer ${newToken}` };
-      res = await fetch(url, { ...options, headers: retryHeaders });
+      res = await fetch(url, { ...fetchOptions, headers: retryHeaders });
 
       // If still 401 after refresh, force logout
       if (res.status === 401) handleLogout();
@@ -672,41 +677,74 @@ function App() {
     return fetchConnections();
   };
 
-  const resolveConnectionUserId = (req) => {
+  const getConnectionIdentifierCandidates = (req) => {
     const raw = req.rawConnection || {};
-    // Prefer numeric/string IDs from the raw payload; avoid using email as ID
     const candidates = [
-      raw.senderId, raw.requesterId, raw.requestFrom, raw.requestedBy,
-      raw.userId, raw.id,
+      raw.senderId,
+      raw.requesterId,
+      raw.requestFrom,
+      raw.requestedBy,
+      raw.userId,
+      raw.id,
+      raw.senderEmail,
+      raw.requesterEmail,
+      raw.email,
       req.id,
-    ];
-    const numericId = candidates.find((v) => v != null && String(v).trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v)));
-    if (numericId != null) return String(numericId).trim();
-    // Fall back to email if nothing else available
-    const emailId = candidates.find((v) => v != null && String(v).trim() !== '');
-    return emailId != null ? String(emailId).trim() : '';
+      req.email,
+    ]
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean);
+
+    const unique = [...new Set(candidates)];
+    const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const nonEmail = unique.filter((value) => !isEmail(value));
+    const email = unique.filter((value) => isEmail(value));
+
+    // Try non-email identifiers first, then email-based identifiers.
+    return [...nonEmail, ...email];
+  };
+
+  const tryConnectionAction = async (req, action) => {
+    const identifiers = getConnectionIdentifierCandidates(req);
+    if (!identifiers.length) return { ok: false, status: 0, identifiers };
+
+    let lastStatus = 0;
+    for (const identifier of identifiers) {
+      const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${action}`, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+        noAutoLogout: true,
+      });
+
+      if (res.ok) return { ok: true, status: res.status, identifiers };
+      lastStatus = res.status;
+
+      // Stop early for non-auth failures.
+      if (res.status !== 401 && res.status !== 404) {
+        return { ok: false, status: res.status, identifiers };
+      }
+    }
+
+    return { ok: false, status: lastStatus, identifiers };
   };
 
   const acceptConnectionRequest = async (req) => {
-    const userId = resolveConnectionUserId(req);
-    if (!userId) return;
-    const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/accept`, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error('Failed to accept connection request.');
+    const result = await tryConnectionAction(req, 'accept');
+    if (!result.ok) {
+      console.error(`Accept connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
+      return;
+    }
     setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
     await fetchConnections();
   };
 
   const rejectConnectionRequest = async (req) => {
-    const userId = resolveConnectionUserId(req);
-    if (!userId) return;
-    const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(userId)}/reject`, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error('Failed to reject connection request.');
+    const result = await tryConnectionAction(req, 'reject');
+    if (!result.ok) {
+      console.error(`Reject connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
+      return;
+    }
     setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
   };
 
@@ -946,7 +984,7 @@ function App() {
       </div>
 
       {/* Incoming connection requests popup */}
-      {incomingRequests.length > 0 && (
+      {isLoggedIn && incomingRequests.length > 0 && (
         <ConnectionRequestsModal
           requests={incomingRequests}
           onAccept={acceptConnectionRequest}

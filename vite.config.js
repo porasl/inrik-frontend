@@ -21,20 +21,28 @@ export default defineConfig(() => {
         '/graphql': {
           target: apiOrigin,
           changeOrigin: true,
+          secure: false,
           configure: (proxy) => {
-            proxy.on('proxyReq', (proxyReq) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
               proxyReq.setHeader('Origin', apiOrigin);
               proxyReq.setHeader('Referer', apiOrigin + '/');
+              // Preserve Authorization header — never strip it
+              const auth = req.headers['authorization'];
+              if (auth) proxyReq.setHeader('Authorization', auth);
             });
           }
         },
         '/api': {
           target: apiOrigin,
           changeOrigin: true,
+          secure: false,
           configure: (proxy) => {
-            proxy.on('proxyReq', (proxyReq) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
               proxyReq.setHeader('Origin', apiOrigin);
               proxyReq.setHeader('Referer', apiOrigin + '/');
+              // Preserve Authorization header — never strip it
+              const auth = req.headers['authorization'];
+              if (auth) proxyReq.setHeader('Authorization', auth);
             });
           }
         },
