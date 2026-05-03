@@ -335,6 +335,19 @@ function App() {
      LOGIN 
   ──────────────────────────────────────────── */
   const handleLogin = async (email, password) => {
+    [
+      'token',
+      'refresh_token',
+      'access_token',
+      'id_token',
+      'jwt',
+      'userId',
+      'email',
+      'userName',
+      'author',
+    ].forEach((key) => localStorage.removeItem(key));
+    setIsLoggedIn(false);
+    setUser(null);
     setIncomingRequests([]);
     try {
       const response = await fetch(`${API_BASE}/api/auth/authenticate`, {
@@ -421,10 +434,10 @@ function App() {
      refresh token. Returns the new access token, or
      null if refresh fails (triggers logout).
   ──────────────────────────────────────────── */
-  const refreshAccessToken = async () => {
+  const refreshAccessToken = async (suppressLogout = false) => {
     const refreshToken = localStorage.getItem("refresh_token");
     if (!refreshToken) {
-      handleLogout();
+      if (!suppressLogout) handleLogout();
       return null;
     }
     try {
@@ -433,18 +446,21 @@ function App() {
         headers: { "Authorization": `Bearer ${refreshToken}` },
       });
       if (!res.ok) {
-        handleLogout();
+        if (!suppressLogout) handleLogout();
         return null;
       }
       const data = await res.json();
       const newToken = data.access_token;
-      if (!newToken) { handleLogout(); return null; }
+      if (!newToken) {
+        if (!suppressLogout) handleLogout();
+        return null;
+      }
       localStorage.setItem("token", newToken);
       syncStoredUserId(newToken, data, localStorage.getItem("email") || "");
       if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
       return newToken;
     } catch {
-      handleLogout();
+      if (!suppressLogout) handleLogout();
       return null;
     }
   };
@@ -468,18 +484,16 @@ function App() {
     let res = await fetch(url, { ...fetchOptions, headers });
 
     if (res.status === 401) {
-      if (noAutoLogout) return res; // caller handles 401 without logout
-
       // Token expired — try to refresh
-      const newToken = await refreshAccessToken();
-      if (!newToken) return res; // logout already triggered
+      const newToken = await refreshAccessToken(!!noAutoLogout);
+      if (!newToken) return res;
 
       // Retry with the fresh token
       const retryHeaders = { ...headers, "Authorization": `Bearer ${newToken}` };
       res = await fetch(url, { ...fetchOptions, headers: retryHeaders });
 
       // If still 401 after refresh, force logout
-      if (res.status === 401) handleLogout();
+      if (res.status === 401 && !noAutoLogout) handleLogout();
     }
 
     return res;
@@ -708,17 +722,32 @@ function App() {
     const identifiers = getConnectionIdentifierCandidates(req);
     if (!identifiers.length) return { ok: false, status: 0, identifiers };
 
+    let accessToken = localStorage.getItem('token');
+    if (!accessToken) {
+      accessToken = await refreshAccessToken(true);
+    }
+    if (!accessToken) {
+      return { ok: false, status: 401, identifiers };
+    }
+
     let lastStatus = 0;
     for (const identifier of identifiers) {
       const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${action}`, {
         method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({}),
         noAutoLogout: true,
       });
 
       if (res.ok) return { ok: true, status: res.status, identifiers };
       lastStatus = res.status;
+
+      // Keep local token in sync in case authFetch refreshed it.
+      accessToken = localStorage.getItem('token') || accessToken;
 
       // Stop early for non-auth failures.
       if (res.status !== 401 && res.status !== 404) {
