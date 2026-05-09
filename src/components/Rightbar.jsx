@@ -140,7 +140,7 @@ export default function Rightbar({
               const isPending = shouldShowPendingBadge(conn);
 
               return (
-              <li key={conn.id} className="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded hover-bg-light cursor-pointer transition-base">
+              <li key={conn.requestKey || conn.id || conn.email} className="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded hover-bg-light cursor-pointer transition-base">
                 <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
                   <div className="position-relative flex-shrink-0">
                   {conn.avatar ? (

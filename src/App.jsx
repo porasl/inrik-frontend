@@ -379,7 +379,24 @@ function App() {
         body: JSON.stringify({ email, password }),
       });
 
-      if (!response.ok) throw new Error("Invalid login credentials");
+      if (!response.ok) {
+        let details = '';
+        try {
+          details = await response.text();
+        } catch {
+          details = '';
+        }
+
+        const compactDetails = String(details || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Invalid login credentials');
+        }
+
+        const message = compactDetails
+          ? `Login request failed: ${response.status} ${response.statusText} - ${compactDetails}`
+          : `Login request failed: ${response.status} ${response.statusText}`;
+        throw new Error(message);
+      }
 
       const data = await response.json();
 
@@ -425,7 +442,7 @@ function App() {
       setIsLoggedIn(true);
     } catch (err) {
       console.error("Login error:", err);
-      alert("Login failed. Please check your credentials.");
+      alert(err?.message || "Login failed. Please try again.");
     }
   };
 
@@ -498,7 +515,7 @@ function App() {
        4. If refresh also fails, logs the user out.
   ──────────────────────────────────────────── */
   const authFetch = async (url, options = {}) => {
-    const { noAutoLogout, ...fetchOptions } = options;
+    const { noAutoLogout, skipRefreshOn401, ...fetchOptions } = options;
     const token = localStorage.getItem("token");
     const headers = {
       ...(fetchOptions.headers || {}),
@@ -508,6 +525,8 @@ function App() {
     let res = await fetch(url, { ...fetchOptions, headers });
 
     if (res.status === 401) {
+      if (skipRefreshOn401) return res;
+
       // Token expired — try to refresh
       const newToken = await refreshAccessToken(!!noAutoLogout);
       if (!newToken) return res;
@@ -576,6 +595,8 @@ function App() {
       setPage(pageNum);
     } catch (err) {
       console.error("GraphQL fetch error:", err);
+      // Stop auto-load retry loops after a backend failure until next manual refresh/login.
+      setHasNext(false);
     } finally {
       setIsLoading(false);
     }
@@ -603,7 +624,8 @@ function App() {
       const currentUserId = localStorage.getItem('userId') || user?.email || '';
       const currentUserEmail = localStorage.getItem('email') || user?.email || '';
       const mappedConnections = list.map(conn => ({
-        id: conn.id || conn.userId || conn.email || Math.random(),
+        id: conn.senderId || conn.requesterId || conn.requestFrom || conn.requestedBy || conn.userId || conn.id || '',
+        requestKey: conn.requestId || conn.id || conn.senderId || conn.requesterId || conn.userId || conn.email || Math.random(),
         name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
         email: conn.email || conn.userEmail || '',
         avatar: (conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
@@ -724,22 +746,14 @@ function App() {
       raw.requestedBy,
       raw.userId,
       raw.id,
-      raw.senderEmail,
-      raw.requesterEmail,
-      raw.email,
       req.id,
-      req.email,
     ]
       .map((value) => String(value ?? '').trim())
       .filter(Boolean);
 
     const unique = [...new Set(candidates)];
-    const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    const nonEmail = unique.filter((value) => !isEmail(value));
-    const email = unique.filter((value) => isEmail(value));
-
-    // Try non-email identifiers first, then email-based identifiers.
-    return [...nonEmail, ...email];
+    // Endpoint expects Long path variable, so only keep numeric values.
+    return unique.filter((value) => /^\d+$/.test(value));
   };
 
   const tryConnectionAction = async (req, action) => {
@@ -765,6 +779,7 @@ function App() {
         },
         body: JSON.stringify({}),
         noAutoLogout: true,
+        skipRefreshOn401: true,
       });
 
       if (res.ok) return { ok: true, status: res.status, identifiers };
@@ -788,7 +803,7 @@ function App() {
       console.error(`Accept connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
       return;
     }
-    setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
+    setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));
     await fetchConnections();
   };
 
@@ -798,7 +813,7 @@ function App() {
       console.error(`Reject connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
       return;
     }
-    setIncomingRequests((prev) => prev.filter((r) => String(r.id) !== String(req.id)));
+    setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));
   };
 
   const addConnectionByUserId = async (targetUser) => {

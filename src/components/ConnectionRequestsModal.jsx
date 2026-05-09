@@ -49,7 +49,7 @@ export default function ConnectionRequestsModal({ requests, onAccept, onReject, 
         <ul className="list-unstyled mb-0">
           {requests.map((req) => (
             <li
-              key={req.id}
+              key={req.requestKey || req.id || req.email}
               className="d-flex align-items-center justify-content-between gap-3 p-3 mb-2 rounded-3 border"
             >
               <div className="d-flex align-items-center gap-3 min-w-0">

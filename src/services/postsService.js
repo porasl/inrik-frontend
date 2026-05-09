@@ -135,7 +135,17 @@ async function fetchAllPostsFromGraphql(pageSize = 30) {
     });
 
     if (!res.ok) {
-      throw new Error(`GraphQL request failed: ${res.status}`);
+      let details = '';
+      try {
+        details = await res.text();
+      } catch {
+        details = '';
+      }
+      const compactDetails = String(details || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+      const message = compactDetails
+        ? `GraphQL request failed: ${res.status} ${res.statusText} - ${compactDetails}`
+        : `GraphQL request failed: ${res.status} ${res.statusText}`;
+      throw new Error(message);
     }
 
     const json = await res.json();
