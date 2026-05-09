@@ -60,6 +60,29 @@ function syncStoredUserId(token, responseData, fallbackEmail) {
   return resolvedUserId;
 }
 
+function resolveAccessToken(responseData) {
+  const candidates = [
+    responseData?.access_token,
+    responseData?.accessToken,
+    responseData?.token,
+    responseData?.jwt,
+    responseData?.id_token,
+  ];
+
+  const token = candidates.find((value) => typeof value === 'string' && value.trim() !== '');
+  return token ? token.trim() : '';
+}
+
+function resolveRefreshToken(responseData) {
+  const candidates = [
+    responseData?.refresh_token,
+    responseData?.refreshToken,
+  ];
+
+  const token = candidates.find((value) => typeof value === 'string' && value.trim() !== '');
+  return token ? token.trim() : '';
+}
+
 function isHiddenVideoTitle(title) {
   const normalized = String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
   return normalized === 'untitled video' || normalized === 'untilted video';
@@ -360,10 +383,10 @@ function App() {
 
       const data = await response.json();
 
-      // app.js stores access_token as "token"
-      const token = data.access_token;
+      const token = resolveAccessToken(data);
+      if (!token) throw new Error('No access token returned from authenticate response');
       localStorage.setItem("token", token);
-      localStorage.setItem("refresh_token", data.refresh_token || "");
+      localStorage.setItem("refresh_token", resolveRefreshToken(data));
       localStorage.setItem("email", email);
       localStorage.setItem("userName", email);
       syncStoredUserId(token, data, email);
@@ -411,7 +434,7 @@ function App() {
   ──────────────────────────────────────────── */
   const handleLogout = () => {
     [
-      "token", "refresh_token", "userName", "postId", "audioUrls", "documentUrls", "imageUrls",
+      "token", "refresh_token", "access_token", "id_token", "jwt", "userName", "postId", "audioUrls", "documentUrls", "imageUrls",
       "videoUrls", "author", "description", "documents", "email", "isevent", "ismemory",
       "ispublic", "userId", "userFirstName", "userLastName", "userProfileImageUrl", "userProfileImageOwner"
     ].forEach(k => localStorage.removeItem(k));
@@ -450,14 +473,15 @@ function App() {
         return null;
       }
       const data = await res.json();
-      const newToken = data.access_token;
+      const newToken = resolveAccessToken(data);
       if (!newToken) {
         if (!suppressLogout) handleLogout();
         return null;
       }
       localStorage.setItem("token", newToken);
       syncStoredUserId(newToken, data, localStorage.getItem("email") || "");
-      if (data.refresh_token) localStorage.setItem("refresh_token", data.refresh_token);
+      const newRefreshToken = resolveRefreshToken(data);
+      if (newRefreshToken) localStorage.setItem("refresh_token", newRefreshToken);
       return newToken;
     } catch {
       if (!suppressLogout) handleLogout();
