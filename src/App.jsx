@@ -83,6 +83,23 @@ function resolveRefreshToken(responseData) {
   return token ? token.trim() : '';
 }
 
+function isTokenExpired(token) {
+  if (!token) return true;
+  try {
+    const payload = decodeJwtPayload(token);
+    if (!payload || typeof payload.exp !== 'number') return true;
+    
+    const expiresAtMs = payload.exp * 1000; // convert to ms
+    const nowMs = Date.now();
+    const fiveMinMs = 5 * 60 * 1000;
+    
+    // Token is expired or expires within 5 minutes
+    return expiresAtMs - nowMs < fiveMinMs;
+  } catch {
+    return true; // Malformed token is treated as expired
+  }
+}
+
 function isHiddenVideoTitle(title) {
   const normalized = String(title || '').trim().toLowerCase().replace(/\s+/g, ' ');
   return normalized === 'untitled video' || normalized === 'untilted video';
@@ -453,7 +470,8 @@ function App() {
     [
       "token", "refresh_token", "access_token", "id_token", "jwt", "userName", "postId", "audioUrls", "documentUrls", "imageUrls",
       "videoUrls", "author", "description", "documents", "email", "isevent", "ismemory",
-      "ispublic", "userId", "userFirstName", "userLastName", "userProfileImageUrl", "userProfileImageOwner"
+      "ispublic", "userId", "userFirstName", "userLastName", "userProfileImageUrl", "userProfileImageOwner",
+      "tokenIssuedAt", "refreshTokenIssuedAt"
     ].forEach(k => localStorage.removeItem(k));
     setIsLoggedIn(false);
     setUser(null);
@@ -509,14 +527,35 @@ function App() {
   /* ────────────────────────────────────────────
      AUTH FETCH
      Drop-in replacement for fetch() that:
-       1. Attaches the Bearer token automatically.
-       2. On 401, tries to refresh the token once.
-       3. Retries the original request with the new token.
-       4. If refresh also fails, logs the user out.
+       1. Checks if token is expired; refreshes if needed.
+       2. Attaches the Bearer token automatically.
+       3. On 401, tries to refresh the token once.
+       4. Retries the original request with the new token.
+       5. If refresh also fails, logs the user out.
   ──────────────────────────────────────────── */
   const authFetch = async (url, options = {}) => {
     const { noAutoLogout, skipRefreshOn401, ...fetchOptions } = options;
-    const token = localStorage.getItem("token");
+    let token = localStorage.getItem("token");
+    
+    // Pre-check: if token is expired/expiring, refresh it now
+    if (token && isTokenExpired(token)) {
+      const payload = decodeJwtPayload(token);
+      if (payload?.iat) {
+        const issuedAtMs = payload.iat * 1000;
+        const ageMs = Date.now() - issuedAtMs;
+        const ageDays = Math.round(ageMs / (24 * 60 * 60 * 1000));
+        console.warn(`Detected expired token - age: ${ageDays} days, iat: ${new Date(issuedAtMs).toISOString()}, exp: ${new Date((payload.exp || 0) * 1000).toISOString()}`);
+      }
+      
+      const newToken = await refreshAccessToken(!!noAutoLogout);
+      if (newToken) {
+        token = newToken;
+      } else if (!noAutoLogout) {
+        // Refresh failed and no explicit opt-out — let caller handle 401
+        return new Response(JSON.stringify({ error: 'Token expired and refresh failed' }), { status: 401 });
+      }
+    }
+    
     const headers = {
       ...(fetchOptions.headers || {}),
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
