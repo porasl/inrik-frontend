@@ -662,19 +662,23 @@ function App() {
             : [];
       const currentUserId = localStorage.getItem('userId') || user?.email || '';
       const currentUserEmail = localStorage.getItem('email') || user?.email || '';
-      const mappedConnections = list.map(conn => ({
-        id: conn.senderId || conn.requesterId || conn.requestFrom || conn.requestedBy || conn.userId || conn.id || '',
-        requestKey: conn.requestId || conn.id || conn.senderId || conn.requesterId || conn.userId || conn.email || Math.random(),
-        name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
-        email: conn.email || conn.userEmail || '',
-        avatar: (conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
-          ? toPublicUrl(conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
-          : null,
-        status: getConnectionPresenceStatus(conn),
-        pending: isPendingConnection(conn),
-        requestStatus: conn.requestStatus || conn.request?.status || conn.status || conn.connectionStatus || conn.connectionState || conn.state || '',
-        rawConnection: conn,
-      }));
+      const mappedConnections = list.map(conn => {
+        const connectionId = conn.connectionId || conn.requestId || conn.connectionRequestId || conn.friendRequestId || '';
+        return {
+          id: connectionId,
+          connectionId,
+          requestKey: connectionId || conn.senderId || conn.requesterId || conn.userId || conn.email || Math.random(),
+          name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
+          email: conn.email || conn.userEmail || '',
+          avatar: (conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
+            ? toPublicUrl(conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
+            : null,
+          status: getConnectionPresenceStatus(conn),
+          pending: isPendingConnection(conn),
+          requestStatus: conn.requestStatus || conn.request?.status || conn.status || conn.connectionStatus || conn.connectionState || conn.state || '',
+          rawConnection: conn,
+        };
+      });
       let resolvedConnections = mappedConnections;
       setConnections((prev) => {
         const pendingById = new Map(prev.filter((c) => c.pending).map((c) => [String(c.id), c]));
@@ -779,19 +783,17 @@ function App() {
   const getConnectionIdentifierCandidates = (req) => {
     const raw = req.rawConnection || {};
     const candidates = [
-      raw.senderId,
-      raw.requesterId,
-      raw.requestFrom,
-      raw.requestedBy,
-      raw.userId,
-      raw.id,
-      req.id,
+      raw.connectionId,
+      raw.requestId,
+      raw.connectionRequestId,
+      raw.friendRequestId,
+      req.connectionId,
     ]
       .map((value) => String(value ?? '').trim())
       .filter(Boolean);
 
     const unique = [...new Set(candidates)];
-    // Endpoint expects Long path variable, so only keep numeric values.
+    // Endpoint expects connection/request Long ID path variable.
     return unique.filter((value) => /^\d+$/.test(value));
   };
 
@@ -847,12 +849,17 @@ function App() {
   };
 
   const rejectConnectionRequest = async (req) => {
-    const result = await tryConnectionAction(req, 'reject');
+    let result = await tryConnectionAction(req, 'reject');
+    if (!result.ok && (result.status === 404 || result.status === 405)) {
+      // Some backends expose delete instead of reject for pending requests.
+      result = await tryConnectionAction(req, 'delete');
+    }
     if (!result.ok) {
       console.error(`Reject connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
       return;
     }
     setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));
+    await fetchConnections();
   };
 
   const addConnectionByUserId = async (targetUser) => {
