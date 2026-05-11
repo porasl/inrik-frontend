@@ -39,6 +39,9 @@ export default function Rightbar({
   isLoggedIn = false,
   onSearchUserById,
   onAddConnection,
+  onRemoveConnection,
+  onFetchSentMessages,
+  onSendMessage,
 }) {
   const [userIdInput, setUserIdInput] = useState('');
   const [searchingUser, setSearchingUser] = useState(false);
@@ -47,6 +50,17 @@ export default function Rightbar({
   const [addingConnection, setAddingConnection] = useState(false);
   const [showTargetPlaceholder, setShowTargetPlaceholder] = useState(false);
   const [showSearchResultPopup, setShowSearchResultPopup] = useState(false);
+  const [selectedConnectionKey, setSelectedConnectionKey] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [removingConnection, setRemovingConnection] = useState(false);
+
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageTarget, setMessageTarget] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesError, setMessagesError] = useState('');
+  const [newMessageText, setNewMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const normalizedQuery = userIdInput.trim().toLowerCase();
   const filteredConnections = !normalizedQuery
@@ -146,6 +160,61 @@ export default function Rightbar({
     }
   };
 
+  const loadMessages = async (conn) => {
+    setMessagesLoading(true);
+    setMessagesError('');
+    try {
+      const list = await onFetchSentMessages?.(conn);
+      setMessages(Array.isArray(list) ? list : []);
+    } catch (err) {
+      setMessages([]);
+      setMessagesError(err?.message || 'Could not load messages.');
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const handleOpenMessage = async (conn) => {
+    setMessageTarget(conn);
+    setShowMessageModal(true);
+    setNewMessageText('');
+    await loadMessages(conn);
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageTarget) return;
+    const text = String(newMessageText || '').trim();
+    if (!text) {
+      setMessagesError('Please write a message first.');
+      return;
+    }
+
+    setSendingMessage(true);
+    setMessagesError('');
+    try {
+      await onSendMessage?.(messageTarget, text);
+      setNewMessageText('');
+      await loadMessages(messageTarget);
+    } catch (err) {
+      setMessagesError(err?.message || 'Could not send message.');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleRemoveSelectedConnection = async (conn) => {
+    setActionError('');
+    setRemovingConnection(true);
+    try {
+      await onRemoveConnection?.(conn);
+      setSelectedConnectionKey('');
+    } catch (err) {
+      setActionError(err?.message || 'Could not remove connection.');
+    } finally {
+      setRemovingConnection(false);
+    }
+  };
+
   return (
     <aside id="rightbar-id" className="rightbar">
       <div className="rightbar-inner">
@@ -192,43 +261,76 @@ export default function Rightbar({
           <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{searchError}</div>
         )}
 
+        {actionError && (
+          <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{actionError}</div>
+        )}
+
         {/* --- CONTACT LIST --- */}
         <ul className="list-unstyled mb-0">
           {filteredConnections.length > 0 ? (
             filteredConnections.map((conn) => {
               const isPending = shouldShowPendingBadge(conn);
+              const rowKey = String(conn.requestKey || conn.id || conn.email);
+              const isSelected = selectedConnectionKey === rowKey;
 
               return (
-              <li key={conn.requestKey || conn.id || conn.email} className="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded hover-bg-light cursor-pointer transition-base">
-                <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
-                  <div className="position-relative flex-shrink-0">
-                  {conn.avatar ? (
-                    <img
-                      src={conn.avatar}
-                      className="rounded-circle object-fit-cover"
-                      style={{ width: '40px', height: '40px' }}
-                      alt={conn.name}
-                    />
-                  ) : (
-                    <div className="rounded-circle bg-light d-flex align-items-center justify-content-center text-secondary" style={{ width: '40px', height: '40px' }}>
-                      <i className="bi bi-person-fill fs-5"></i>
+              <li key={rowKey} className="mb-2 p-2 rounded hover-bg-light transition-base border border-transparent">
+                <div
+                  className="d-flex align-items-center justify-content-between gap-2 cursor-pointer"
+                  onClick={() => setSelectedConnectionKey(isSelected ? '' : rowKey)}
+                >
+                  <div className="d-flex align-items-center gap-3 flex-grow-1 min-w-0">
+                    <div className="position-relative flex-shrink-0">
+                    {conn.avatar ? (
+                      <img
+                        src={conn.avatar}
+                        className="rounded-circle object-fit-cover"
+                        style={{ width: '40px', height: '40px' }}
+                        alt={conn.name}
+                      />
+                    ) : (
+                      <div className="rounded-circle bg-light d-flex align-items-center justify-content-center text-secondary" style={{ width: '40px', height: '40px' }}>
+                        <i className="bi bi-person-fill fs-5"></i>
+                      </div>
+                    )}
+                    <span
+                      className={`position-absolute bottom-0 end-0 border border-white rounded-circle p-1 ${conn.status === 'online' ? 'bg-success' : 'bg-secondary'}`}
+                      style={{ width: '12px', height: '12px' }}
+                    ></span>
                     </div>
-                  )}
-                  {/* Presence Indicator Dot */}
-                  <span
-                    className={`position-absolute bottom-0 end-0 border border-white rounded-circle p-1 ${conn.status === 'online' ? 'bg-success' : 'bg-secondary'}`}
-                    style={{ width: '12px', height: '12px' }}
-                  ></span>
+                    <span className="fw-medium text-dark text-truncate" style={{ minWidth: 0 }}>{conn.name}</span>
                   </div>
-                  <span className="fw-medium text-dark text-truncate" style={{ minWidth: 0 }}>{conn.name}</span>
+                  <div className="d-flex align-items-center gap-2">
+                    {isPending && (
+                      <span
+                        className="badge flex-shrink-0"
+                        style={{ backgroundColor: '#ffe08a', color: '#7a4b00', fontWeight: 700, letterSpacing: '0.06em' }}
+                      >
+                        PENDING
+                      </span>
+                    )}
+                    <i className={`bi ${isSelected ? 'bi-chevron-up' : 'bi-chevron-down'} text-secondary`}></i>
+                  </div>
                 </div>
-                {isPending && (
-                  <span
-                    className="badge flex-shrink-0"
-                    style={{ backgroundColor: '#ffe08a', color: '#7a4b00', fontWeight: 700, letterSpacing: '0.06em' }}
-                  >
-                    PENDING
-                  </span>
+
+                {isSelected && (
+                  <div className="d-grid gap-2 mt-2 ps-5" style={{ maxWidth: '180px' }}>
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      type="button"
+                      disabled={removingConnection}
+                      onClick={() => handleRemoveSelectedConnection(conn)}
+                    >
+                      {removingConnection ? 'Removing...' : 'Remove'}
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      type="button"
+                      onClick={() => handleOpenMessage(conn)}
+                    >
+                      Message
+                    </button>
+                  </div>
                 )}
               </li>
               );
@@ -322,6 +424,64 @@ export default function Rightbar({
                 disabled={addingConnection}
               >
                 {addingConnection ? 'Adding...' : 'Add Connection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMessageModal && messageTarget && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ background: 'rgba(0,0,0,0.45)', zIndex: 2300 }}
+          onClick={() => setShowMessageModal(false)}
+        >
+          <div
+            className="bg-white rounded-3 shadow p-3"
+            style={{ width: 'min(560px, 94vw)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="d-flex align-items-center justify-content-between mb-2">
+              <h6 className="mb-0 fw-bold">Message {messageTarget?.name || 'Connection'}</h6>
+              <button className="btn btn-sm btn-light border" type="button" onClick={() => setShowMessageModal(false)}>Close</button>
+            </div>
+
+            <div className="border rounded-3 p-2 mb-2" style={{ minHeight: '180px', maxHeight: '280px', overflowY: 'auto', background: '#fafafa' }}>
+              {messagesLoading ? (
+                <div className="text-secondary small">Loading old messages...</div>
+              ) : messages.length > 0 ? (
+                messages.map((msg) => (
+                  <div key={msg.id} className="mb-2 pb-2 border-bottom">
+                    <div className="small text-dark">{msg.text}</div>
+                    <div className="small text-secondary" style={{ fontSize: '0.72rem' }}>{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-secondary small">No previous messages from you to this user.</div>
+              )}
+            </div>
+
+            {messagesError && (
+              <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{messagesError}</div>
+            )}
+
+            <div className="mb-2">
+              <textarea
+                className="form-control"
+                rows={4}
+                placeholder="Write your message..."
+                value={newMessageText}
+                onChange={(e) => setNewMessageText(e.target.value)}
+              />
+            </div>
+            <div className="d-flex justify-content-end">
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={sendingMessage}
+                onClick={handleSendMessage}
+              >
+                {sendingMessage ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>

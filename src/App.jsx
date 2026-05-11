@@ -911,6 +911,143 @@ function App() {
     await fetchConnections();
   };
 
+  const removeConnection = async (conn) => {
+    const result = await tryConnectionAction(conn, 'delete');
+    if (!result.ok) {
+      throw new Error(`Delete connection failed (${result.status || 'unknown'}).`);
+    }
+    setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(conn.requestKey || conn.id)));
+    await fetchConnections();
+  };
+
+  const getConnectionMessagePayload = async (res) => {
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      return [];
+    }
+
+    const list = Array.isArray(json)
+      ? json
+      : Array.isArray(json?.messages)
+        ? json.messages
+        : Array.isArray(json?.items)
+          ? json.items
+          : Array.isArray(json?.data)
+            ? json.data
+            : [];
+
+    const meEmail = String(localStorage.getItem('email') || '').trim().toLowerCase();
+    const meUserId = String(localStorage.getItem('userId') || '').trim().toLowerCase();
+
+    return list
+      .map((item, index) => ({
+        id: item?.id || item?.messageId || `${index}-${item?.createdAt || ''}`,
+        text: item?.text || item?.message || item?.content || '',
+        createdAt: item?.createdAt || item?.created_at || item?.sentAt || item?.timestamp || '',
+        senderEmail: item?.senderEmail || item?.fromEmail || item?.sender?.email || '',
+        senderId: item?.senderId || item?.fromUserId || item?.sender?.id || item?.sender?.userId || '',
+      }))
+      .filter((item) => {
+        const senderEmail = String(item.senderEmail || '').trim().toLowerCase();
+        const senderId = String(item.senderId || '').trim().toLowerCase();
+        return (meEmail && senderEmail === meEmail) || (meUserId && senderId === meUserId);
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return aTime - bTime;
+      });
+  };
+
+  const getConnectionRecipientCandidates = (conn) => {
+    const raw = conn?.rawConnection || {};
+    return [
+      conn?.email,
+      raw?.email,
+      raw?.userEmail,
+      raw?.senderEmail,
+      raw?.requesterEmail,
+      raw?.receiverEmail,
+      raw?.recipientEmail,
+      raw?.targetEmail,
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+  };
+
+  const fetchSentMessagesForConnection = async (conn) => {
+    const identifiers = getConnectionIdentifierCandidates(conn);
+    const recipients = getConnectionRecipientCandidates(conn);
+
+    const endpoints = [];
+    identifiers.forEach((id) => {
+      endpoints.push(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(id)}/messages`);
+      endpoints.push(`${API_BASE}/api/auth/me/messages?connectionId=${encodeURIComponent(id)}`);
+    });
+    recipients.forEach((email) => {
+      endpoints.push(`${API_BASE}/api/auth/me/messages?recipientEmail=${encodeURIComponent(email)}`);
+    });
+
+    for (const url of endpoints) {
+      try {
+        const res = await authFetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+        if (!res.ok) continue;
+        return await getConnectionMessagePayload(res);
+      } catch {
+        // Try next endpoint shape.
+      }
+    }
+
+    return [];
+  };
+
+  const sendMessageToConnection = async (conn, text) => {
+    const message = String(text || '').trim();
+    if (!message) throw new Error('Message cannot be empty.');
+
+    const identifiers = getConnectionIdentifierCandidates(conn);
+    const recipients = getConnectionRecipientCandidates(conn);
+
+    const candidates = [];
+    identifiers.forEach((id) => {
+      candidates.push({
+        url: `${API_BASE}/api/auth/me/connections/${encodeURIComponent(id)}/messages`,
+        body: { message },
+      });
+      candidates.push({
+        url: `${API_BASE}/api/auth/me/messages`,
+        body: { connectionId: id, message },
+      });
+    });
+    recipients.forEach((email) => {
+      candidates.push({
+        url: `${API_BASE}/api/auth/me/messages`,
+        body: { recipientEmail: email, message },
+      });
+    });
+
+    for (const candidate of candidates) {
+      try {
+        const res = await authFetch(candidate.url, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(candidate.body),
+        });
+        if (res.ok) return;
+      } catch {
+        // Try next candidate.
+      }
+    }
+
+    throw new Error('Could not send message. Backend message endpoint is not available yet.');
+  };
+
   const addConnectionByUserId = async (targetUser) => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error('Please log in first.');
@@ -1142,6 +1279,9 @@ function App() {
             isLoggedIn={isLoggedIn}
             onSearchUserById={searchUserById}
             onAddConnection={addConnectionByUserId}
+            onRemoveConnection={removeConnection}
+            onFetchSentMessages={fetchSentMessagesForConnection}
+            onSendMessage={sendMessageToConnection}
           />
         )}
       </div>
