@@ -664,12 +664,23 @@ function App() {
       const currentUserEmail = localStorage.getItem('email') || user?.email || '';
       const mappedConnections = list.map(conn => {
         const connectionId = conn.connectionId || conn.requestId || conn.connectionRequestId || conn.friendRequestId || '';
+        const resolvedEmail = conn.email
+          || conn.userEmail
+          || conn.senderEmail
+          || conn.requesterEmail
+          || conn.receiverEmail
+          || conn.recipientEmail
+          || conn.targetEmail
+          || '';
+        const resolvedName = [conn.firstname || conn.firstName, conn.lastname || conn.lastName]
+          .filter(Boolean)
+          .join(" ") || conn.name || resolvedEmail;
         return {
           id: connectionId,
           connectionId,
           requestKey: connectionId || conn.senderId || conn.requesterId || conn.userId || conn.email || Math.random(),
-          name: [conn.firstname || conn.firstName, conn.lastname || conn.lastName].filter(Boolean).join(" ") || conn.name || conn.email,
-          email: conn.email || conn.userEmail || '',
+          name: resolvedName,
+          email: resolvedEmail,
           avatar: (conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
             ? toPublicUrl(conn.profileImageUrl || conn.profile_image_url || conn.avatar || conn.avatarUrl)
             : null,
@@ -679,15 +690,8 @@ function App() {
           rawConnection: conn,
         };
       });
-      let resolvedConnections = mappedConnections;
-      setConnections((prev) => {
-        const pendingById = new Map(prev.filter((c) => c.pending).map((c) => [String(c.id), c]));
-        resolvedConnections = mappedConnections.map((conn) => {
-          const pendingConn = pendingById.get(String(conn.id));
-          return pendingConn ? { ...conn, pending: true } : conn;
-        });
-        return resolvedConnections;
-      });
+      const resolvedConnections = mappedConnections;
+      setConnections(resolvedConnections);
       setIncomingRequests(
         resolvedConnections.filter((conn) => isIncomingConnectionRequest(conn.rawConnection || conn, currentUserId, currentUserEmail))
       );
@@ -704,9 +708,32 @@ function App() {
     if (!token) throw new Error('Please log in first.');
     const userId = String(targetUserId || '').trim();
     if (!userId) throw new Error('Missing userId.');
+    const normalizedSearch = userId.toLowerCase();
 
     const maybeInt = Number.parseInt(userId, 10);
     const hasInt = Number.isFinite(maybeInt);
+
+    const pickBestUser = (value) => {
+      if (!value) return null;
+      if (!Array.isArray(value)) return value;
+
+      const startsWithMatch = value.find((item) => {
+        const email = String(item?.email || '').trim().toLowerCase();
+        const id = String(item?.id || item?.userId || '').trim().toLowerCase();
+        const name = [item?.firstname, item?.firstName, item?.lastname, item?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+          .toLowerCase();
+
+        return email.startsWith(normalizedSearch)
+          || id.startsWith(normalizedSearch)
+          || name.startsWith(normalizedSearch);
+      });
+
+      if (startsWithMatch) return startsWithMatch;
+      return value[0] || null;
+    };
 
     const graphqlCandidates = [
       {
@@ -734,6 +761,31 @@ function App() {
         variables: { userId },
         pick: (data) => data?.searchUserById,
       },
+      {
+        query: `query($query: String!) { searchUsers(query: $query) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { query: userId },
+        pick: (data) => data?.searchUsers,
+      },
+      {
+        query: `query($term: String!) { searchUsers(term: $term) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { term: userId },
+        pick: (data) => data?.searchUsers,
+      },
+      {
+        query: `query($keyword: String!) { findUsersByKeyword(keyword: $keyword) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { keyword: userId },
+        pick: (data) => data?.findUsersByKeyword,
+      },
+      {
+        query: `query($email: String!) { getUserByEmail(email: $email) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { email: userId },
+        pick: (data) => data?.getUserByEmail,
+      },
+      {
+        query: `query($email: String!) { userByEmail(email: $email) { id userId firstname lastname email profileImageUrl } }`,
+        variables: { email: userId },
+        pick: (data) => data?.userByEmail,
+      },
     ];
 
     for (const candidate of graphqlCandidates) {
@@ -752,7 +804,7 @@ function App() {
         const json = await res.json();
         if (json?.errors?.length) continue;
 
-        const payload = candidate.pick(json?.data || {});
+        const payload = pickBestUser(candidate.pick(json?.data || {}));
         if (!payload) continue;
 
         return {
@@ -769,8 +821,7 @@ function App() {
       }
     }
 
-    // Keep popup flow working even when backend query names differ.
-    return { id: userId, name: `User ${userId}`, email: '', profileImageUrl: '', avatar: null };
+    throw new Error('No user found for this userId.');
   };
 
   /* ────────────────────────────────────────────
@@ -801,6 +852,8 @@ function App() {
     const identifiers = getConnectionIdentifierCandidates(req);
     if (!identifiers.length) return { ok: false, status: 0, identifiers };
 
+    const normalizedAction = String(action || '').trim().split(':')[0] || 'delete';
+
     let accessToken = localStorage.getItem('token');
     if (!accessToken) {
       accessToken = await refreshAccessToken(true);
@@ -811,7 +864,7 @@ function App() {
 
     let lastStatus = 0;
     for (const identifier of identifiers) {
-      const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${action}`, {
+      const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${normalizedAction}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -849,13 +902,9 @@ function App() {
   };
 
   const rejectConnectionRequest = async (req) => {
-    let result = await tryConnectionAction(req, 'reject');
-    if (!result.ok && (result.status === 404 || result.status === 405)) {
-      // Some backends expose delete instead of reject for pending requests.
-      result = await tryConnectionAction(req, 'delete');
-    }
+    const result = await tryConnectionAction(req, 'delete');
     if (!result.ok) {
-      console.error(`Reject connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
+      console.error(`Delete connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
       return;
     }
     setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));

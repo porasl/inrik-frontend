@@ -48,7 +48,45 @@ export default function Rightbar({
   const [showTargetPlaceholder, setShowTargetPlaceholder] = useState(false);
   const [showSearchResultPopup, setShowSearchResultPopup] = useState(false);
 
-  const filteredConnections = connections;
+  const normalizedQuery = userIdInput.trim().toLowerCase();
+  const filteredConnections = !normalizedQuery
+    ? connections
+    : connections.filter((conn) => {
+      const name = String(conn?.name || '').trim().toLowerCase();
+      const emailCandidates = [
+        conn?.email,
+        conn?.rawConnection?.email,
+        conn?.rawConnection?.userEmail,
+        conn?.rawConnection?.senderEmail,
+        conn?.rawConnection?.requesterEmail,
+        conn?.rawConnection?.receiverEmail,
+        conn?.rawConnection?.recipientEmail,
+        conn?.rawConnection?.targetEmail,
+      ]
+        .map((value) => String(value ?? '').trim().toLowerCase())
+        .filter(Boolean);
+      const idCandidates = [
+        conn?.id,
+        conn?.connectionId,
+        conn?.rawConnection?.id,
+        conn?.rawConnection?.userId,
+        conn?.rawConnection?.senderId,
+        conn?.rawConnection?.requesterId,
+        conn?.rawConnection?.connectionId,
+        conn?.rawConnection?.requestId,
+      ]
+        .map((value) => String(value ?? '').trim().toLowerCase())
+        .filter(Boolean);
+
+      const nameTokens = name.split(/\s+/).filter(Boolean);
+      const startsWith = (value) => value.startsWith(normalizedQuery);
+
+      return startsWith(name)
+        || nameTokens.some(startsWith)
+        || emailCandidates.some(startsWith)
+        || idCandidates.some(startsWith);
+    });
+  const canSuggestAdd = isLoggedIn && normalizedQuery && filteredConnections.length === 0;
 
   const handleSearchUser = async () => {
     const trimmed = userIdInput.trim();
@@ -67,6 +105,21 @@ export default function Rightbar({
         setSearchError('No user found for this userId.');
         return;
       }
+
+      const foundEmail = String(found?.email || '').trim().toLowerCase();
+      const foundUserId = String(found?.id || found?.userId || '').trim().toLowerCase();
+      const alreadyConnected = connections.some((conn) => {
+        const connEmail = String(conn?.email || conn?.rawConnection?.email || conn?.rawConnection?.userEmail || '').trim().toLowerCase();
+        const connUserId = String(conn?.rawConnection?.userId || conn?.rawConnection?.senderId || conn?.rawConnection?.requesterId || '').trim().toLowerCase();
+        return (foundEmail && connEmail === foundEmail) || (foundUserId && connUserId === foundUserId);
+      });
+
+      if (alreadyConnected) {
+        setSearchError('This user is already in your connections or pending list.');
+        setShowSearchResultPopup(false);
+        return;
+      }
+
       setSearchResult(found);
       setShowSearchResultPopup(true);
     } catch (err) {
@@ -115,6 +168,12 @@ export default function Rightbar({
                 placeholder="Search userId"
                 value={userIdInput}
                 onChange={(e) => setUserIdInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchUser();
+                  }
+                }}
                 style={{ boxShadow: 'none' }}
               />
               <button
@@ -174,10 +233,24 @@ export default function Rightbar({
               </li>
               );
             })
+          ) : canSuggestAdd ? (
+            <li className="p-3 small bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
+              <div className="text-secondary">
+                No connection starts with "{userIdInput.trim()}".
+              </div>
+              <button
+                className="btn btn-sm btn-primary"
+                type="button"
+                onClick={handleSearchUser}
+                disabled={searchingUser || addingConnection}
+              >
+                {searchingUser ? 'Searching...' : 'Find & Add'}
+              </button>
+            </li>
           ) : (
             <li className="p-3 text-muted text-center small bg-light rounded-3">
               <i className="bi bi-people fs-4 d-block mb-2 text-secondary-subtle"></i>
-              No connections yet
+              {normalizedQuery ? 'No matching connections' : 'No connections yet'}
             </li>
           )}
         </ul>
