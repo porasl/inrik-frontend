@@ -2,7 +2,7 @@
 :root {
   --nav-h: 65px;
   --left-w: 80px;
-  --right-w: 225px;
+  --right-w: 320px;
 
   --bg-primary: #ffffff;
   --bg-secondary: #f8f9fa;
@@ -306,9 +306,16 @@ html {
   background: white;
   border-left: 1px solid #dee2e6;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   z-index: 900;
   transition: right 0.3s ease;
+}
+
+.rightbar .rightbar-inner {
+  min-width: 0;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* --- 7. Responsive Breakdown --- */
@@ -317,7 +324,7 @@ html {
 @media (max-width: 1100px) {
   .rightbar {
     position: fixed;
-    right: -300px;
+    right: -420px;
     z-index: 3000;
     box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
   }

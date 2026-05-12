@@ -53,6 +53,8 @@ export default function Rightbar({
   const [selectedConnectionKey, setSelectedConnectionKey] = useState('');
   const [actionError, setActionError] = useState('');
   const [removingConnection, setRemovingConnection] = useState(false);
+  const [showRemoveConfirmModal, setShowRemoveConfirmModal] = useState(false);
+  const [connectionToRemove, setConnectionToRemove] = useState(null);
 
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageTarget, setMessageTarget] = useState(null);
@@ -204,10 +206,18 @@ export default function Rightbar({
 
   const handleRemoveSelectedConnection = async (conn) => {
     setActionError('');
+    setConnectionToRemove(conn);
+    setShowRemoveConfirmModal(true);
+  };
+
+  const confirmRemoveSelectedConnection = async () => {
+    if (!connectionToRemove) return;
     setRemovingConnection(true);
     try {
-      await onRemoveConnection?.(conn);
+      await onRemoveConnection?.(connectionToRemove);
       setSelectedConnectionKey('');
+      setShowRemoveConfirmModal(false);
+      setConnectionToRemove(null);
     } catch (err) {
       setActionError(err?.message || 'Could not remove connection.');
     } finally {
@@ -482,6 +492,50 @@ export default function Rightbar({
                 onClick={handleSendMessage}
               >
                 {sendingMessage ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRemoveConfirmModal && connectionToRemove && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ background: 'rgba(0,0,0,0.45)', zIndex: 2350 }}
+          onClick={() => {
+            if (removingConnection) return;
+            setShowRemoveConfirmModal(false);
+            setConnectionToRemove(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-3 shadow p-3"
+            style={{ width: 'min(420px, 92vw)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h6 className="mb-2 fw-bold">Confirm Remove</h6>
+            <p className="mb-3 text-secondary" style={{ fontSize: '0.9rem' }}>
+              Remove connection with {connectionToRemove?.name || 'this user'}?
+            </p>
+            <div className="d-flex justify-content-end gap-2">
+              <button
+                className="btn btn-sm btn-light border"
+                type="button"
+                disabled={removingConnection}
+                onClick={() => {
+                  setShowRemoveConfirmModal(false);
+                  setConnectionToRemove(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-danger"
+                type="button"
+                disabled={removingConnection}
+                onClick={confirmRemoveSelectedConnection}
+              >
+                {removingConnection ? 'Removing...' : 'Remove'}
               </button>
             </div>
           </div>
