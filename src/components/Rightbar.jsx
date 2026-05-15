@@ -228,6 +228,35 @@ export default function Rightbar({
   return (
     <aside id="rightbar-id" className="rightbar">
       <div className="rightbar-inner">
+        <a
+          href="https://bazaartoday.com"
+          target="_blank"
+          rel="noreferrer"
+          className="d-block text-decoration-none mb-3"
+        >
+          <div className="rounded-3 border p-3 shadow-sm" style={{ background: 'linear-gradient(135deg, #fff7e6 0%, #ffffff 100%)' }}>
+            <div className="d-flex align-items-start gap-3">
+              <div className="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center overflow-hidden" style={{ width: 52, height: 52, background: '#fff' }}>
+                <img
+                  src="/resources/images/bazaartoday.png"
+                  alt="Bazaar Today"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="d-flex align-items-center gap-2 mb-1">
+                  <span className="badge text-bg-warning text-dark">Advertisement</span>
+                  <span className="small text-muted">Sponsored</span>
+                </div>
+                <div className="fw-bold text-dark text-truncate">Visit bazaartoday.com</div>
+                <div className="small text-secondary" style={{ lineHeight: 1.35 }}>
+                  Discover deals, listings, and fresh content from Bazaar Today.
+                </div>
+              </div>
+            </div>
+          </div>
+        </a>
+
         <div className="d-flex align-items-center justify-content-between mb-3">
           <h6 className="m-0 fw-bold">Connections ({connections.length})</h6>
           <button className="btn btn-sm btn-outline-secondary" type="button">
