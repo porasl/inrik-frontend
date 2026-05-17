@@ -13,8 +13,62 @@ function toPublicUrl(fsPath) {
     return `${PUBLIC_BASE}${rel}`;
 }
 
+function decodeJwtPayload(token) {
+    if (!token) return null;
+    try {
+        return JSON.parse(atob(token.split('.')[1]));
+    } catch {
+        return null;
+    }
+}
+
+function getCurrentViewer() {
+    const token = localStorage.getItem('token') || '';
+    const payload = decodeJwtPayload(token) || {};
+    return {
+        email: String(localStorage.getItem('email') || payload.email || payload.preferred_username || '').trim().toLowerCase(),
+        id: String(localStorage.getItem('userId') || payload.userId || payload.userid || payload.uid || payload.sub || '').trim().toLowerCase(),
+    };
+}
+
+function isPostOwnedByViewer(post) {
+    const viewer = getCurrentViewer();
+    if (!viewer.email && !viewer.id) return false;
+
+    const ownerEmail = String(post?.email || post?.authorEmail || post?.userEmail || '').trim().toLowerCase();
+    const ownerId = String(post?.userId || post?.ownerId || post?.authorId || post?.idUser || '').trim().toLowerCase();
+    const authorRaw = String(post?.author || '').trim().toLowerCase();
+
+    if (viewer.email && (ownerEmail === viewer.email || authorRaw === viewer.email)) return true;
+    if (viewer.id && (ownerId === viewer.id || authorRaw === viewer.id)) return true;
+    return false;
+}
+
+function EmbedModal({ postId, onClose }) {
+    const iframeCode = `<iframe src="${window.location.origin}/embed/${postId}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`;
+
+    return (
+        <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+            <div className="modal-content-custom bg-white p-4 shadow-lg rounded" style={{ maxWidth: 520, width: '90%' }} onClick={(e) => e.stopPropagation()}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="m-0 fw-bold"><i className="bi bi-code-slash me-2 text-primary"></i>Embed Slice</h5>
+                    <button className="btn-close" onClick={onClose}></button>
+                </div>
+                <p className="text-secondary small mb-2">Copy and paste this code into your website:</p>
+                <textarea className="form-control bg-light mb-3" rows="3" readOnly value={iframeCode} style={{ fontSize: '0.8rem', fontFamily: 'monospace' }} />
+                <div className="d-flex justify-content-end gap-2">
+                    <button className="btn btn-primary btn-sm px-3" onClick={() => { navigator.clipboard.writeText(iframeCode); alert('Copied to clipboard!'); }}>
+                        <i className="bi bi-clipboard me-1"></i>Copy
+                    </button>
+                    <button className="btn btn-light btn-sm border" onClick={onClose}>Close</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 /* ── Single slice card ── */
-function SliceCard({ post, onWatch }) {
+function SliceCard({ post, onWatch, onDelete }) {
     const hls0 = (post.hlsVideoUrls && post.hlsVideoUrls[0]) || "";
     const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
     const thumb = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? ""));
@@ -42,6 +96,21 @@ function SliceCard({ post, onWatch }) {
     const [resolvedAvatar, setResolvedAvatar] = useState(avatarUrl);
     const [resolvedName, setResolvedName] = useState(ownerEmail || 'User');
     const [avatarError, setAvatarError] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [showEmbed, setShowEmbed] = useState(false);
+    const menuRef = useRef(null);
+    const canDelete = isPostOwnedByViewer(post);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
     useEffect(() => {
         if (!ownerEmail) return;
@@ -96,12 +165,13 @@ function SliceCard({ post, onWatch }) {
     };
 
     return (
-        <article
-            className="slice-card"
-            data-id={post.id}
-            onClick={() => onWatch && onWatch({ ...post, hlsUrl })}
-            style={{ cursor: onWatch ? 'pointer' : 'default' }}
-        >
+        <>
+            <article
+                className="slice-card"
+                data-id={post.id}
+                onClick={() => onWatch?.({ ...post, hlsUrl })}
+                style={{ cursor: onWatch ? 'pointer' : 'default' }}
+            >
             {/* Thumbnail */}
             <div className="slice-thumb">
                 {thumb
@@ -110,44 +180,93 @@ function SliceCard({ post, onWatch }) {
                         <i className="bi bi-play-circle fs-1 text-white opacity-50"></i>
                     </div>
                 }
-            </div>
 
-            {/* Meta */}
-            <div className="slice-meta">
-                <div className="slice-meta-top">
-                    {/* Owner avatar */}
-                    <div className="slice-owner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'][resolvedName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 7] }} title={resolvedName}>
-                        {resolvedAvatar && !avatarError
-                            ? <img src={resolvedAvatar} alt={resolvedName} className="slice-owner-img" onError={() => setAvatarError(true)} />
-                            : <span className="text-white fw-bold" style={{ fontSize: 13 }}>{resolvedName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "👤"}</span>
-                        }
-                    </div>
+                <div className="position-absolute top-0 end-0 m-2" ref={menuRef} style={{ zIndex: 100 }}>
+                    <button
+                        className="btn btn-sm bg-white bg-opacity-75 rounded-circle shadow-sm d-flex align-items-center justify-content-center"
+                        style={{ width: 28, height: 28 }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpen((v) => !v);
+                        }}
+                        aria-label="Slide actions"
+                    >
+                        <i className="bi bi-three-dots-vertical"></i>
+                    </button>
 
-                    {/* Stats */}
-                    <div className="slice-stats">
-                        <span className="slice-views">
-                            👁️ {post.views || 0}
-                        </span>
-                        <button
-                            className="slice-like-btn"
-                            onClick={handleLike}
-                            aria-pressed={liked}
-                        >
-                            {liked ? "❤️" : "🤍"} <span>{likeCount}</span>
-                        </button>
-                    </div>
+                    {menuOpen && (
+                        <div className="shadow-lg bg-white position-absolute end-0 mt-1 rounded py-1 border" style={{ minWidth: '130px' }}>
+                            <button
+                                className="dropdown-item py-2 px-3 small d-flex align-items-center gap-2 text-dark"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowEmbed(true);
+                                    setMenuOpen(false);
+                                }}
+                            >
+                                <i className="bi bi-code-slash"></i> Embed
+                            </button>
+
+                            {canDelete && (
+                                <>
+                                    <hr className="my-1" />
+                                    <button
+                                        className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setMenuOpen(false);
+                                            onDelete?.(post.id);
+                                        }}
+                                    >
+                                        <i className="bi bi-trash"></i> Delete
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
+                <div className="slice-thumb-overlay">
+                    <div className="slice-overlay-title" title={post.title || "Untitled Slice"}>
+                        {post.title || "Untitled Slice"}
+                    </div>
 
+                    <div className="slice-meta-top">
+                        {/* Owner avatar */}
+                        <div className="slice-owner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'][resolvedName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 7] }} title={resolvedName}>
+                            {resolvedAvatar && !avatarError
+                                ? <img src={resolvedAvatar} alt={resolvedName} className="slice-owner-img" onError={() => setAvatarError(true)} />
+                                : <span className="text-white fw-bold" style={{ fontSize: 13 }}>{resolvedName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "👤"}</span>
+                            }
+                        </div>
+
+                        {/* Stats */}
+                        <div className="slice-stats">
+                            <span className="slice-views">
+                                <i className="bi bi-eye"></i> {post.views || 0}
+                            </span>
+                            <button
+                                className="slice-like-btn"
+                                onClick={handleLike}
+                                aria-pressed={liked}
+                            >
+                                {liked ? "❤️" : "🤍"} <span>{likeCount}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </article>
+            </article>
+
+            {showEmbed && <EmbedModal postId={post.id} onClose={() => setShowEmbed(false)} />}
+        </>
     );
 }
 
 /* ═══════════════════════════════════════════
    MAIN SLICE CAROUSEL COMPONENT
 ═══════════════════════════════════════════ */
-export default function SliceCarousel({ onWatch }) {
+export default function SliceCarousel({ onWatch, onDelete }) {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -256,7 +375,7 @@ export default function SliceCarousel({ onWatch }) {
                 {/* Rail */}
                 <div className="slice-rail" ref={railRef}>
                     {posts.map(p => (
-                        <SliceCard key={p.id} post={p} onWatch={onWatch} />
+                        <SliceCard key={p.id} post={p} onWatch={onWatch} onDelete={onDelete} />
                     ))}
                 </div>
 

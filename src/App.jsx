@@ -1246,7 +1246,7 @@ function App() {
           ) : (
             /* ── HOME FEED ── */
             <>
-              <SliceCarousel onWatch={(p) => openSlicePage(p.id)} />
+              <SliceCarousel onWatch={(p) => openSlicePage(p.id)} onDelete={handleDeletePost} />
               <div className="video-grid d-flex flex-wrap gap-3">
                 {mainFeedPosts.map(post => (
                   <VideoCard
