@@ -1186,7 +1186,7 @@ function App() {
      RENDER
   ───────────── */
   return (
-    <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'}`}>
+    <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'} ${showSlicePage ? 'is-slice-page-open' : ''}`}>
       <Navbar
         isLoggedIn={isLoggedIn}
         user={user}
