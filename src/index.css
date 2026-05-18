@@ -1108,7 +1108,7 @@ html {
   position: relative;
   flex: 1;
   width: 100%;
-  max-width: 420px;
+  max-width: none;
   height: 100%;
   cursor: pointer;
   display: flex;
@@ -1432,6 +1432,13 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
+
+/* Desktop keeps centered reel-style width; mobile/tablet stays full-bleed */
+@media (min-width: 993px) {
+  .slice-page-player {
+    max-width: 420px;
+  }
+}
   justify-content: center;
   height: calc(100vh - var(--nav-h));
   background: #111;
@@ -1445,6 +1452,48 @@ html {
   font-size: 56px;
   color: rgba(255,255,255,0.25);
   margin-bottom: 8px;
+
+/* Immersive mode: SlicePage covers the whole app viewport */
+.app-container.is-slice-page-open .header-bar,
+.app-container.is-slice-page-open .leftbar,
+.app-container.is-slice-page-open .rightbar,
+.app-container.is-slice-page-open .mobile-nav {
+  display: none !important;
+}
+
+.app-container.is-slice-page-open .app-body-wrapper {
+  margin-top: 0 !important;
+}
+
+.app-container.is-slice-page-open .main-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: #000;
+}
+
+.app-container.is-slice-page-open .slice-page-container,
+.app-container.is-slice-page-open .slice-page-loading,
+.app-container.is-slice-page-open .slice-page-empty {
+  position: fixed;
+  inset: 0;
+  width: 100vw !important;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none !important;
+  z-index: 10000;
+}
+
+.app-container.is-slice-page-open .slice-page-player,
+.app-container.is-slice-page-open .slice-page-video {
+  width: 100vw !important;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none !important;
+}
+
+.app-container.is-slice-page-open .slice-page-strip {
+  display: none;
+}
 }
 
 @media (max-width: 992px) {
@@ -1505,6 +1554,34 @@ html {
 
   .app-container.is-slice-page-open .slice-page-strip {
     display: none;
+  }
+}
+
+/* Touch devices (phones + tablets): force Facebook/Reels-like full-bleed SlicePage */
+@media (pointer: coarse) {
+  .app-container.is-slice-page-open .main-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #000;
+  }
+
+  .app-container.is-slice-page-open .slice-page-container,
+  .app-container.is-slice-page-open .slice-page-loading,
+  .app-container.is-slice-page-open .slice-page-empty {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .app-container.is-slice-page-open .slice-page-player,
+  .app-container.is-slice-page-open .slice-page-video {
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh;
+    height: 100dvh;
   }
 }
 
