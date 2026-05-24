@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PUBLIC_BASE } from '../../app.config.js';
 import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from '../services/postsService';
+import { getUserProfileCached } from '../services/userProfileService';
 import useDelayedVisibility from '../hooks/useDelayedVisibility';
 
 function toPublicUrl(fsPath) {
@@ -21,14 +22,15 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
   const [paused, setPaused] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [resolvedAvatar, setResolvedAvatar] = useState(null);
+  const [resolvedName, setResolvedName] = useState('User');
   const controlsTimer = useRef(null);
 
   const hls0 = post.hlsVideoUrls?.[0] || "";
   const hlsUrl = hls0 ? (`${PUBLIC_BASE}/` + hls0.split("webdata/")[1]) : "";
   const thumb = toPublicUrl(post.videoImagePath || (post.imageUrls?.[0] ?? ""));
-  const ownerName = [post.userFirstName, post.userLastName].filter(Boolean).join(" ") || post.email || "User";
-  const avatarUrl = post.userProfileImageUrl && !post.userProfileImageUrl.includes('@')
-    ? toPublicUrl(post.userProfileImageUrl) : null;
+  const ownerEmail = post.email || post.author || '';
+  const ownerName = [post.userFirstName, post.userLastName].filter(Boolean).join(" ") || ownerEmail || "User";
 
   /* ── HLS setup ── */
   useEffect(() => {
@@ -67,6 +69,38 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
     setLikeCount(post.likes || 0);
     setAvatarError(false);
   }, [post.id]);
+
+  useEffect(() => {
+    setResolvedName(ownerName || 'User');
+
+    const rawAvatar = post.userProfileImageUrl;
+    if (rawAvatar && !String(rawAvatar).includes('@')) {
+      setResolvedAvatar(toPublicUrl(rawAvatar));
+    } else {
+      setResolvedAvatar(null);
+    }
+
+    if (!ownerEmail) return;
+
+    getUserProfileCached(ownerEmail)
+      .then((profile) => {
+        const fetchedName = profile ? [profile.firstname, profile.lastname].filter(Boolean).join(' ') : '';
+        if (fetchedName) setResolvedName(fetchedName);
+
+        const url = profile?.profileImageUrl;
+        if (url) {
+          setResolvedAvatar(toPublicUrl(url));
+        } else {
+          const local = ownerEmail.split('@')[0];
+          setResolvedAvatar(toPublicUrl(`/profileImages/${local}.jpg`));
+        }
+      })
+      .catch(() => {
+        if (!ownerEmail) return;
+        const local = ownerEmail.split('@')[0];
+        setResolvedAvatar(toPublicUrl(`/profileImages/${local}.jpg`));
+      });
+  }, [ownerEmail, ownerName, post.userProfileImageUrl]);
 
   /* ── Toggle play/pause on video click ── */
   const togglePlay = () => {
@@ -118,9 +152,9 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onNext, onPrev]);
 
-  const initials = ownerName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+  const initials = resolvedName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "?";
   const avatarBg = ['#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b','#6f42c1','#fd7e14'][
-    ownerName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 7
+    resolvedName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 7
   ];
 
   return (
@@ -155,12 +189,12 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
         {/* Owner */}
         <div className="slice-page-owner">
           <div className="slice-page-avatar" style={{ background: avatarBg }}>
-            {avatarUrl && !avatarError
-              ? <img src={avatarUrl} alt={ownerName} onError={() => setAvatarError(true)} />
+            {resolvedAvatar && !avatarError
+              ? <img src={resolvedAvatar} alt={resolvedName} onError={() => setAvatarError(true)} />
               : <span>{initials}</span>
             }
           </div>
-          <span className="slice-page-owner-name">{ownerName}</span>
+          <span className="slice-page-owner-name">{resolvedName}</span>
         </div>
 
         {/* Title */}

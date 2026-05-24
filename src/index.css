@@ -361,13 +361,13 @@ html {
 /* Breakpoint 3: Mobile - Hide Sidebar */
 @media (max-width: 992px) {
   :root {
-    --nav-h: 62px;
+    --nav-h: 54px;
   }
 
   .header-bar {
     height: var(--nav-h);
     min-height: 0;
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   .header-bar.header-bar-logged {
@@ -384,26 +384,26 @@ html {
   .header-inner {
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
   }
 
   .logo-container {
     width: auto;
-    padding-left: 8px;
+    padding-left: 4px;
     display: flex;
     align-items: center;
   }
 
   .company-logo {
     margin-left: 0 !important;
-    height: 22px !important;
+    height: 18px !important;
   }
 
   .mobile-header-menu-btn {
     display: inline-flex;
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
   }
 
   .header-auth-area {
@@ -422,7 +422,7 @@ html {
 
   .nav-right-group {
     margin-left: auto;
-    gap: 5px !important;
+    gap: 4px !important;
   }
 
   .nav-user-block {
@@ -430,13 +430,13 @@ html {
   }
 
   .nav-user-avatar {
-    width: 32px !important;
-    height: 32px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 
   .nav-right-group .btn-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
 
   body .header-bar.header-bar-logged {
@@ -448,7 +448,7 @@ html {
   }
 
   .nav-right-group .bi {
-    font-size: 1rem !important;
+    font-size: 0.95rem !important;
   }
 
   .login-section-wrapper {
@@ -458,22 +458,22 @@ html {
 
   .login-header-form {
     width: 100%;
-    gap: 6px;
+    gap: 4px;
   }
 
   .login-header-input {
     flex: 1 1 0;
     min-width: 0;
-    font-size: 12px;
-    padding: 0.2rem 0.45rem;
+    font-size: 11px;
+    padding: 0.15rem 0.35rem;
   }
 
   .login-header-btn {
     flex: 0 0 auto;
-    font-size: 11px;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    height: 28px;
+    font-size: 10px;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    height: 26px;
   }
 
   .header-sub-link {
@@ -490,12 +490,12 @@ html {
   }
 
   .main-content {
-    padding: 15px;
-    padding-bottom: 80px;
+    padding: 10px 12px;
+    padding-bottom: 64px;
   }
 
   .app-container.is-logged-in .main-content {
-    padding: 8px 15px 80px;
+    padding: 8px 12px 64px;
   }
 
   .video-grid {
@@ -513,19 +513,19 @@ html {
 
 @media (max-width: 520px) {
   :root {
-    --nav-h: 58px;
+    --nav-h: 52px;
   }
 
   .company-logo {
-    height: 20px !important;
+    height: 16px !important;
   }
 
   .app-container.is-logged-in .app-body-wrapper {
-    margin-top: 58px;
+    margin-top: 52px;
   }
 
   .app-container.is-logged-in .main-content {
-    padding: 6px 12px 80px;
+    padding: 6px 10px 60px;
   }
 
   .mobile-header-menu-panel {
@@ -591,14 +591,46 @@ html {
 
 @media (max-width: 992px) {
   .mobile-nav {
-    height: auto;
-    min-height: 70px;
+    height: 56px;
+    min-height: 56px;
     z-index: 4000;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
   .main-content {
-    margin-bottom: 80px;
-    padding: 15px;
+    margin-bottom: 62px;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .mobile-nav {
+    height: 52px;
+    min-height: 52px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+  }
+
+  .mobile-nav .btn {
+    padding: 0.15rem 0.25rem !important;
+  }
+
+  .mobile-nav i {
+    font-size: 1.25rem !important;
+  }
+
+  .mobile-nav span {
+    display: none;
+  }
+
+  .mobile-nav .bi-plus-circle-fill {
+    font-size: 1.7rem !important;
+    margin-top: -6px !important;
+  }
+
+  .main-content {
+    margin-bottom: 56px;
   }
 }
 
