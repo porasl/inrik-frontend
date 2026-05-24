@@ -314,6 +314,7 @@ function App() {
     minVisibleMs: 700,
   });
   const didRunInitialFetch = useRef(false);
+  const didMobileScrollNudge = useRef(false);
   const pageRef = useRef(0);
   const loadMoreSentinelRef = useRef(null);
   const autoLoadLockRef = useRef(false);
@@ -321,6 +322,35 @@ function App() {
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
+
+  useEffect(() => {
+    if (didMobileScrollNudge.current) return;
+    didMobileScrollNudge.current = true;
+
+    const w = globalThis;
+    const isCoarsePointer = !!w.matchMedia?.('(pointer: coarse)').matches;
+    const isStandalone = !!(
+      w.matchMedia?.('(display-mode: standalone)').matches
+      || w.navigator?.standalone === true
+    );
+
+    if (!isCoarsePointer || isStandalone) return;
+
+    const nudgeScroll = () => {
+      w.scrollTo(0, 2);
+      w.setTimeout(() => w.scrollTo(0, 3), 120);
+    };
+
+    if (document.readyState === 'complete') {
+      w.requestAnimationFrame(() => {
+        w.setTimeout(nudgeScroll, 120);
+      });
+      return;
+    }
+
+    w.addEventListener('load', nudgeScroll, { once: true });
+    return () => w.removeEventListener('load', nudgeScroll);
+  }, []);
 
   const visibleVideoPosts = posts.filter((post) => !isHiddenVideoTitle(post?.title));
   const mainFeedPosts = visibleVideoPosts.filter((post) => post?.slice !== true);

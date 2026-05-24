@@ -361,23 +361,23 @@ html {
 /* Breakpoint 3: Mobile - Hide Sidebar */
 @media (max-width: 992px) {
   :root {
-    --nav-h: 88px;
+    --nav-h: 62px;
   }
 
   .header-bar {
-    height: auto;
-    min-height: var(--nav-h);
-    padding: 1px 10px 4px;
+    height: var(--nav-h);
+    min-height: 0;
+    padding: 0 10px;
   }
 
   .header-bar.header-bar-logged {
-    min-height: 64px;
+    min-height: 0;
     padding-top: 0;
     padding-bottom: 0;
   }
 
   .header-bar.header-bar-logged .header-inner {
-    min-height: 62px;
+    min-height: 0;
     align-items: center;
   }
 
@@ -440,11 +440,11 @@ html {
   }
 
   body .header-bar.header-bar-logged {
-    min-height: 58px;
+    min-height: 0;
   }
 
   body .header-bar.header-bar-logged .header-inner {
-    min-height: 56px;
+    min-height: 0;
   }
 
   .nav-right-group .bi {
@@ -513,7 +513,7 @@ html {
 
 @media (max-width: 520px) {
   :root {
-    --nav-h: 100px;
+    --nav-h: 58px;
   }
 
   .company-logo {
@@ -521,7 +521,7 @@ html {
   }
 
   .app-container.is-logged-in .app-body-wrapper {
-    margin-top: 56px;
+    margin-top: 58px;
   }
 
   .app-container.is-logged-in .main-content {
