@@ -357,7 +357,8 @@ function App() {
   }, []);
 
   const visibleVideoPosts = posts.filter((post) => !isHiddenVideoTitle(post?.title));
-  const mainFeedPosts = visibleVideoPosts.filter((post) => post?.slice !== true);
+  const nonSliceVideoPosts = visibleVideoPosts.filter((post) => post?.slice !== true);
+  const mainFeedPosts = nonSliceVideoPosts.length > 0 ? nonSliceVideoPosts : visibleVideoPosts;
 
   useEffect(() => {
     const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && !showSlicePage && !watchingPost;

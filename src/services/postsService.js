@@ -11,8 +11,6 @@ const GET_POSTS_QUERY = `
         hlsVideoUrls
         audioUrls
         videoUrls
-        documentUrls
-        documents
         slice
         views
         likes
@@ -123,10 +121,10 @@ function getTokenKey() {
   return localStorage.getItem('token') || 'anonymous';
 }
 
-async function fetchAllPostsFromGraphql(pageSize = 30) {
+async function fetchAllPostsFromGraphql(pageSize = 30, useAuth = true) {
   const token = localStorage.getItem('token');
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (useAuth && token) headers.Authorization = `Bearer ${token}`;
 
   let page = 0;
   let all = [];
@@ -160,6 +158,12 @@ async function fetchAllPostsFromGraphql(pageSize = 30) {
 
     if (!data.pageInfo?.hasNext) break;
     page += 1;
+  }
+
+  // Some backends respond with an empty list when an outdated token is present.
+  // Retry once without Authorization so public feed content still renders.
+  if (all.length === 0 && useAuth && token) {
+    return fetchAllPostsFromGraphql(pageSize, false);
   }
 
   return all;

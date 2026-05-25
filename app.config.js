@@ -9,10 +9,11 @@ const trimTrailingSlash = (value) => String(value || '').replace(/\/+$/, '');
 
 const APP_PROTOCOL = readConfig('APP_PROTOCOL', 'http');
 const browserHost = globalThis.window?.location?.hostname || '';
-const APPLICATION_HOST = readConfig(
-	'APPLICATION_HOST',
-	browserHost,
-);
+const configuredHost = readConfig('APPLICATION_HOST', '');
+const isLocalBrowserHost = /^(localhost|127\.0\.0\.1)$/i.test(browserHost);
+const APPLICATION_HOST = isLocalBrowserHost
+	? browserHost
+	: (configuredHost || browserHost);
 
 const buildOrigin = (originKey, portKey) => {
 	const explicitOrigin = trimTrailingSlash(readConfig(originKey));

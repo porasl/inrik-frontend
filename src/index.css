@@ -320,21 +320,10 @@ html {
 
 /* --- 7. Responsive Breakdown --- */
 
-/* Breakpoint 1: Hide rightbar, show toggle button */
+/* Breakpoint 1: Keep rightbar visible on medium screens */
 @media (max-width: 1100px) {
-  .rightbar {
-    position: fixed;
-    right: -420px;
-    z-index: 3000;
-    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
-  }
-
-  .rightbar.show-mobile {
-    right: 0 !important;
-  }
-
-  .mobile-connection-toggle {
-    display: flex !important;
+  :root {
+    --right-w: 280px;
   }
 }
 
@@ -671,6 +660,28 @@ html {
   .app-container.is-logged-in .main-content {
     padding-left: max(10px, env(safe-area-inset-left)) !important;
     padding-right: max(10px, env(safe-area-inset-right)) !important;
+  }
+}
+
+/* Tablet: restore sidebars and use desktop-like framing */
+@media (min-width: 701px) and (max-width: 992px) {
+  .leftbar {
+    display: block !important;
+  }
+
+  .rightbar {
+    position: sticky;
+    right: auto;
+    box-shadow: none;
+    width: 240px;
+  }
+
+  .mobile-nav {
+    display: none !important;
+  }
+
+  .main-content {
+    margin-bottom: 0;
   }
 }
 
