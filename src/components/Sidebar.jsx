@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Sidebar({ onHome, onSlice, onVideos, onAudio, onPhotos }) {
+export default function Sidebar({ onHome, onSlice, onVideos, onAudio, onPhotos, onBox }) {
   const handleNav = (e) => {
     e.preventDefault();
     onHome?.();
@@ -24,6 +24,11 @@ export default function Sidebar({ onHome, onSlice, onVideos, onAudio, onPhotos }
   const handlePhotos = (e) => {
     e.preventDefault();
     onPhotos?.();
+  };
+
+  const handleBox = (e) => {
+    e.preventDefault();
+    onBox?.();
   };
 
   return (
@@ -53,6 +58,14 @@ export default function Sidebar({ onHome, onSlice, onVideos, onAudio, onPhotos }
             href="#" onClick={handleSlice}>
             <i className="bi bi-film fs-5 text-secondary"></i>
             <span className="fw-medium">Slice</span>
+          </a>
+        </li>
+
+        <li className="nav-item w-100 mb-0">
+          <a className="nav-link d-flex align-items-center gap-0 px-3 py-1 rounded-3 text-dark hover-bg-light"
+            href="#" onClick={handleBox}>
+            <i className="bi bi-window-stack fs-5 text-secondary"></i>
+            <span className="fw-medium">BoxView</span>
           </a>
         </li>
 

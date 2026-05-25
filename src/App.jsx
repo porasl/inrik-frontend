@@ -9,11 +9,14 @@ import SliceCarousel from './components/SliceCarousel';
 import SlicePage from './components/SlicePage';
 import AudioPage from './components/AudioPage';
 import PhotoPage from './components/PhotoPage';
+import BoxView from './components/BoxView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
 import useDelayedVisibility from './hooks/useDelayedVisibility';
 import ConnectionRequestsModal from './components/ConnectionRequestsModal';
+
+console.log('📦 All app imports loaded, including BoxView');
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -274,6 +277,7 @@ function getConnectionPresenceStatus(connection) {
 }
 
 function App() {
+  console.log('🚀 App component rendering');
   /* ─── Auth state ─── */
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
   const [user, setUser] = useState(() => {
@@ -307,7 +311,7 @@ function App() {
   const [incomingRequests, setIncomingRequests] = useState([]);
 
   /* ─── Active sidebar section ─── */
-  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio'
+  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio' | 'box'
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
   const showFeedRefreshing = useDelayedVisibility(isFeedRefreshing, {
     showDelayMs: 240,
@@ -356,7 +360,7 @@ function App() {
   const mainFeedPosts = visibleVideoPosts.filter((post) => post?.slice !== true);
 
   useEffect(() => {
-    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && !showSlicePage && !watchingPost;
+    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && !showSlicePage && !watchingPost;
     if (!shouldAutoLoad) return;
 
     const target = loadMoreSentinelRef.current;
@@ -392,6 +396,9 @@ function App() {
 
   /* Helper: show photos page */
   const goPhotos = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('photos'); };
+
+  /* Helper: show workstation box view */
+  const goBox = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('box'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -882,7 +889,7 @@ function App() {
     const identifiers = getConnectionIdentifierCandidates(req);
     if (!identifiers.length) return { ok: false, status: 0, identifiers };
 
-    const normalizedAction = String(action || '').trim().split(':')[0] || 'delete';
+    const normalizedAction = String(action || '').trim() || 'delete';
 
     let accessToken = localStorage.getItem('token');
     if (!accessToken) {
@@ -1215,6 +1222,7 @@ function App() {
   /* ─────────
      RENDER
   ───────────── */
+  console.log('🎨 Rendering App with logged in:', isLoggedIn, 'section:', activeSection);
   return (
     <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'} ${showSlicePage ? 'is-slice-page-open' : ''}`}>
       <Navbar
@@ -1232,11 +1240,12 @@ function App() {
           onVideos={goVideos}
           onAudio={goAudio}
           onPhotos={goPhotos}
+          onBox={goBox}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
         />
 
         <main className="main-content">
-          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && !showSlicePage && (
+          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
                 <span className="spinner-border spinner-border-sm" aria-hidden="true" />
@@ -1248,6 +1257,9 @@ function App() {
           {showSlicePage ? (
             /* ── SLICE PAGE ── */
             <SlicePage startPostId={sliceStartId} onClose={goHome} />
+          ) : activeSection === 'box' ? (
+            /* ── BOX VIEW ── */
+            <BoxView posts={posts} user={user} isLoggedIn={isLoggedIn} onHome={goHome} />
           ) : activeSection === 'photos' ? (
             /* ── PHOTOS PAGE ── */
             <PhotoPage
@@ -1303,7 +1315,7 @@ function App() {
         </main>
 
         {/* Only show connections rightbar on feed/videos view */}
-        {!watchingPost && !showSlicePage && (
+        {!watchingPost && !showSlicePage && activeSection !== 'box' && (
           <Rightbar
             connections={connections}
             isLoggedIn={isLoggedIn}

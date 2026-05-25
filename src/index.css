@@ -678,6 +678,500 @@ html {
   box-shadow: none;
 }
 
+/* --- 10. BoxView workstation simulation --- */
+.boxview-shell {
+  min-height: calc(100vh - var(--nav-h));
+  background: linear-gradient(180deg, #0f4ea8 0%, #0b3f8a 45%, #072d67 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.boxview-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 10px;
+  background: rgba(0,0,0,0.18);
+  backdrop-filter: blur(10px);
+}
+
+.boxview-topbar-brand,
+.boxview-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.boxview-topbar-brand span,
+.boxview-topbar-brand small,
+.boxview-topbar-user span {
+  color: rgba(255,255,255,0.88);
+}
+
+.boxview-topbar-brand i {
+  font-size: 1.2rem;
+}
+
+.boxview-topbar-brand small {
+  font-size: 0.82rem;
+}
+
+.boxview-desktop-bg {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 22px;
+}
+
+.boxview-drive-float {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 2;
+}
+
+.boxview-drive-mini,
+.boxview-drive {
+  border: none;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border-radius: 18px;
+  padding: 14px 18px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+  backdrop-filter: blur(8px);
+}
+
+.boxview-drive-mini i,
+.boxview-drive i {
+  font-size: 2rem;
+}
+
+.boxview-drive-mini span,
+.boxview-drive span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.boxview-drive-screen,
+.boxview-login-screen {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 40px 16px;
+}
+
+.boxview-drive-help {
+  margin: 14px 0 0;
+  color: rgba(255,255,255,0.82);
+}
+
+.boxview-login-card {
+  max-width: 420px;
+  padding: 30px 24px;
+  border-radius: 22px;
+  background: rgba(0,0,0,0.22);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.2);
+}
+
+.boxview-login-card i {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+.boxview-login-card p {
+  margin: 0;
+  color: rgba(255,255,255,0.85);
+}
+
+.boxview-explorer-window {
+  position: relative;
+  z-index: 1;
+  width: min(1400px, calc(100vw - 80px));
+  height: calc(100vh - var(--nav-h) - 130px);
+  margin: 72px auto 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(246,248,252,0.98);
+  color: #1f2937;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.28);
+  display: flex;
+  flex-direction: column;
+}
+
+.boxview-titlebar {
+  background: linear-gradient(180deg, #2f6fd6 0%, #245eb5 100%);
+  color: #fff;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.boxview-titlegroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.boxview-titlegroup small {
+  color: rgba(255,255,255,0.75);
+}
+
+.boxview-title-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.boxview-mini-btn {
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.boxview-window-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 420px;
+  gap: 0;
+}
+
+.boxview-tree {
+  background: #eef4ff;
+  border-right: 1px solid #d7e3f8;
+  padding: 12px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.boxview-tree-item {
+  border: none;
+  background: transparent;
+  color: #1f3b7a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.boxview-tree-item.active,
+.boxview-tree-item:hover {
+  background: rgba(36,94,181,0.12);
+}
+
+.boxview-browser {
+  padding: 14px;
+  overflow: auto;
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(245,249,255,0.95));
+}
+
+.boxview-browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.boxview-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.boxview-breadcrumb {
+  border: 1px solid #d4dce7;
+  background: #fff;
+  color: #234;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.boxview-browser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.boxview-folder-card,
+.boxview-file-card {
+  border: 1px solid #dce5f2;
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  min-height: 130px;
+  box-shadow: 0 8px 22px rgba(16, 35, 66, 0.06);
+}
+
+.boxview-folder-card--inline {
+  min-height: 130px;
+}
+
+.boxview-folder-card i,
+.boxview-file-icon i {
+  font-size: 2rem;
+  color: #245eb5;
+}
+
+.boxview-file-card {
+  align-items: flex-start;
+  text-align: left;
+  justify-content: flex-start;
+  min-height: 108px;
+}
+
+.boxview-file-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #eef4ff;
+  display: grid;
+  place-items: center;
+}
+
+.boxview-file-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.boxview-file-text strong,
+.boxview-folder-card strong {
+  color: #15305f;
+}
+
+.boxview-file-text span,
+.boxview-folder-card span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.boxview-empty-state {
+  grid-column: 1 / -1;
+  min-height: 220px;
+  border: 1px dashed #c5d4ea;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #5b6b84;
+  background: rgba(255,255,255,0.72);
+}
+
+.boxview-empty-state i {
+  font-size: 2.5rem;
+  color: #94a3b8;
+}
+
+.boxview-preview-panel {
+  border-left: 1px solid #d7e3f8;
+  background: #f8fbff;
+  overflow: auto;
+  padding: 14px;
+}
+
+.boxview-preview-empty,
+.boxview-preview-document-card,
+.boxview-preview-audio-card {
+  min-height: 100%;
+  border: 1px solid #dce5f2;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 8px 22px rgba(16, 35, 66, 0.06);
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.boxview-preview-empty i {
+  font-size: 2.8rem;
+  color: #94a3b8;
+}
+
+.boxview-preview-media {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.boxview-preview-image,
+.boxview-preview-video,
+.boxview-preview-frame {
+  width: 100%;
+  min-height: 320px;
+  max-height: calc(100vh - var(--nav-h) - 260px);
+  object-fit: contain;
+  background: #000;
+  border-radius: 18px;
+  border: 1px solid #dce5f2;
+}
+
+.boxview-preview-frame {
+  background: #fff;
+}
+
+.boxview-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #475569;
+}
+
+.boxview-preview-audio-card i,
+.boxview-preview-document-card i {
+  font-size: 2.5rem;
+  color: #245eb5;
+}
+
+.boxview-preview-audio-card audio {
+  width: 100%;
+}
+
+.boxview-taskbar {
+  height: 56px;
+  background: linear-gradient(180deg, #1f4fa0 0%, #183f80 100%);
+  border-top: 1px solid rgba(255,255,255,0.14);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+}
+
+.boxview-start-btn {
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border-radius: 12px;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.boxview-taskbar-center,
+.boxview-clock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.boxview-taskbar-status {
+  color: rgba(255,255,255,0.75);
+}
+
+.boxview-clock {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  line-height: 1.1;
+}
+
+@media (max-width: 1200px) {
+  .boxview-explorer-window {
+    width: calc(100vw - 28px);
+    height: calc(100vh - var(--nav-h) - 120px);
+  }
+
+  .boxview-window-body {
+    grid-template-columns: 190px minmax(0, 1fr) 360px;
+  }
+}
+
+@media (max-width: 992px) {
+  .boxview-shell {
+    border-radius: 0;
+  }
+
+  .boxview-topbar {
+    flex-wrap: wrap;
+  }
+
+  .boxview-explorer-window {
+    height: auto;
+    min-height: calc(100vh - var(--nav-h) - 120px);
+  }
+
+  .boxview-window-body {
+    grid-template-columns: 1fr;
+  }
+
+  .boxview-tree,
+  .boxview-browser,
+  .boxview-preview-panel {
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .boxview-preview-image,
+  .boxview-preview-video,
+  .boxview-preview-frame {
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 520px) {
+  .boxview-desktop-bg {
+    padding: 12px;
+  }
+
+  .boxview-drive-float {
+    top: 12px;
+    left: 12px;
+  }
+
+  .boxview-explorer-window {
+    width: calc(100vw - 16px);
+    margin-top: 64px;
+  }
+
+  .boxview-browser-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .boxview-taskbar {
+    height: 52px;
+    padding: 0 10px;
+  }
+
+  .boxview-taskbar-center {
+    display: none;
+  }
+}
+
 /* --- 9. VideoCard options dropdown --- */
 .options-container {
   position: relative;

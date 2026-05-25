@@ -9,6 +9,10 @@ const GET_POSTS_QUERY = `
         imageUrls
         videoImagePath
         hlsVideoUrls
+        audioUrls
+        videoUrls
+        documentUrls
+        documents
         slice
         views
         likes
