@@ -10,6 +10,7 @@ import SlicePage from './components/SlicePage';
 import AudioPage from './components/AudioPage';
 import PhotoPage from './components/PhotoPage';
 import BoxView from './components/BoxView';
+import PostView from './components/PostView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -311,7 +312,7 @@ function App() {
   const [incomingRequests, setIncomingRequests] = useState([]);
 
   /* ─── Active sidebar section ─── */
-  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio' | 'box'
+  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio' | 'box' | 'posts'
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
   const showFeedRefreshing = useDelayedVisibility(isFeedRefreshing, {
     showDelayMs: 240,
@@ -361,7 +362,7 @@ function App() {
   const mainFeedPosts = nonSliceVideoPosts.length > 0 ? nonSliceVideoPosts : visibleVideoPosts;
 
   useEffect(() => {
-    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && !showSlicePage && !watchingPost;
+    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && activeSection !== 'posts' && !showSlicePage && !watchingPost;
     if (!shouldAutoLoad) return;
 
     const target = loadMoreSentinelRef.current;
@@ -400,6 +401,9 @@ function App() {
 
   /* Helper: show workstation box view */
   const goBox = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('box'); };
+
+  /* Helper: show post view */
+  const goPosts = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('posts'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -1232,13 +1236,20 @@ function App() {
         onLogin={handleLogin}
         onLogout={handleLogout}
         onUploadClick={() => setShowUpload(true)}
-         onHome={goHome}
+        onHome={goHome}
+        onVideos={goVideos}
+        onPosts={goPosts}
+        onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
+        onBox={goBox}
+        onAudio={goAudio}
+        onPhotos={goPhotos}
       />
 
       <div className="app-body-wrapper">
         <Sidebar
           onHome={goHome}
           onVideos={goVideos}
+          onPosts={goPosts}
           onAudio={goAudio}
           onPhotos={goPhotos}
           onBox={goBox}
@@ -1246,7 +1257,7 @@ function App() {
         />
 
         <main className="main-content">
-          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && !showSlicePage && (
+          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && activeSection !== 'posts' && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
                 <span className="spinner-border spinner-border-sm" aria-hidden="true" />
@@ -1260,7 +1271,15 @@ function App() {
             <SlicePage startPostId={sliceStartId} onClose={goHome} />
           ) : activeSection === 'box' ? (
             /* ── BOX VIEW ── */
-            <BoxView posts={posts} user={user} isLoggedIn={isLoggedIn} onHome={goHome} />
+            <BoxView posts={posts} user={user} isLoggedIn={isLoggedIn} onHome={goHome} onDelete={handleDeletePost} />
+          ) : activeSection === 'posts' ? (
+            /* ── POST VIEW ── */
+            <PostView
+              posts={posts}
+              isLoggedIn={isLoggedIn}
+              onUpload={() => setShowUpload(true)}
+              onDelete={handleDeletePost}
+            />
           ) : activeSection === 'photos' ? (
             /* ── PHOTOS PAGE ── */
             <PhotoPage
@@ -1315,8 +1334,8 @@ function App() {
           )}
         </main>
 
-        {/* Only show connections rightbar on feed/videos view */}
-        {!watchingPost && !showSlicePage && activeSection !== 'box' && (
+        {/* Keep rightbar mounted on mobile so header menu "Connections" can toggle it */}
+        {((!watchingPost && !showSlicePage && activeSection !== 'box') || globalThis.matchMedia?.('(max-width: 992px)').matches) && (
           <Rightbar
             connections={connections}
             isLoggedIn={isLoggedIn}
@@ -1351,6 +1370,14 @@ function App() {
         <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPhotos}>
           <i className="bi bi-images fs-4"></i>
           <span style={{ fontSize: '10px' }}>Photos</span>
+        </button>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPosts}>
+          <i className="bi bi-card-text fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Posts</span>
+        </button>
+        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goBox}>
+          <i className="bi bi-window-stack fs-4"></i>
+          <span style={{ fontSize: '10px' }}>Box</span>
         </button>
         <button
           className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"

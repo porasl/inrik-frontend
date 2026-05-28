@@ -29,15 +29,58 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
-function getOwnerIdentity() {
-  const email = normalizeText(localStorage.getItem('email') || localStorage.getItem('author'));
-  const userId = normalizeText(localStorage.getItem('userId'));
-  const userName = normalizeText(localStorage.getItem('userName'));
-  return { email: email.toLowerCase(), userId: userId.toLowerCase(), userName: userName.toLowerCase() };
+function decodeJwtPayload(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(String(token).split('.')[1] || ''));
+  } catch {
+    return null;
+  }
+}
+
+function getOwnerIdentity(user = null) {
+  const tokenPayload = decodeJwtPayload(localStorage.getItem('token'));
+
+  const emailCandidates = [
+    user?.email,
+    localStorage.getItem('email'),
+    localStorage.getItem('author'),
+    tokenPayload?.email,
+    tokenPayload?.preferred_username,
+    tokenPayload?.upn,
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean);
+
+  const idCandidates = [
+    user?.id,
+    user?.userId,
+    localStorage.getItem('userId'),
+    tokenPayload?.userId,
+    tokenPayload?.uid,
+    tokenPayload?.id,
+    tokenPayload?.sub,
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean);
+
+  const nameCandidates = [
+    user?.name,
+    localStorage.getItem('userName'),
+    `${normalizeText(localStorage.getItem('userFirstName'))} ${normalizeText(localStorage.getItem('userLastName'))}`,
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean);
+
+  return {
+    emails: [...new Set(emailCandidates)],
+    userIds: [...new Set(idCandidates)],
+    userNames: [...new Set(nameCandidates)],
+  };
 }
 
 function matchesOwner(post, identity) {
-  const ownerCandidates = [
+  const ownerCandidates = new Set([
     post?.email,
     post?.author,
     post?.userEmail,
@@ -45,20 +88,28 @@ function matchesOwner(post, identity) {
     post?.userProfileImageOwner,
   ]
     .map((value) => normalizeText(value).toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean));
 
-  const idCandidates = [
+  const idCandidates = new Set([
     post?.userId,
     post?.ownerId,
     post?.authorId,
     post?.createdById,
   ]
     .map((value) => normalizeText(value).toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean));
 
-  if (identity.email && ownerCandidates.includes(identity.email)) return true;
-  if (identity.userId && idCandidates.includes(identity.userId)) return true;
-  if (identity.userName && [post?.userName, post?.name].map((value) => normalizeText(value).toLowerCase()).includes(identity.userName)) return true;
+  const nameCandidates = new Set([
+    post?.name,
+    post?.userName,
+    [post?.userFirstName, post?.userLastName].filter(Boolean).join(' '),
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean));
+
+  if (identity.emails.some((email) => ownerCandidates.has(email))) return true;
+  if (identity.userIds.some((id) => idCandidates.has(id))) return true;
+  if (identity.userNames.some((name) => nameCandidates.has(name))) return true;
   return false;
 }
 
@@ -116,10 +167,32 @@ function resolveMediaEntries(posts) {
       });
     };
 
-    addUrls('videos', post?.hlsVideoUrls, 'video');
-    addUrls('videos', post?.videoUrls, 'video');
-    addUrls('videos', post?.videoUrl, 'video');
-    addUrls('videos', post?.videoPath, 'video');
+    const addVideoEntry = () => {
+      const rawVideo = [
+        ...toArray(post?.hlsVideoUrls),
+        ...toArray(post?.videoUrls),
+        post?.videoUrl,
+        post?.videoPath,
+      ].find((raw) => {
+        if (!raw) return false;
+        return Boolean(toPublicUrl(raw));
+      });
+
+      if (!rawVideo) return;
+
+      const url = toPublicUrl(rawVideo);
+      if (!url) return;
+
+      addEntry('videos', {
+        kind: 'video',
+        name: title,
+        url,
+        rawUrl: rawVideo,
+        ext: getBaseName(rawVideo).split('.').pop().toLowerCase(),
+      });
+    };
+
+    addVideoEntry();
 
     addUrls('audios', post?.audioUrls, 'audio');
     addUrls('audios', post?.hlsAudioUrls, 'audio');
@@ -179,6 +252,69 @@ function getItemIcon(item) {
   if (item.group === 'ppt') return 'bi-file-earmark-slides';
   return 'bi-file-earmark-text';
 }
+
+function resolveVideoThumbnail(item) {
+  if (item?.kind !== 'video') return '';
+
+  const post = item.post || {};
+  const candidates = [
+    post.videoImagePath,
+    post.thumbnailUrl,
+    ...toArray(post.imageUrls),
+    post.imageUrl,
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const resolved = toPublicUrl(candidate);
+    if (!resolved) continue;
+    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(resolved)) return resolved;
+    if (resolved.includes('/videos/')) return resolved;
+  }
+
+  const streamUrl = String(item.url || '');
+  if (/\/videos\/[^/]+\/stream\.m3u8(\?|$)/i.test(streamUrl)) {
+    return streamUrl.replace(/stream\.m3u8(\?.*)?$/i, 'videoImage.gif');
+  }
+
+  return '';
+}
+
+function EmbedModal({ item, onClose }) {
+  const postId = item?.post?.id || item?.postId || item?.id || '';
+  const iframeCode = `<iframe src="${globalThis.location.origin}/embed/${postId}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`;
+
+  return (
+    <div className="boxview-embed-overlay">
+      <dialog className="boxview-embed-dialog" open aria-label="Embed Video">
+        <div className="modal-content-custom bg-white p-4 shadow-lg rounded boxview-embed-content">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h5 className="m-0 fw-bold"><i className="bi bi-code-slash me-2 text-primary"></i>Embed Video</h5>
+          <button className="btn-close" onClick={onClose}></button>
+        </div>
+        <p className="text-secondary small mb-2">Copy and paste this code into your website:</p>
+        <textarea className="form-control bg-light mb-3" rows="3" readOnly value={iframeCode} style={{ fontSize: '0.8rem', fontFamily: 'monospace' }} />
+        <div className="d-flex justify-content-end gap-2">
+          <button className="btn btn-primary btn-sm px-3" onClick={() => { navigator.clipboard.writeText(iframeCode); alert('Copied to clipboard!'); }}>
+            <i className="bi bi-clipboard me-1"></i>Copy
+          </button>
+          <button className="btn btn-light btn-sm border" onClick={onClose}>Close</button>
+        </div>
+        </div>
+      </dialog>
+    </div>
+  );
+}
+
+EmbedModal.propTypes = {
+  item: PropTypes.shape({
+    id: PropTypes.string,
+    postId: PropTypes.string,
+    post: PropTypes.shape({
+      id: PropTypes.string,
+    }),
+  }),
+  onClose: PropTypes.func.isRequired,
+};
 
 function MediaPreview({ item }) {
   const videoRef = useRef(null);
@@ -312,7 +448,7 @@ MediaPreview.propTypes = {
   }),
 };
 
-function renderExplorerItem(item, selectItem) {
+function renderExplorerItem(item, selectItem, onDelete, onEmbed) {
   if (item.kind === 'folder') {
     return (
       <button key={item.label} type="button" className="boxview-folder-card boxview-folder-card--inline" onClick={() => selectItem(item)}>
@@ -323,24 +459,67 @@ function renderExplorerItem(item, selectItem) {
     );
   }
 
+  const videoThumb = resolveVideoThumbnail(item);
+  const isVideo = item.kind === 'video';
+
   return (
-    <button key={item.id} type="button" className="boxview-file-card" onClick={() => selectItem(item)}>
-      <div className="boxview-file-icon">
-        <i className={`bi ${getItemIcon(item)}`}></i>
-      </div>
-      <div className="boxview-file-text">
-        <strong>{item.name || item.label}</strong>
-        <span>{item.owner || 'INRIK user'}</span>
-      </div>
-    </button>
+    <div key={item.id} className={`boxview-file-card ${isVideo ? 'boxview-file-card--video' : ''}`}>
+      <button type="button" className="boxview-file-card-main" onClick={() => selectItem(item)}>
+        {isVideo ? (
+          <div className="boxview-file-thumb">
+            {videoThumb ? (
+              <img src={videoThumb} alt={item.title || item.name || 'Video thumbnail'} className="boxview-file-thumb-img" />
+            ) : (
+              <div className="boxview-file-thumb-placeholder">
+                <i className={`bi ${getItemIcon(item)}`}></i>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="boxview-file-icon">
+            <i className={`bi ${getItemIcon(item)}`}></i>
+          </div>
+        )}
+        <div className="boxview-file-text">
+          <strong>{item.name || item.label}</strong>
+          <span>{item.owner || 'INRIK user'}</span>
+        </div>
+      </button>
+
+      {isVideo && (
+        <div className="boxview-file-footer">
+          <div className="boxview-file-stats">
+            <span><i className="bi bi-eye me-1"></i>{item.post?.views ?? item.views ?? 0}</span>
+            <span><i className="bi bi-heart me-1"></i>{item.post?.likes ?? item.likes ?? 0}</span>
+          </div>
+
+          <details className="boxview-file-menu">
+            <summary className="boxview-file-menu-toggle" aria-label="More options">
+              <i className="bi bi-three-dots"></i>
+            </summary>
+            <div className="boxview-file-menu-panel" role="menu">
+              <button type="button" className="boxview-file-menu-item" onClick={() => onEmbed?.(item)}>
+                <i className="bi bi-code-slash"></i>
+                <span>Embed</span>
+              </button>
+              <button type="button" className="boxview-file-menu-item boxview-file-menu-item--danger" onClick={() => onDelete?.(item)}>
+                <i className="bi bi-trash"></i>
+                <span>Delete</span>
+              </button>
+            </div>
+          </details>
+        </div>
+      )}
+    </div>
   );
 }
 
-export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome }) {
-  const identity = useMemo(() => getOwnerIdentity(), []);
+export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome, onDelete }) {
+  const identity = useMemo(() => getOwnerIdentity(user), [user]);
   const [started, setStarted] = useState(false);
   const [path, setPath] = useState(['inrik']);
   const [previewItem, setPreviewItem] = useState(null);
+  const [embedItem, setEmbedItem] = useState(null);
   const [clock, setClock] = useState(() => new Date());
 
   useEffect(() => {
@@ -372,7 +551,12 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     return posts.filter((post) => matchesOwner(post, identity));
   }, [posts, identity, isLoggedIn]);
 
-  const catalog = useMemo(() => resolveMediaEntries(ownedPosts), [ownedPosts]);
+  const scopedPosts = useMemo(() => {
+    if (!isLoggedIn) return [];
+    return ownedPosts;
+  }, [isLoggedIn, ownedPosts]);
+
+  const catalog = useMemo(() => resolveMediaEntries(scopedPosts), [scopedPosts]);
 
   const documentGroups = useMemo(() => {
     const groups = {
@@ -471,6 +655,13 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     setPreviewItem(item);
   };
 
+  const handleDelete = async (item) => {
+    const postId = item?.post?.id || item?.postId || item?.id;
+    if (!postId) return;
+    if (!globalThis.confirm('Delete this video permanently?')) return;
+    await onDelete?.(postId);
+  };
+
   const renderExplorerBody = () => {
     if (!isLoggedIn) {
       return (
@@ -487,11 +678,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     if (!started) {
       return (
         <div className="boxview-drive-screen">
-          <button type="button" className="boxview-drive" onClick={openDrive} aria-label="Open INRIK drive">
-            <i className="bi bi-hdd-network"></i>
-            <span>INRIK</span>
-          </button>
-          <p className="boxview-drive-help">Open the INRIK drive to browse your media</p>
+          <p className="boxview-drive-help">Use the top-left INRIK icon to open your drive.</p>
         </div>
       );
     }
@@ -573,7 +760,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
 
             <div className="boxview-browser-grid">
               {currentItems.length ? (
-                currentItems.map((item) => renderExplorerItem(item, selectItem))
+                currentItems.map((item) => renderExplorerItem(item, selectItem, handleDelete, setEmbedItem))
               ) : (
                 <div className="boxview-empty-state">
                   <i className="bi bi-folder2-open"></i>
@@ -633,6 +820,8 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
           <small>{clock.toLocaleDateString([], { month: 'short', day: '2-digit' })}</small>
         </div>
       </footer>
+
+      {embedItem && <EmbedModal item={embedItem} onClose={() => setEmbedItem(null)} />}
     </div>
   );
 }
@@ -642,4 +831,5 @@ BoxView.propTypes = {
   user: PropTypes.oneOfType([PropTypes.shape({}), PropTypes.oneOf([null])]),
   isLoggedIn: PropTypes.bool,
   onHome: PropTypes.func,
+  onDelete: PropTypes.func,
 };

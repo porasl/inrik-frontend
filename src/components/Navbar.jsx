@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PropTypes from 'prop-types';
 import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -291,68 +292,107 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome }) 
           </div>
 
           {!isLoggedIn ? (
-            <div className="header-auth-area d-none d-lg-flex align-items-center gap-2">
-              <div className="login-section-wrapper d-flex flex-column align-items-end">
-                <div className="d-flex align-items-center gap-2">
-                  <button
-                    className="btn btn-primary btn-sm px-3 fw-bold login-header-btn"
-                    type="button"
-                    onClick={() => setActiveModal('login')}
-                  >
-                    Login
-                  </button>
-                  <button
-                    className="btn btn-outline-secondary btn-sm px-3"
-                    type="button"
-                    onClick={() => setActiveModal('register')}
-                  >
-                    Sign On
-                  </button>
-                </div>
-
-                <div className="login-sub-links d-flex gap-3 mt-1 pe-1">
-                  <button
-                    className="btn btn-link p-0 header-sub-link"
-                    style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
-                    onClick={() => setActiveModal('forgot')}
-                    type="button"
-                  >
-                    Forgot Password
-                  </button>
-                  <button
-                    className="btn btn-link p-0 header-sub-link"
-                    style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
-                    onClick={() => setActiveModal('activate')}
-                    type="button"
-                  >
-                    Activate Account
-                  </button>
-                </div>
+            <div className="d-none d-lg-flex align-items-center justify-content-between flex-grow-1 ms-4 gap-3">
+              <div className="nav-center-group desktop-nav-actions d-flex align-items-center gap-1 header-nav-links">
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
+                  <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
+                  <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onPosts}>
+                  <i className="bi bi-card-text me-1"></i><span className="header-nav-link-text">PostView</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice}>
+                  <i className="bi bi-film me-1"></i><span className="header-nav-link-text">Slice</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onBox}>
+                  <i className="bi bi-window-stack me-1"></i><span className="header-nav-link-text">BoxView</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
+                  <i className="bi bi-music-note-beamed me-1"></i><span className="header-nav-link-text">Audio</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
+                  <i className="bi bi-images me-1"></i><span className="header-nav-link-text">Photos</span>
+                </button>
               </div>
 
+              <div className="header-auth-area d-flex align-items-center gap-2">
+                <div className="login-section-wrapper d-flex flex-column align-items-end">
+                  <div className="d-flex align-items-center gap-2">
+                    <button
+                      className="btn btn-primary btn-sm px-3 fw-bold login-header-btn"
+                      type="button"
+                      onClick={() => setActiveModal('login')}
+                    >
+                      Login
+                    </button>
+                    <button
+                      className="btn btn-outline-secondary btn-sm px-3"
+                      type="button"
+                      onClick={() => setActiveModal('register')}
+                    >
+                      Sign On
+                    </button>
+                  </div>
+
+                  <div className="login-sub-links d-flex gap-3 mt-1 pe-1">
+                    <button
+                      className="btn btn-link p-0 header-sub-link"
+                      style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
+                      onClick={() => setActiveModal('forgot')}
+                      type="button"
+                    >
+                      Forgot Password
+                    </button>
+                    <button
+                      className="btn btn-link p-0 header-sub-link"
+                      style={{ fontSize: '11px', color: '#6c757d', textDecoration: 'none' }}
+                      onClick={() => setActiveModal('activate')}
+                      type="button"
+                    >
+                      Activate Account
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             /* --- LOGGED IN VIEW --- */
             <div className="d-flex align-items-center justify-content-between flex-grow-1 ms-4">
-              <div className="nav-center-group desktop-nav-actions d-flex align-items-center gap-2 mx-auto">
-                <button className="btn-icon" title="My Content">
-                  <i className="bi bi-collection-play fs-5"></i>
+              <div className="nav-center-group desktop-nav-actions d-none d-lg-flex align-items-center gap-1 mx-auto header-nav-links">
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
+                  <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
                 </button>
-
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
+                  <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onPosts}>
+                  <i className="bi bi-card-text me-1"></i><span className="header-nav-link-text">PostView</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice}>
+                  <i className="bi bi-film me-1"></i><span className="header-nav-link-text">Slice</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onBox}>
+                  <i className="bi bi-window-stack me-1"></i><span className="header-nav-link-text">BoxView</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
+                  <i className="bi bi-music-note-beamed me-1"></i><span className="header-nav-link-text">Audio</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
+                  <i className="bi bi-images me-1"></i><span className="header-nav-link-text">Photos</span>
+                </button>
                 <button
-                  className="btn-icon"
+                  type="button"
+                  className="btn btn-sm btn-primary ms-1"
                   title="Upload"
                   onClick={() => setShowUpload(true)}
                 >
-                  <i className="bi bi-plus-circle fs-5 text-primary"></i>
+                  <i className="bi bi-plus-circle me-1"></i>Upload
                 </button>
 
                 <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
                   <i className="bi bi-people-fill"></i>
-                </button>
-
-                <button className="btn-icon" title="Marketplace">
-                  <i className="bi bi-shop fs-5"></i>
                 </button>
               </div>
 
@@ -600,3 +640,21 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome }) 
     </>
   );
 }
+
+Navbar.propTypes = {
+  isLoggedIn: PropTypes.bool,
+  user: PropTypes.shape({
+    avatar: PropTypes.string,
+    name: PropTypes.string,
+    email: PropTypes.string,
+  }),
+  onLogin: PropTypes.func,
+  onLogout: PropTypes.func,
+  onHome: PropTypes.func,
+  onVideos: PropTypes.func,
+  onPosts: PropTypes.func,
+  onSlice: PropTypes.func,
+  onBox: PropTypes.func,
+  onAudio: PropTypes.func,
+  onPhotos: PropTypes.func,
+};

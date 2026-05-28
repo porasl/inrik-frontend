@@ -162,12 +162,15 @@ function OwnerAvatar({ post }) {
       });
   }, [ownerEmail, fallbackName]);
 
-  const initials = resolvedName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "👤";
+  const safeName = String(resolvedName || '').trim() && String(resolvedName || '').trim() !== '?'
+    ? String(resolvedName || '').trim()
+    : 'User';
+  const initials = safeName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "U";
   const colors = ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#fd7e14'];
-  const bg = colors[resolvedName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length];
+  const bg = colors[safeName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % colors.length];
 
   return (
-    <div className="d-flex align-items-center gap-2" title={resolvedName} style={{ cursor: 'help' }}>
+    <div className="d-flex align-items-center gap-2" title={safeName} style={{ cursor: 'default' }}>
       <div
         className="rounded-circle overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center border"
         style={{ width: 30, height: 30, background: bg }}
@@ -175,7 +178,7 @@ function OwnerAvatar({ post }) {
         {avatarUrl && !hasError ? (
           <img
             src={avatarUrl}
-            alt={resolvedName}
+            alt={safeName}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             onError={(e) => { setHasError(true); e.target.style.display = 'none'; }}
           />
