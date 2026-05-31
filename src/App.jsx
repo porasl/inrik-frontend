@@ -1237,6 +1237,7 @@ function App() {
         onLogout={handleLogout}
         onUploadClick={() => setShowUpload(true)}
         onHome={goHome}
+        onNotes={goHome}
         onVideos={goVideos}
         onPosts={goPosts}
         onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}

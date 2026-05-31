@@ -4,7 +4,7 @@ import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -297,6 +297,9 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
                   <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
                 </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
+                  <i className="bi bi-journal-text me-1"></i><span className="header-nav-link-text">Notes</span>
+                </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
                   <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
                 </button>
@@ -363,6 +366,9 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
               <div className="nav-center-group desktop-nav-actions d-none d-lg-flex align-items-center gap-1 mx-auto header-nav-links">
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
                   <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
+                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
+                  <i className="bi bi-journal-text me-1"></i><span className="header-nav-link-text">Notes</span>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
                   <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
@@ -651,6 +657,7 @@ Navbar.propTypes = {
   onLogin: PropTypes.func,
   onLogout: PropTypes.func,
   onHome: PropTypes.func,
+  onNotes: PropTypes.func,
   onVideos: PropTypes.func,
   onPosts: PropTypes.func,
   onSlice: PropTypes.func,
