@@ -1,7 +1,7 @@
 /* --- 1. Variables & Global Reset --- */
 :root {
   --nav-h: 65px;
-  --left-w: 80px;
+  --left-w: 160px;
   --right-w: 320px;
 
   --bg-primary: #ffffff;
@@ -287,6 +287,26 @@ html {
   margin-bottom: 15px;
 }
 
+.leftbar .nav-link {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: left;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.leftbar .nav-link span {
+  display: inline;
+}
+
+.leftbar .nav-link .bi {
+  font-size: 24px !important;
+}
+
 .nav-link:hover {
   color: var(--primary-blue);
 }
@@ -364,7 +384,7 @@ html {
 /* Breakpoint 2: Tablet - Slim Sidebar */
 @media (max-width: 992px) {
   :root {
-    --left-w: 64px;
+    --left-w: 128px;
   }
 
   .auth-links-container {
@@ -718,6 +738,18 @@ html {
 @media (min-width: 701px) and (max-width: 992px) {
   .leftbar {
     display: block !important;
+  }
+
+  .leftbar .nav-link {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    text-align: left;
+    gap: 10px;
+  }
+
+  .leftbar .nav-link span {
+    display: inline !important;
   }
 
   .rightbar {

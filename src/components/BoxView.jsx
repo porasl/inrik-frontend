@@ -784,7 +784,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       <div className="boxview-topbar">
         <div className="boxview-topbar-brand">
           <i className="bi bi-window-sidebar"></i>
-          <strong>BoxView</strong>
+          <strong>Private View</strong>
           <span>INRIK workstation simulation</span>
         </div>
         <div className="boxview-topbar-user">

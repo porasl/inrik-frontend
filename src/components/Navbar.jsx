@@ -295,28 +295,19 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
             <div className="d-none d-lg-flex align-items-center justify-content-between flex-grow-1 ms-4 gap-3">
               <div className="nav-center-group desktop-nav-actions d-flex align-items-center gap-1 header-nav-links">
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
-                  <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
+                  <i className="bi bi-house-door"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
-                  <i className="bi bi-journal-text me-1"></i><span className="header-nav-link-text">Notes</span>
+                  <i className="bi bi-pencil-fill"></i>
                 </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
-                  <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onPosts}>
-                  <i className="bi bi-card-text me-1"></i><span className="header-nav-link-text">PostView</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice}>
-                  <i className="bi bi-film me-1"></i><span className="header-nav-link-text">Slice</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onBox}>
-                  <i className="bi bi-window-stack me-1"></i><span className="header-nav-link-text">BoxView</span>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice} title="Slice" aria-label="Slice">
+                  <i className="bi bi-film"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
-                  <i className="bi bi-music-note-beamed me-1"></i><span className="header-nav-link-text">Audio</span>
+                  <i className="bi bi-music-note-beamed"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
-                  <i className="bi bi-images me-1"></i><span className="header-nav-link-text">Photos</span>
+                  <i className="bi bi-images"></i>
                 </button>
               </div>
 
@@ -365,28 +356,19 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
             <div className="d-flex align-items-center justify-content-between flex-grow-1 ms-4">
               <div className="nav-center-group desktop-nav-actions d-none d-lg-flex align-items-center gap-1 mx-auto header-nav-links">
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
-                  <i className="bi bi-house-door me-1"></i><span className="header-nav-link-text">Home</span>
+                  <i className="bi bi-house-door"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
-                  <i className="bi bi-journal-text me-1"></i><span className="header-nav-link-text">Notes</span>
+                  <i className="bi bi-pencil-fill"></i>
                 </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onVideos}>
-                  <i className="bi bi-play-btn me-1"></i><span className="header-nav-link-text">Videos</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onPosts}>
-                  <i className="bi bi-card-text me-1"></i><span className="header-nav-link-text">PostView</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice}>
-                  <i className="bi bi-film me-1"></i><span className="header-nav-link-text">Slice</span>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onBox}>
-                  <i className="bi bi-window-stack me-1"></i><span className="header-nav-link-text">BoxView</span>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice} title="Slice" aria-label="Slice">
+                  <i className="bi bi-film"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
-                  <i className="bi bi-music-note-beamed me-1"></i><span className="header-nav-link-text">Audio</span>
+                  <i className="bi bi-music-note-beamed"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
-                  <i className="bi bi-images me-1"></i><span className="header-nav-link-text">Photos</span>
+                  <i className="bi bi-images"></i>
                 </button>
                 <button
                   type="button"
