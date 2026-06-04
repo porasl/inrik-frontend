@@ -516,16 +516,10 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed) {
 
 export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome, onDelete }) {
   const identity = useMemo(() => getOwnerIdentity(user), [user]);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(true);
   const [path, setPath] = useState(['inrik']);
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
-  const [clock, setClock] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setClock(new Date()), 1000 * 30);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (!started) return;
@@ -675,20 +669,13 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       );
     }
 
-    if (!started) {
-      return (
-        <div className="boxview-drive-screen">
-          <p className="boxview-drive-help">Use the top-left INRIK icon to open your drive.</p>
-        </div>
-      );
-    }
 
     return (
       <div className="boxview-explorer-window">
         <div className="boxview-titlebar">
           <div className="boxview-titlegroup">
             <i className="bi bi-window-stack"></i>
-            <span>INRIK Explorer</span>
+            <span>Inrik Private Explorer</span>
             <small>{path.join(' / ')}</small>
           </div>
           <div className="boxview-title-actions">
@@ -780,46 +767,8 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   };
 
   return (
-    <div className="boxview-shell">
-      <div className="boxview-topbar">
-        <div className="boxview-topbar-brand">
-          <i className="bi bi-window-sidebar"></i>
-          <strong>Private View</strong>
-          <span>INRIK workstation simulation</span>
-        </div>
-        <div className="boxview-topbar-user">
-          <span>{user?.name || user?.email || 'Guest'}</span>
-          <button type="button" className="btn btn-sm btn-light" onClick={onHome}>
-            <i className="bi bi-house-door me-1"></i>Home
-          </button>
-        </div>
-      </div>
-
-      <div className="boxview-desktop-bg">
-        <div className="boxview-drive-float">
-          <button type="button" className="boxview-drive-mini" onClick={openDrive}>
-            <i className="bi bi-hdd-network"></i>
-            <span>INRIK</span>
-          </button>
-        </div>
-
-        {renderExplorerBody()}
-      </div>
-
-      <footer className="boxview-taskbar">
-        <button type="button" className="boxview-start-btn" onClick={onHome}>
-          <i className="bi bi-windows"></i>
-          <span>Start</span>
-        </button>
-        <div className="boxview-taskbar-center">
-          <span>INRIK Explorer</span>
-          <span className="boxview-taskbar-status">{started ? currentFolderLabel : 'Desktop'}</span>
-        </div>
-        <div className="boxview-clock">
-          <span>{clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          <small>{clock.toLocaleDateString([], { month: 'short', day: '2-digit' })}</small>
-        </div>
-      </footer>
+    <div className="boxview-shell boxview-shell--plain">
+      {renderExplorerBody()}
 
       {embedItem && <EmbedModal item={embedItem} onClose={() => setEmbedItem(null)} />}
     </div>

@@ -224,7 +224,7 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
         onClick={e => { e.stopPropagation(); onPrev?.(); }}
         aria-label="Previous"
       >
-        <i className="bi bi-chevron-up" />
+        <i className="bi bi-chevron-left" />
       </button>
 
       <button
@@ -232,7 +232,7 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
         onClick={e => { e.stopPropagation(); onNext?.(); }}
         aria-label="Next"
       >
-        <i className="bi bi-chevron-down" />
+        <i className="bi bi-chevron-right" />
       </button>
     </div>
   );

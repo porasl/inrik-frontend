@@ -11,6 +11,7 @@ import AudioPage from './components/AudioPage';
 import PhotoPage from './components/PhotoPage';
 import BoxView from './components/BoxView';
 import PostView from './components/PostView';
+import GroupView from './components/GroupView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -312,7 +313,7 @@ function App() {
   const [incomingRequests, setIncomingRequests] = useState([]);
 
   /* ─── Active sidebar section ─── */
-  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio' | 'box' | 'posts'
+  const [activeSection, setActiveSection] = useState('home'); // 'home' | 'videos' | 'slice' | 'audio' | 'box' | 'posts' | 'groups' | 'news' | 'sport' | 'art' | 'ai' | 'market'
   const [isFeedRefreshing, setIsFeedRefreshing] = useState(false);
   const showFeedRefreshing = useDelayedVisibility(isFeedRefreshing, {
     showDelayMs: 240,
@@ -362,7 +363,18 @@ function App() {
   const mainFeedPosts = nonSliceVideoPosts.length > 0 ? nonSliceVideoPosts : visibleVideoPosts;
 
   useEffect(() => {
-    const shouldAutoLoad = activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && activeSection !== 'posts' && !showSlicePage && !watchingPost;
+    const shouldAutoLoad = activeSection !== 'audio'
+      && activeSection !== 'photos'
+      && activeSection !== 'box'
+      && activeSection !== 'posts'
+      && activeSection !== 'groups'
+      && activeSection !== 'news'
+      && activeSection !== 'sport'
+      && activeSection !== 'art'
+      && activeSection !== 'ai'
+      && activeSection !== 'market'
+      && !showSlicePage
+      && !watchingPost;
     if (!shouldAutoLoad) return;
 
     const target = loadMoreSentinelRef.current;
@@ -404,6 +416,18 @@ function App() {
 
   /* Helper: show post view */
   const goPosts = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('posts'); };
+
+  const goGroups = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('groups'); };
+
+  const goNews = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('news'); };
+
+  const goSport = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('sport'); };
+
+  const goArt = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('art'); };
+
+  const goAi = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('ai'); };
+
+  const goMarket = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('market'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -1244,6 +1268,11 @@ function App() {
         onBox={goBox}
         onAudio={goAudio}
         onPhotos={goPhotos}
+        onNews={goNews}
+        onSport={goSport}
+        onArt={goArt}
+        onAi={goAi}
+        onMarket={goMarket}
       />
 
       <div className="app-body-wrapper">
@@ -1252,13 +1281,26 @@ function App() {
           onVideos={goVideos}
           onPosts={goPosts}
           onAudio={goAudio}
+          onGroups={goGroups}
           onPhotos={goPhotos}
           onBox={goBox}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
+          onNotes={goHome}
         />
 
         <main className="main-content">
-          {showFeedRefreshing && activeSection !== 'audio' && activeSection !== 'photos' && activeSection !== 'box' && activeSection !== 'posts' && !showSlicePage && (
+          {showFeedRefreshing
+            && activeSection !== 'audio'
+            && activeSection !== 'photos'
+            && activeSection !== 'box'
+            && activeSection !== 'posts'
+            && activeSection !== 'groups'
+            && activeSection !== 'news'
+            && activeSection !== 'sport'
+            && activeSection !== 'art'
+            && activeSection !== 'ai'
+            && activeSection !== 'market'
+            && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
                 <span className="spinner-border spinner-border-sm" aria-hidden="true" />
@@ -1298,6 +1340,34 @@ function App() {
               isLoading={isLoading}
               onLoadMore={() => fetchPosts(page + 1, true)}
             />
+          ) : activeSection === 'groups' ? (
+            /* ── GROUPS PAGE ── */
+            <GroupView token={xAuthToken} userId={userId} />
+          ) : activeSection === 'news' ? (
+            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
+              <h3 className="mb-2">News View</h3>
+              <p className="mb-0 text-muted">Welcome to the News view page.</p>
+            </div>
+          ) : activeSection === 'sport' ? (
+            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
+              <h3 className="mb-2">Sport View</h3>
+              <p className="mb-0 text-muted">Welcome to the Sport view page.</p>
+            </div>
+          ) : activeSection === 'art' ? (
+            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
+              <h3 className="mb-2">Art View</h3>
+              <p className="mb-0 text-muted">Welcome to the Art view page.</p>
+            </div>
+          ) : activeSection === 'ai' ? (
+            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
+              <h3 className="mb-2">AI View</h3>
+              <p className="mb-0 text-muted">Welcome to the AI view page.</p>
+            </div>
+          ) : activeSection === 'market' ? (
+            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
+              <h3 className="mb-2">Market View</h3>
+              <p className="mb-0 text-muted">Welcome to the Market view page.</p>
+            </div>
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
@@ -1336,7 +1406,7 @@ function App() {
         </main>
 
         {/* Keep rightbar mounted on mobile so header menu "Connections" can toggle it */}
-        {((!watchingPost && !showSlicePage && activeSection !== 'box') || globalThis.matchMedia?.('(max-width: 992px)').matches) && (
+        {((!watchingPost && activeSection !== 'box') || globalThis.matchMedia?.('(max-width: 992px)').matches) && (
           <Rightbar
             connections={connections}
             isLoggedIn={isLoggedIn}

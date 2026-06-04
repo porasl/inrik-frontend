@@ -4,7 +4,7 @@ import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -297,18 +297,12 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
                   <i className="bi bi-house-door"></i>
                 </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
-                  <i className="bi bi-pencil-fill"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice} title="Slice" aria-label="Slice">
-                  <i className="bi bi-film"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
-                  <i className="bi bi-music-note-beamed"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
-                  <i className="bi bi-images"></i>
-                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onNews}>News</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSport}>Sport</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Advertisement</button>
               </div>
 
               <div className="header-auth-area d-flex align-items-center gap-2">
@@ -354,30 +348,16 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
           ) : (
             /* --- LOGGED IN VIEW --- */
             <div className="d-flex align-items-center justify-content-between flex-grow-1 ms-4">
-              <div className="nav-center-group desktop-nav-actions d-none d-lg-flex align-items-center gap-1 mx-auto header-nav-links">
+              <div className="nav-center-group desktop-nav-actions d-none d-lg-flex align-items-center gap-1 header-nav-links">
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onHome}>
                   <i className="bi bi-house-door"></i>
                 </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onNotes}>
-                  <i className="bi bi-pencil-fill"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSlice} title="Slice" aria-label="Slice">
-                  <i className="bi bi-film"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAudio}>
-                  <i className="bi bi-music-note-beamed"></i>
-                </button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onPhotos}>
-                  <i className="bi bi-images"></i>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary ms-1"
-                  title="Upload"
-                  onClick={() => setShowUpload(true)}
-                >
-                  <i className="bi bi-plus-circle me-1"></i>Upload
-                </button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onNews}>News</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onSport}>Sport</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Advertisement</button>
 
                 <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
                   <i className="bi bi-people-fill"></i>
@@ -385,6 +365,15 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
               </div>
 
               <div className="nav-right-group d-flex align-items-center gap-3">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  title="Upload"
+                  onClick={() => setShowUpload(true)}
+                >
+                  <i className="bi bi-plus-circle me-1"></i>Upload
+                </button>
+
                 <button
                   className="btn-icon desktop-settings-btn"
                   title="Settings"
@@ -646,4 +635,9 @@ Navbar.propTypes = {
   onBox: PropTypes.func,
   onAudio: PropTypes.func,
   onPhotos: PropTypes.func,
+  onNews: PropTypes.func,
+  onSport: PropTypes.func,
+  onArt: PropTypes.func,
+  onAi: PropTypes.func,
+  onMarket: PropTypes.func,
 };
