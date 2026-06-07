@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Hls from 'hls.js';
 import { PUBLIC_BASE } from '../../app.config.js';
+import { getAllPostsCached } from '../services/postsService';
 
 const CAPTION_TRACK_SRC = 'data:text/vtt,WEBVTT%0A%0A';
 
@@ -129,6 +130,49 @@ function getBaseName(value, fallback = 'file') {
   return tail || fallback;
 }
 
+function getUniqueMediaValues(...sources) {
+  const seen = new Set();
+  const values = [];
+
+  sources.forEach((source) => {
+    toArray(source).forEach((raw) => {
+      const normalized = normalizeText(raw);
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      values.push(raw);
+    });
+  });
+
+  return values;
+}
+
+function getUniqueResolvedMediaValues(...sources) {
+  const seen = new Set();
+  const values = [];
+
+  getUniqueMediaValues(...sources).forEach((raw) => {
+    const resolved = toPublicUrl(raw);
+    const key = normalizeText(resolved || raw);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    values.push(raw);
+  });
+
+  return values;
+}
+
+function toCanonicalVideoKey(raw) {
+  const resolved = toPublicUrl(raw);
+  const base = normalizeText(resolved || raw).toLowerCase();
+  if (!base) return '';
+
+  const withoutQuery = base.split('#')[0].split('?')[0];
+  return withoutQuery
+    .replaceAll('\\', '/')
+    .replace(/\/stream\.m3u8$/i, '/')
+    .replace(/\/$/, '');
+}
+
 function resolveMediaEntries(posts) {
   const folders = {
     videos: [],
@@ -136,6 +180,7 @@ function resolveMediaEntries(posts) {
     images: [],
     documents: [],
   };
+  const seenVideoUrls = new Set();
 
   posts.forEach((post) => {
     const title = normalizeText(post?.title || post?.description || 'Untitled');
@@ -168,20 +213,34 @@ function resolveMediaEntries(posts) {
     };
 
     const addVideoEntry = () => {
-      const rawVideo = [
-        ...toArray(post?.hlsVideoUrls),
-        ...toArray(post?.videoUrls),
+      const rawVideos = getUniqueResolvedMediaValues(
+        post?.hlsVideoUrls,
+        post?.videoUrls,
         post?.videoUrl,
         post?.videoPath,
-      ].find((raw) => {
-        if (!raw) return false;
-        return Boolean(toPublicUrl(raw));
+      );
+
+      if (!rawVideos.length) return;
+
+      // One post should surface as one video in Private View.
+      // Prefer HLS/stream source when present.
+      const sortedCandidates = [...rawVideos].sort((a, b) => {
+        const aRaw = String(a || '').toLowerCase();
+        const bRaw = String(b || '').toLowerCase();
+        const aIsHls = aRaw.includes('.m3u8') || aRaw.includes('/stream');
+        const bIsHls = bRaw.includes('.m3u8') || bRaw.includes('/stream');
+        if (aIsHls === bIsHls) return 0;
+        return aIsHls ? -1 : 1;
       });
 
-      if (!rawVideo) return;
-
+      const rawVideo = sortedCandidates[0];
       const url = toPublicUrl(rawVideo);
       if (!url) return;
+
+      const videoKey = toCanonicalVideoKey(url);
+      if (!videoKey) return;
+      if (seenVideoUrls.has(videoKey)) return;
+      seenVideoUrls.add(videoKey);
 
       addEntry('videos', {
         kind: 'video',
@@ -645,14 +704,45 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const [path, setPath] = useState(['inrik']);
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
+  const [allPosts, setAllPosts] = useState([]);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
-  const [mobilePlayItem, setMobilePlayItem] = useState(null);
+  const [mobileVideoIndex, setMobileVideoIndex] = useState(-1);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isLoggedIn) {
+      setAllPosts([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadAllPosts = async () => {
+      try {
+        const items = await getAllPostsCached({ forceRefresh: true });
+        if (!cancelled) {
+          setAllPosts(Array.isArray(items) ? items : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAllPosts([]);
+        }
+      }
+    };
+
+    loadAllPosts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
 
   // On mobile, auto-open the videos folder
   useEffect(() => {
@@ -681,15 +771,21 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, started, posts]);
 
+  const sourcePosts = useMemo(() => {
+    if (!isLoggedIn) return [];
+    return allPosts.length > 0 ? allPosts : posts;
+  }, [allPosts, posts, isLoggedIn]);
+
   const ownedPosts = useMemo(() => {
     if (!isLoggedIn) return [];
-    return posts.filter((post) => matchesOwner(post, identity));
-  }, [posts, identity, isLoggedIn]);
+    return sourcePosts.filter((post) => matchesOwner(post, identity));
+  }, [sourcePosts, identity, isLoggedIn]);
 
   const scopedPosts = useMemo(() => {
     if (!isLoggedIn) return [];
-    return ownedPosts;
-  }, [isLoggedIn, ownedPosts]);
+    // If owner matching is too strict, fallback to all posts
+    return ownedPosts.length > 0 ? ownedPosts : sourcePosts;
+  }, [isLoggedIn, ownedPosts, sourcePosts]);
 
   const catalog = useMemo(() => resolveMediaEntries(scopedPosts), [scopedPosts]);
 
@@ -788,7 +884,9 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       return;
     }
     if (isMobile && item.kind === 'video') {
-      setMobilePlayItem(item);
+      const currentItems = getCurrentItems();
+      const idx = currentItems.findIndex((v) => v.id === item.id);
+      setMobileVideoIndex(Math.max(0, idx));
       return;
     }
     setPreviewItem(item);
@@ -824,12 +922,11 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
             <small>{path.join(' / ')}</small>
           </div>
           <div className="boxview-title-actions">
-            <button type="button" onClick={goBack} className="boxview-mini-btn" aria-label="Back">
-              <i className="bi bi-arrow-left"></i>
-            </button>
-            <button type="button" onClick={() => setStarted(false)} className="boxview-mini-btn boxview-mini-btn--close-mobile-only" aria-label="Close explorer">
-              <i className="bi bi-x-lg"></i>
-            </button>
+            {path.length >= 2 && (
+              <button type="button" onClick={goBack} className="boxview-mini-btn" aria-label="Back">
+                <i className="bi bi-arrow-left"></i>
+              </button>
+            )}
           </div>
         </div>
 
@@ -843,6 +940,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
               <i className="bi bi-film"></i>
               <span>Videos</span>
             </button>
+            <div className="boxview-tree-divider" aria-hidden="true">---</div>
             <button type="button" className={`boxview-tree-item ${path[1] === 'audios' ? 'active' : ''}`} onClick={() => openFolder('audios')}>
               <i className="bi bi-music-note-beamed"></i>
               <span>Audios</span>
@@ -911,23 +1009,85 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     );
   };
 
+  const mobileVideoItems = isMobile && path[1] === 'videos' ? (getCurrentItems().filter((v) => v.kind === 'video') || []) : [];
+  const mobileCurrentVideo = mobileVideoIndex >= 0 && mobileVideoIndex < mobileVideoItems.length ? mobileVideoItems[mobileVideoIndex] : null;
+
+  const goMobileNext = () => {
+    if (mobileVideoIndex < mobileVideoItems.length - 1) {
+      setMobileVideoIndex(mobileVideoIndex + 1);
+    }
+  };
+
+  const goMobilePrev = () => {
+    if (mobileVideoIndex > 0) {
+      setMobileVideoIndex(mobileVideoIndex - 1);
+    }
+  };
+
+  const deleteMobileVideo = async (item) => {
+    const postId = item?.post?.id || item?.postId || item?.id;
+    if (!postId) return;
+    if (!globalThis.confirm('Delete this video permanently?')) return;
+    await onDelete?.(postId);
+    const newIdx = Math.max(0, mobileVideoIndex - 1);
+    setMobileVideoIndex(newIdx);
+  };
+
   return (
     <div className="boxview-shell boxview-shell--plain">
       {renderExplorerBody()}
 
       {embedItem && <EmbedModal item={embedItem} onClose={() => setEmbedItem(null)} />}
 
-      {isMobile && mobilePlayItem && (
+      {isMobile && mobileCurrentVideo && (
         <div className="boxview-mobile-overlay">
-          <button
-            type="button"
-            className="boxview-mobile-overlay-close"
-            onClick={() => setMobilePlayItem(null)}
-            aria-label="Close video"
-          >
-            <i className="bi bi-x-lg"></i>
-          </button>
-          <MediaPreview item={mobilePlayItem} />
+          <div className="boxview-mobile-overlay-header">
+            <button
+              type="button"
+              className="boxview-mobile-overlay-close"
+              onClick={() => setMobileVideoIndex(-1)}
+              aria-label="Close video"
+            >
+              <i className="bi bi-x-lg"></i>
+            </button>
+            <div className="boxview-mobile-overlay-title">
+              <strong>{mobileCurrentVideo.name}</strong>
+              <span className="text-secondary small">{mobileVideoIndex + 1} / {mobileVideoItems.length}</span>
+            </div>
+          </div>
+
+          <div className="boxview-mobile-overlay-player">
+            <MediaPreview item={mobileCurrentVideo} />
+          </div>
+
+          <div className="boxview-mobile-overlay-nav">
+            <button
+              type="button"
+              className="boxview-mobile-overlay-btn"
+              onClick={goMobilePrev}
+              disabled={mobileVideoIndex === 0}
+              aria-label="Previous video"
+            >
+              <i className="bi bi-chevron-left"></i>
+            </button>
+            <button
+              type="button"
+              className="boxview-mobile-overlay-btn boxview-mobile-overlay-btn--danger"
+              onClick={() => deleteMobileVideo(mobileCurrentVideo)}
+              aria-label="Delete video"
+            >
+              <i className="bi bi-trash"></i>
+            </button>
+            <button
+              type="button"
+              className="boxview-mobile-overlay-btn"
+              onClick={goMobileNext}
+              disabled={mobileVideoIndex === mobileVideoItems.length - 1}
+              aria-label="Next video"
+            >
+              <i className="bi bi-chevron-right"></i>
+            </button>
+          </div>
         </div>
       )}
     </div>

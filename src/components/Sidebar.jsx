@@ -82,14 +82,6 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
           <>
             <li className="nav-item w-100 mb-0">
               <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleBox}>
-                <i className="bi bi-window-stack fs-5 text-secondary"></i>
-                <span className="fw-medium">Private</span>
-              </a>
-            </li>
-
-            <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
                 href="#" onClick={handlePosts}>
                 <i className="bi bi-card-text fs-5 text-secondary"></i>
                 <span className="fw-medium">Post</span>
@@ -133,6 +125,14 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
                 href="#" onClick={handleNotes}>
                 <i className="bi bi-pencil fs-5 text-secondary"></i>
                 <span className="fw-medium">Notes</span>
+              </a>
+            </li>
+
+            <li className="nav-item w-100 mb-0">
+              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
+                href="#" onClick={handleBox}>
+                <i className="bi bi-window-stack fs-5 text-secondary"></i>
+                <span className="fw-medium">Private</span>
               </a>
             </li>
           </>

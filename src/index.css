@@ -1195,16 +1195,26 @@ html {
   background: transparent;
   color: #1f3b7a;
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
+  font-size: 0.85rem;
 }
 
 .boxview-tree-item.active,
 .boxview-tree-item:hover {
   background: rgba(36,94,181,0.12);
+}
+
+.boxview-tree-divider {
+  margin: 2px 10px 4px;
+  color: #b8c6dc;
+  font-size: 0.7rem;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  user-select: none;
 }
 
 .boxview-browser {
@@ -1771,17 +1781,23 @@ html {
     border-radius: 0;
   }
 
-  /* Hide thumbnail images — show clean list rows */
+  /* Show thumbnail images on mobile */
   .boxview-file-thumb {
-    display: none;
+    display: block;
   }
 
   .boxview-file-card--video {
     flex-direction: row;
-    min-height: auto;
+    min-height: 72px;
     align-items: center;
-    padding: 10px 14px;
+    padding: 8px;
     gap: 10px;
+  }
+
+  .boxview-file-card--video .boxview-file-thumb {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
   }
 
   .boxview-file-card--video .boxview-file-icon {
@@ -1808,14 +1824,18 @@ html {
     background: #000;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+  }
+
+  .boxview-mobile-overlay-header {
+    position: relative;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .boxview-mobile-overlay-close {
     position: absolute;
-    top: 16px;
-    right: 16px;
+    top: 12px;
+    right: 12px;
     background: rgba(255, 255, 255, 0.18);
     border: none;
     color: #fff;
@@ -1830,6 +1850,81 @@ html {
     z-index: 1;
   }
 
+  .boxview-mobile-overlay-title {
+    color: #fff;
+    padding-right: 50px;
+  }
+
+  .boxview-mobile-overlay-title strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .boxview-mobile-overlay-title span {
+    display: block;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .boxview-mobile-overlay-player {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .boxview-mobile-overlay-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .boxview-mobile-overlay-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: background 0.2s;
+  }
+
+  .boxview-mobile-overlay-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  .boxview-mobile-overlay-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .boxview-mobile-overlay-btn--danger {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+
+  .boxview-mobile-overlay-btn--danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.5);
+  }
+
   .boxview-mobile-overlay .boxview-preview-media {
     width: 100%;
     height: 100%;
@@ -1840,7 +1935,7 @@ html {
   .boxview-mobile-overlay .boxview-preview-video {
     width: 100%;
     min-height: unset;
-    max-height: calc(100dvh - 100px);
+    max-height: calc(100dvh - 200px);
     border-radius: 0;
   }
 

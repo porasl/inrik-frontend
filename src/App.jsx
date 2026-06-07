@@ -320,6 +320,7 @@ function App() {
     minVisibleMs: 700,
   });
   const didRunInitialFetch = useRef(false);
+  const didAttemptEmptyFeedRecovery = useRef(false);
   const didMobileScrollNudge = useRef(false);
   const pageRef = useRef(0);
   const loadMoreSentinelRef = useRef(null);
@@ -690,10 +691,19 @@ function App() {
 
     setIsLoading(true);
     try {
-      const data = await getPagedPosts({ page: pageNum, size: 15, forceRefresh });
+      const data = await getPagedPosts({ page: pageNum, size: 10, forceRefresh });
       if (!data) return;
 
       const items = data.items || [];
+
+      if (!forceRefresh && pageNum === 0 && items.length === 0) {
+        const freshData = await getPagedPosts({ page: 0, size: 10, forceRefresh: true });
+        const freshItems = freshData?.items || [];
+        setPosts(freshItems);
+        setHasNext(freshData?.pageInfo?.hasNext ?? false);
+        setPage(0);
+        return;
+      }
 
       setPosts(prev => append ? [...prev, ...items] : items);
       setHasNext(data.pageInfo?.hasNext ?? false);
@@ -916,51 +926,75 @@ function App() {
 
   const tryConnectionAction = async (req, action) => {
     const identifiers = getConnectionIdentifierCandidates(req);
-    if (!identifiers.length) return { ok: false, status: 0, identifiers };
+    if (!identifiers.length) {
+      console.warn('Connection action failed: No valid identifiers found. Connection object:', req);
+      return { ok: false, status: 0, identifiers, error: 'No valid identifiers found' };
+    }
 
     const normalizedAction = String(action || '').trim() || 'delete';
+    const isDeleteAction = normalizedAction === 'delete';
 
     let accessToken = localStorage.getItem('token');
     if (!accessToken) {
       accessToken = await refreshAccessToken(true);
     }
     if (!accessToken) {
-      return { ok: false, status: 401, identifiers };
+      return { ok: false, status: 401, identifiers, error: 'No access token' };
     }
 
     let lastStatus = 0;
+    let lastError = null;
     for (const identifier of identifiers) {
-      const res = await authFetch(`${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${normalizedAction}`, {
-        method: 'POST',
+      const url = isDeleteAction
+        ? `${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}`
+        : `${API_BASE}/api/auth/me/connections/${encodeURIComponent(identifier)}/${normalizedAction}`;
+      console.log(`Attempting connection ${normalizedAction} at: ${url}`);
+      const res = await authFetch(url, {
+        method: isDeleteAction ? 'DELETE' : 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({}),
+        body: isDeleteAction ? undefined : JSON.stringify({}),
         noAutoLogout: true,
         skipRefreshOn401: true,
       });
 
-      if (res.ok) return { ok: true, status: res.status, identifiers };
+      if (res.ok) {
+        console.log(`Connection ${normalizedAction} succeeded (${res.status}) for identifier ${identifier}`);
+        return { ok: true, status: res.status, identifiers };
+      }
       lastStatus = res.status;
+
+      // Try to extract error details from response
+      try {
+        const errorData = await res.clone().json();
+        lastError = errorData?.message || errorData?.error || JSON.stringify(errorData);
+        console.error(`Connection ${normalizedAction} failed (${res.status}) for identifier ${identifier}:`, lastError);
+      } catch {
+        const errorText = await res.clone().text();
+        lastError = errorText || `HTTP ${res.status}`;
+        console.error(`Connection ${normalizedAction} failed (${res.status}) for identifier ${identifier}:`, lastError);
+      }
 
       // Keep local token in sync in case authFetch refreshed it.
       accessToken = localStorage.getItem('token') || accessToken;
 
       // Stop early for non-auth failures.
       if (res.status !== 401 && res.status !== 404) {
-        return { ok: false, status: res.status, identifiers };
+        return { ok: false, status: res.status, identifiers, error: lastError };
       }
     }
 
-    return { ok: false, status: lastStatus, identifiers };
+    return { ok: false, status: lastStatus, identifiers, error: lastError };
   };
 
   const acceptConnectionRequest = async (req) => {
     const result = await tryConnectionAction(req, 'accept');
     if (!result.ok) {
-      console.error(`Accept connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
+      const errorMsg = `Accept connection failed (${result.status}). Tried identifiers: ${result.identifiers.join(', ')}. ${result.error ? `Error: ${result.error}` : ''}`;
+      console.error(errorMsg);
       return;
     }
     setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));
@@ -970,7 +1004,8 @@ function App() {
   const rejectConnectionRequest = async (req) => {
     const result = await tryConnectionAction(req, 'delete');
     if (!result.ok) {
-      console.error(`Delete connection failed: ${result.status}. Tried: ${result.identifiers.join(', ')}`);
+      const errorMsg = `Delete connection failed (${result.status}). Tried identifiers: ${result.identifiers.join(', ')}. ${result.error ? `Error: ${result.error}` : ''}`;
+      console.error(errorMsg);
       return;
     }
     setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(req.requestKey || req.id)));
@@ -980,7 +1015,9 @@ function App() {
   const removeConnection = async (conn) => {
     const result = await tryConnectionAction(conn, 'delete');
     if (!result.ok) {
-      throw new Error(`Delete connection failed (${result.status || 'unknown'}).`);
+      const errorMsg = `Delete connection failed (${result.status}). Tried identifiers: ${result.identifiers.join(', ')}. ${result.error ? `Error: ${result.error}` : ''}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
     setIncomingRequests((prev) => prev.filter((r) => String(r.requestKey || r.id) !== String(conn.requestKey || conn.id)));
     await fetchConnections();
@@ -1199,12 +1236,19 @@ function App() {
   }, [isLoggedIn]);
 
   useEffect(() => {
+    if (isLoading || posts.length > 0 || didAttemptEmptyFeedRecovery.current) return;
+
+    didAttemptEmptyFeedRecovery.current = true;
+    fetchPosts(0, false, true);
+  }, [posts.length, isLoading]);
+
+  useEffect(() => {
     const unsubscribe = subscribePostsCacheUpdates(({ key, items }) => {
       const tokenKey = localStorage.getItem('token') || 'anonymous';
       if (key !== tokenKey) return;
 
       const loadedPages = pageRef.current + 1;
-      const end = loadedPages * 15;
+      const end = loadedPages * 10;
       const nextItems = items.slice(0, end);
       setPosts(nextItems);
       setHasNext(end < items.length);

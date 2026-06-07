@@ -1,5 +1,40 @@
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 
+const GET_POSTS_QUERY_EXTENDED = `
+  query($page: Int!, $size: Int!) {
+    getAllPostsPaged(page: $page, size: $size) {
+      items {
+        id
+        title: description
+        imageUrls
+        photoUrls
+        imageUrl
+        photoUrl
+        videoImagePath
+        hlsVideoUrls
+        videoUrl
+        videoPath
+        audioUrls
+        hlsAudioUrls
+        audioUrl
+        videoUrls
+        documentUrls
+        documents
+        slice
+        views
+        likes
+        isLikedByCurrentUser
+        userProfileImageUrl
+        userFirstName
+        userLastName
+        email
+        author
+      }
+      pageInfo { page size hasNext }
+    }
+  }
+`;
+
 const GET_POSTS_QUERY = `
   query($page: Int!, $size: Int!) {
     getAllPostsPaged(page: $page, size: $size) {
@@ -25,6 +60,8 @@ const GET_POSTS_QUERY = `
     }
   }
 `;
+
+const GET_POSTS_QUERY_VARIANTS = [GET_POSTS_QUERY_EXTENDED, GET_POSTS_QUERY];
 
 const cacheByToken = new Map();
 const inflightByToken = new Map();
@@ -128,31 +165,53 @@ async function fetchAllPostsFromGraphql(pageSize = 30, useAuth = true) {
 
   let page = 0;
   let all = [];
+  let queryToUse = null;
 
   while (true) {
-    const res = await fetch(`${API_BASE}/graphql`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query: GET_POSTS_QUERY, variables: { page, size: pageSize } }),
-    });
+    const queries = queryToUse ? [queryToUse] : GET_POSTS_QUERY_VARIANTS;
+    let data = null;
+    let lastGraphQlError = '';
 
-    if (!res.ok) {
-      let details = '';
-      try {
-        details = await res.text();
-      } catch {
-        details = '';
+    for (const query of queries) {
+      const res = await fetch(`${API_BASE}/graphql`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, variables: { page, size: pageSize } }),
+      });
+
+      if (!res.ok) {
+        let details = '';
+        try {
+          details = await res.text();
+        } catch {
+          details = '';
+        }
+        const compactDetails = String(details || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+        const message = compactDetails
+          ? `GraphQL request failed: ${res.status} ${res.statusText} - ${compactDetails}`
+          : `GraphQL request failed: ${res.status} ${res.statusText}`;
+        throw new Error(message);
       }
-      const compactDetails = String(details || '').replace(/\s+/g, ' ').trim().slice(0, 300);
-      const message = compactDetails
-        ? `GraphQL request failed: ${res.status} ${res.statusText} - ${compactDetails}`
-        : `GraphQL request failed: ${res.status} ${res.statusText}`;
-      throw new Error(message);
+
+      const json = await res.json();
+      data = json?.data?.getAllPostsPaged || null;
+
+      if (data) {
+        queryToUse = query;
+        break;
+      }
+
+      lastGraphQlError = Array.isArray(json?.errors)
+        ? json.errors.map((error) => error?.message).filter(Boolean).join(' | ')
+        : '';
     }
 
-    const json = await res.json();
-    const data = json?.data?.getAllPostsPaged;
-    if (!data) break;
+    if (!data) {
+      if (lastGraphQlError) {
+        throw new Error(`GraphQL request failed: ${lastGraphQlError}`);
+      }
+      break;
+    }
 
     all = all.concat((data.items || []).map(mapPost));
 
