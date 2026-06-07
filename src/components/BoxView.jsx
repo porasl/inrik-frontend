@@ -319,6 +319,11 @@ EmbedModal.propTypes = {
 function MediaPreview({ item }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const playableUrl = useMemo(() => {
     if (!item) return '';
@@ -356,6 +361,41 @@ function MediaPreview({ item }) {
     };
   }, [item, playableUrl]);
 
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || item?.kind !== 'video') return;
+
+    const onLoaded = () => {
+      setDuration(Number.isFinite(el.duration) ? el.duration : 0);
+      setCurrentTime(el.currentTime || 0);
+      setIsMuted(el.muted);
+      setPlaybackRate(el.playbackRate || 1);
+    };
+    const onTime = () => setCurrentTime(el.currentTime || 0);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onVolume = () => setIsMuted(el.muted);
+    const onRate = () => setPlaybackRate(el.playbackRate || 1);
+
+    el.addEventListener('loadedmetadata', onLoaded);
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('play', onPlay);
+    el.addEventListener('pause', onPause);
+    el.addEventListener('volumechange', onVolume);
+    el.addEventListener('ratechange', onRate);
+
+    onLoaded();
+
+    return () => {
+      el.removeEventListener('loadedmetadata', onLoaded);
+      el.removeEventListener('timeupdate', onTime);
+      el.removeEventListener('play', onPlay);
+      el.removeEventListener('pause', onPause);
+      el.removeEventListener('volumechange', onVolume);
+      el.removeEventListener('ratechange', onRate);
+    };
+  }, [item, playableUrl]);
+
   useEffect(() => () => {
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -386,11 +426,96 @@ function MediaPreview({ item }) {
   }
 
   if (item.kind === 'video') {
+    const togglePlay = () => {
+      const el = videoRef.current;
+      if (!el) return;
+      if (el.paused) {
+        el.play().catch(() => {});
+      } else {
+        el.pause();
+      }
+    };
+
+    const toggleMute = () => {
+      const el = videoRef.current;
+      if (!el) return;
+      el.muted = !el.muted;
+      setIsMuted(el.muted);
+    };
+
+    const onSeek = (e) => {
+      const el = videoRef.current;
+      if (!el) return;
+      const next = Number(e.target.value || 0);
+      el.currentTime = next;
+      setCurrentTime(next);
+    };
+
+    const onRate = (e) => {
+      const el = videoRef.current;
+      if (!el) return;
+      const nextRate = Number(e.target.value || 1);
+      el.playbackRate = nextRate;
+      setPlaybackRate(nextRate);
+    };
+
+    const onFullscreen = async () => {
+      const el = videoRef.current;
+      if (!el) return;
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        }
+      } catch {
+        // Ignore fullscreen failures silently.
+      }
+    };
+
+    const fmt = (seconds) => {
+      if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+      const total = Math.floor(seconds);
+      const mins = Math.floor(total / 60);
+      const secs = total % 60;
+      return `${mins}:${String(secs).padStart(2, '0')}`;
+    };
+
     return (
       <div className="boxview-preview-media">
-        <video ref={videoRef} controls autoPlay playsInline className="boxview-preview-video" poster={item.post?.videoImagePath ? toPublicUrl(item.post.videoImagePath) : ''}>
+        <video ref={videoRef} controls={false} autoPlay playsInline className="boxview-preview-video" poster={item.post?.videoImagePath ? toPublicUrl(item.post.videoImagePath) : ''}>
           <track kind="captions" label="English captions" srcLang="en" src={CAPTION_TRACK_SRC} />
         </video>
+        <fieldset className="boxview-preview-controls" aria-label="Video controls">
+          <button type="button" className="boxview-preview-control-btn" onClick={togglePlay}>
+            <i className={`bi ${isPlaying ? 'bi-pause-fill' : 'bi-play-fill'}`}></i>
+          </button>
+          <button type="button" className="boxview-preview-control-btn" onClick={toggleMute}>
+            <i className={`bi ${isMuted ? 'bi-volume-mute-fill' : 'bi-volume-up-fill'}`}></i>
+          </button>
+          <span className="boxview-preview-time">{fmt(currentTime)} / {fmt(duration)}</span>
+          <input
+            type="range"
+            className="boxview-preview-seek"
+            min="0"
+            max={Math.max(duration, 0)}
+            step="0.1"
+            value={Math.min(currentTime, duration || 0)}
+            onChange={onSeek}
+            aria-label="Seek"
+          />
+          <select className="boxview-preview-rate" value={playbackRate} onChange={onRate} aria-label="Playback speed">
+            <option value={0.5}>0.5x</option>
+            <option value={0.75}>0.75x</option>
+            <option value={1}>1x</option>
+            <option value={1.25}>1.25x</option>
+            <option value={1.5}>1.5x</option>
+            <option value={2}>2x</option>
+          </select>
+          <button type="button" className="boxview-preview-control-btn" onClick={onFullscreen}>
+            <i className="bi bi-arrows-fullscreen"></i>
+          </button>
+        </fieldset>
         <div className="boxview-preview-meta">
           <strong>{item.name}</strong>
           <span>{item.owner}</span>
@@ -520,6 +645,22 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const [path, setPath] = useState(['inrik']);
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [mobilePlayItem, setMobilePlayItem] = useState(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // On mobile, auto-open the videos folder
+  useEffect(() => {
+    if (isMobile && started && path.length === 1) {
+      setPath(['inrik', 'videos']);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, started]);
 
   useEffect(() => {
     if (!started) return;
@@ -646,6 +787,10 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       openFolder(item.folder || 'videos');
       return;
     }
+    if (isMobile && item.kind === 'video') {
+      setMobilePlayItem(item);
+      return;
+    }
     setPreviewItem(item);
   };
 
@@ -682,7 +827,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
             <button type="button" onClick={goBack} className="boxview-mini-btn" aria-label="Back">
               <i className="bi bi-arrow-left"></i>
             </button>
-            <button type="button" onClick={() => setStarted(false)} className="boxview-mini-btn" aria-label="Close explorer">
+            <button type="button" onClick={() => setStarted(false)} className="boxview-mini-btn boxview-mini-btn--close-mobile-only" aria-label="Close explorer">
               <i className="bi bi-x-lg"></i>
             </button>
           </div>
@@ -771,6 +916,20 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       {renderExplorerBody()}
 
       {embedItem && <EmbedModal item={embedItem} onClose={() => setEmbedItem(null)} />}
+
+      {isMobile && mobilePlayItem && (
+        <div className="boxview-mobile-overlay">
+          <button
+            type="button"
+            className="boxview-mobile-overlay-close"
+            onClick={() => setMobilePlayItem(null)}
+            aria-label="Close video"
+          >
+            <i className="bi bi-x-lg"></i>
+          </button>
+          <MediaPreview item={mobilePlayItem} />
+        </div>
+      )}
     </div>
   );
 }
