@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Hls from 'hls.js';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
-import { getAllPostsCached } from '../services/postsService';
+import { getAllPostsCached, invalidatePostsCache } from '../services/postsService';
+import { getUserProfileCached } from '../services/userProfileService';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
@@ -82,9 +83,504 @@ function resolveDocumentUrls(post) {
     .filter(Boolean);
 }
 
+function toEditableStringArray(value) {
+  if (!value) return [];
+  const source = Array.isArray(value) ? value : [value];
+  return source
+    .map((entry) => {
+      if (typeof entry === 'string') return entry;
+      return entry?.url || entry?.path || entry?.fileUrl || entry?.documentUrl || '';
+    })
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+}
+
+function resolveEditableDocuments(post) {
+  const unique = new Set();
+  [...toEditableStringArray(post?.documentUrls), ...toEditableStringArray(post?.documents)].forEach((entry) => {
+    unique.add(entry);
+  });
+  return [...unique];
+}
+
+function resolveEditableVideos(post) {
+  const unique = new Set();
+  [
+    ...toEditableStringArray(post?.hlsVideoUrls),
+    ...toEditableStringArray(post?.videoUrls),
+    post?.videoUrl,
+    post?.videoPath,
+  ]
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .forEach((entry) => unique.add(entry));
+  return [...unique];
+}
+
+function resolveEditableImages(post) {
+  return toEditableStringArray(post?.imageUrls);
+}
+
+function resolveEditableAudios(post) {
+  const unique = new Set();
+  [
+    ...toEditableStringArray(post?.audioUrls),
+    ...toEditableStringArray(post?.hlsAudioUrls),
+    post?.audioUrl,
+  ]
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean)
+    .forEach((entry) => unique.add(entry));
+  return [...unique];
+}
+
+function resolvePostDescription(post) {
+  return String(post?.description || post?.title || '').trim();
+}
+
+function resolveAuthorIdentity(post) {
+  const token = localStorage.getItem('token');
+  let payload = null;
+
+  if (token) {
+    try {
+      payload = JSON.parse(atob(token.split('.')[1] || ''));
+    } catch {
+      payload = null;
+    }
+  }
+
+  const email = String(localStorage.getItem('email') || '').trim();
+  const author = String(localStorage.getItem('author') || '').trim();
+  const userId = String(localStorage.getItem('userId') || '').trim();
+  const tokenEmail = String(
+    payload?.email || payload?.preferred_username || payload?.upn || post?.email || ''
+  ).trim();
+
+  const authorEmail = email || (author.includes('@') ? author : '') || tokenEmail;
+  return {
+    token,
+    userId,
+    author: authorEmail,
+    email: authorEmail,
+  };
+}
+
+function getCurrentViewerIdentity() {
+  const email = String(localStorage.getItem('email') || '').trim().toLowerCase();
+  const userId = String(localStorage.getItem('userId') || '').trim().toLowerCase();
+  return { email, userId };
+}
+
+function canCurrentUserEditPost(post) {
+  const viewer = getCurrentViewerIdentity();
+  if (!viewer.email && !viewer.userId) return false;
+
+  const storedAuthor = String(localStorage.getItem('author') || '').trim().toLowerCase();
+
+  const postEmailCandidates = [post?.email, post?.author, post?.user?.email, storedAuthor]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter((value) => value.includes('@'));
+
+  if (viewer.email && postEmailCandidates.includes(viewer.email)) {
+    return true;
+  }
+
+  const postUserIdCandidates = [post?.userId, post?.author, post?.ownerId, post?.user?.id, post?.user?.userId]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  // Some feed responses omit owner markers. In that case, allow editing for logged-in users
+  // rather than hiding edit action from the real owner.
+  if (postEmailCandidates.length === 0 && postUserIdCandidates.length === 0) {
+    return true;
+  }
+
+  return viewer.userId ? postUserIdCandidates.includes(viewer.userId) : false;
+}
+
+function getFileKind(file) {
+  const mime = (file?.type || '').toLowerCase();
+  const ext = (file?.name?.split('.').pop() || '').toLowerCase();
+
+  if (mime.startsWith('video/')) return 'videos';
+  if (mime.startsWith('audio/')) return 'audios';
+  if (mime.startsWith('image/')) return 'images';
+  if (['mp3', 'wav', 'aac', 'ogg', 'm4a', 'flac'].includes(ext)) return 'audios';
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'm3u8'].includes(ext)) return 'videos';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'images';
+  return 'documents';
+}
+
+function EditPostModal({ post, onClose = () => {}, onSaved = async () => {} }) {
+  const [title, setTitle] = useState(String(post?.title || '').trim());
+  const [description, setDescription] = useState(resolvePostDescription(post));
+  const [attachments, setAttachments] = useState({
+    videos: resolveEditableVideos(post),
+    images: resolveEditableImages(post),
+    audios: resolveEditableAudios(post),
+    documents: resolveEditableDocuments(post),
+  });
+  const [newFiles, setNewFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('details');
+
+  const handleRemoveAttachment = (bucket, value) => {
+    setAttachments((prev) => ({
+      ...prev,
+      [bucket]: prev[bucket].filter((item) => item !== value),
+    }));
+  };
+
+  const handleFilePick = (event) => {
+    const picked = Array.from(event.target.files || []);
+    setNewFiles((prev) => [...prev, ...picked]);
+    event.target.value = '';
+  };
+
+  const removeNewFile = (idx) => {
+    setNewFiles((prev) => prev.filter((_, index) => index !== idx));
+  };
+
+  const uploadFile = (file, identity, effectiveDescription) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('postId', String(post?.id || ''));
+    formData.append('userId', identity.userId || '');
+    formData.append('author', identity.author || '');
+    formData.append('email', identity.email || identity.author || '');
+    formData.append('description', effectiveDescription || file.name || 'Post content');
+    formData.append('ispublic', String(post?.ispublic ?? true));
+    formData.append('ismemory', String(post?.ismemory ?? false));
+    formData.append('isevent', String(post?.isevent ?? false));
+    formData.append('isslice', String(post?.isslice ?? false));
+
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE}/api/upload`, true);
+
+      if (identity.token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${identity.token}`);
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let data = {};
+          try {
+            data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+          } catch {
+            data = {};
+          }
+          resolve({ ok: true, data });
+          return;
+        }
+        resolve({ ok: false, error: `Upload failed (${xhr.status})` });
+      };
+
+      xhr.onerror = () => {
+        resolve({ ok: false, error: 'Network error during file upload' });
+      };
+
+      xhr.send(formData);
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+
+    const identity = resolveAuthorIdentity(post);
+    if (!identity.token) {
+      setSaving(false);
+      setError('Please log in again before editing this post.');
+      return;
+    }
+
+    try {
+      const effectiveDescription = String(description || title || 'Updated post').trim();
+
+      const nextAttachments = {
+        videos: [...attachments.videos],
+        images: [...attachments.images],
+        audios: [...attachments.audios],
+        documents: [...attachments.documents],
+      };
+
+      for (const file of newFiles) {
+        const uploaded = await uploadFile(file, identity, effectiveDescription);
+        if (!uploaded.ok) {
+          throw new Error(uploaded.error || 'Failed to upload new content.');
+        }
+
+        const bucket = getFileKind(file);
+        const uploadedPath = String(
+          uploaded?.data?.filePath
+          || uploaded?.data?.url
+          || uploaded?.data?.videoUrl
+          || uploaded?.data?.audioUrl
+          || uploaded?.data?.imageUrl
+          || uploaded?.data?.documentUrl
+          || ''
+        ).trim();
+
+        if (uploadedPath && !nextAttachments[bucket].includes(uploadedPath)) {
+          nextAttachments[bucket].push(uploadedPath);
+        }
+      }
+
+      setAttachments(nextAttachments);
+
+      const payload = {
+        id: post?.id,
+        title: String(title || '').trim(),
+        description: effectiveDescription,
+        userId: identity.userId || '',
+        author: identity.author || post?.email || '',
+        email: identity.email || post?.email || '',
+        ispublic: post?.ispublic ?? true,
+        ismemory: post?.ismemory ?? false,
+        isevent: post?.isevent ?? false,
+        isslice: post?.isslice ?? false,
+        videoUrls: nextAttachments.videos,
+        imageUrls: nextAttachments.images,
+        audioUrls: nextAttachments.audios,
+        documentUrls: nextAttachments.documents,
+      };
+
+      const res = await fetch(`${API_BASE}/api/posts/update`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${identity.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        let details = '';
+        try {
+          details = await res.text();
+        } catch {
+          details = '';
+        }
+        throw new Error(details || `Update failed (${res.status})`);
+      }
+
+      await onSaved?.();
+      onClose?.();
+    } catch (err) {
+      setError(err?.message || 'Failed to update post.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const titleInputId = `post-edit-title-${post?.id || 'x'}`;
+  const descriptionInputId = `post-edit-description-${post?.id || 'x'}`;
+  const fileInputId = `post-edit-files-${post?.id || 'x'}`;
+
+  return (
+    <div
+      className="postview-edit-overlay"
+      onClick={onClose}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onClose();
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label="Close edit post dialog"
+    >
+      <div
+        className="postview-edit-modal"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit post"
+      >
+        <div className="d-flex align-items-center justify-content-between mb-3">
+          <h5 className="mb-0">Edit Post</h5>
+          <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
+        </div>
+
+        <div className="postview-edit-tabs mb-3">
+          {[
+            { key: 'details', label: 'Details' },
+            { key: 'videos', label: `Videos (${attachments.videos.length})` },
+            { key: 'images', label: `Images (${attachments.images.length})` },
+            { key: 'audios', label: `Audios (${attachments.audios.length})` },
+            { key: 'documents', label: `Documents (${attachments.documents.length})` },
+            { key: 'new', label: `Add Content (${newFiles.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`btn btn-sm ${activeTab === tab.key ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'details' && (
+        <>
+        <div className="mb-3">
+          <label className="form-label small fw-semibold" htmlFor={titleInputId}>Title</label>
+          <input
+            id={titleInputId}
+            className="form-control"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Post title"
+          />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label small fw-semibold" htmlFor={descriptionInputId}>Description</label>
+          <textarea
+            id={descriptionInputId}
+            className="form-control"
+            rows={3}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="Post description"
+          />
+        </div>
+        </>
+        )}
+
+        {['videos', 'images', 'audios', 'documents'].includes(activeTab) && (
+        <div className="postview-edit-section">
+          <div className="postview-edit-section-title">Current Content</div>
+          <div className="postview-edit-list-block">
+            <div className="text-capitalize small fw-semibold mb-1">{activeTab}</div>
+            {attachments[activeTab].length === 0 ? (
+              <div className="small text-secondary">No {activeTab} attached.</div>
+            ) : (
+              <ul className="postview-edit-list">
+                {attachments[activeTab].map((item) => (
+                  <li key={`${activeTab}-${item}`}>
+                    <span className="text-truncate">{String(item).split('/').pop() || item}</span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleRemoveAttachment(activeTab, item)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        )}
+
+        {activeTab === 'new' && (
+        <div className="mb-3">
+          <label className="form-label small fw-semibold" htmlFor={fileInputId}>Add New Content</label>
+          <input id={fileInputId} type="file" className="form-control" multiple onChange={handleFilePick} />
+          {newFiles.length > 0 && (
+            <ul className="postview-edit-list mt-2">
+              {newFiles.map((file, idx) => (
+                <li key={`${file.name}-${idx}`}>
+                  <span className="text-truncate">{file.name}</span>
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => removeNewFile(idx)}>
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        )}
+
+        {error && <div className="alert alert-danger py-2 small">{error}</div>}
+
+        <div className="d-flex justify-content-end gap-2">
+          <button type="button" className="btn btn-light" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+EditPostModal.propTypes = {
+  post: PropTypes.shape({}).isRequired,
+  onClose: PropTypes.func,
+  onSaved: PropTypes.func,
+};
+
+function resolveOwnerAvatar(post) {
+  const candidate = post?.user?.avatar
+    || post?.userProfileImageUrl
+    || post?.profileImageUrl
+    || post?.profile_image_url
+    || '';
+
+  return toPublicUrl(candidate);
+}
+
 function OwnerLine({ post }) {
   const owner = [post?.userFirstName, post?.userLastName].filter(Boolean).join(' ') || post?.author || post?.email || 'User';
-  return <span className="postview-owner">{owner}</span>;
+  const [avatar, setAvatar] = useState(resolveOwnerAvatar(post));
+  const [hasAvatarError, setHasAvatarError] = useState(false);
+  const ownerEmail = String(post?.email || post?.author || '').trim();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const directAvatar = resolveOwnerAvatar(post);
+    setAvatar(directAvatar);
+    setHasAvatarError(false);
+
+    if (directAvatar) return () => { cancelled = true; };
+
+    const ownerEmail = String(post?.email || post?.author || '').trim().toLowerCase();
+    if (!ownerEmail || !ownerEmail.includes('@')) {
+      return () => { cancelled = true; };
+    }
+
+    getUserProfileCached(ownerEmail)
+      .then((profile) => {
+        if (cancelled) return;
+        const profileAvatar = String(profile?.profileImageUrl || '').trim();
+        if (!profileAvatar) return;
+        setAvatar(toPublicUrl(profileAvatar));
+      })
+      .catch(() => {
+        // Keep fallback icon if profile lookup fails.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post]);
+
+  return (
+    <div className="postview-owner-row" title={ownerEmail || owner}>
+      {avatar && !hasAvatarError ? (
+        <img
+          src={avatar}
+          alt={owner}
+          className="postview-owner-avatar"
+          onError={() => setHasAvatarError(true)}
+        />
+      ) : (
+        <div
+          className="postview-owner-fallback"
+          aria-hidden="true"
+        >
+          <i className="bi bi-person-fill" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 OwnerLine.propTypes = {
@@ -93,6 +589,12 @@ OwnerLine.propTypes = {
     userLastName: PropTypes.string,
     author: PropTypes.string,
     email: PropTypes.string,
+    userProfileImageUrl: PropTypes.string,
+    profileImageUrl: PropTypes.string,
+    profile_image_url: PropTypes.string,
+    user: PropTypes.shape({
+      avatar: PropTypes.string,
+    }),
   }),
 };
 
@@ -231,12 +733,13 @@ PostVideoPlayer.propTypes = {
   onPlay: PropTypes.func,
 };
 
-function PostCard({ post, onDelete }) {
+function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
   const [hidden, setHidden] = useState(false);
   const [likes, setLikes] = useState(post?.likes || 0);
   const [liked, setLiked] = useState(!!post?.isLikedByCurrentUser);
   const [views, setViews] = useState(post?.views || 0);
   const [showComments, setShowComments] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const title = String(post?.title || post?.description || 'Untitled Post').trim();
   const videoUrl = useMemo(() => resolveVideoUrl(post), [post]);
@@ -314,15 +817,6 @@ function PostCard({ post, onDelete }) {
       <header className="postview-card-head">
         <div className="postview-title-wrap">
           <h6 className="postview-title">{title}</h6>
-          <OwnerLine post={post} />
-        </div>
-        <div className="postview-head-actions">
-          <button type="button" className="btn btn-sm btn-light" onClick={() => setHidden(true)}>
-            <i className="bi bi-eye-slash"></i>
-          </button>
-          <button type="button" className="btn btn-sm btn-outline-danger" onClick={handleDelete}>
-            <i className="bi bi-trash"></i>
-          </button>
         </div>
       </header>
 
@@ -374,20 +868,46 @@ function PostCard({ post, onDelete }) {
       </div>
 
       <footer className="postview-footer">
-        <button type="button" className={`btn btn-sm ${liked ? 'btn-danger' : 'btn-outline-secondary'}`} onClick={toggleLike}>
-          <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`}></i>{likes}
-        </button>
+        <div className="postview-footer-left">
+          <OwnerLine post={post} />
+          <button type="button" className={`btn btn-sm ${liked ? 'btn-danger' : 'btn-outline-secondary'}`} onClick={toggleLike}>
+            <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`}></i>{likes}
+          </button>
 
-        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={incrementView}>
-          <i className="bi bi-eye me-1"></i>{views}
-        </button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={incrementView}>
+            <i className="bi bi-eye me-1"></i>{views}
+          </button>
 
-        <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setShowComments((s) => !s)}>
-          <i className="bi bi-chat-left-text me-1"></i>Comments
-        </button>
+          <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setShowComments((s) => !s)}>
+            <i className="bi bi-chat-left-text me-1"></i>Comments
+          </button>
+        </div>
+
+        <div className="postview-footer-actions">
+          {canEdit && (
+            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setShowEditModal(true)}>
+              <i className="bi bi-pencil-square"></i>
+            </button>
+          )}
+          <button type="button" className="btn btn-sm btn-light" onClick={() => setHidden(true)}>
+            <i className="bi bi-eye-slash"></i>
+          </button>
+          {canEdit && (
+            <button type="button" className="btn btn-sm btn-outline-danger" onClick={handleDelete}>
+              <i className="bi bi-trash"></i>
+            </button>
+          )}
+        </div>
       </footer>
 
       {showComments && <CommentsPanel postId={post.id} />}
+      {showEditModal && (
+        <EditPostModal
+          post={post}
+          onClose={() => setShowEditModal(false)}
+          onSaved={onUpdated}
+        />
+      )}
     </article>
   );
 }
@@ -395,33 +915,55 @@ function PostCard({ post, onDelete }) {
 PostCard.propTypes = {
   post: PropTypes.shape({}).isRequired,
   onDelete: PropTypes.func,
+  onUpdated: PropTypes.func,
+  canEdit: PropTypes.bool,
 };
 
 export default function PostView({ posts = [], isLoggedIn = false, onUpload, onDelete }) {
   const [dbPosts, setDbPosts] = useState([]);
   const [isLoadingDbPosts, setIsLoadingDbPosts] = useState(false);
+  const [saveToast, setSaveToast] = useState('');
+
+  const refreshPosts = useCallback(async (forceRefresh = true) => {
+    setIsLoadingDbPosts(true);
+    try {
+      if (forceRefresh) {
+        invalidatePostsCache();
+      }
+      const items = await getAllPostsCached({ forceRefresh });
+      setDbPosts(Array.isArray(items) ? items.filter(Boolean) : []);
+    } catch {
+      setDbPosts([]);
+    } finally {
+      setIsLoadingDbPosts(false);
+    }
+  }, []);
+
+  const refreshPostsAfterEdit = useCallback(async () => {
+    await refreshPosts(true);
+    setSaveToast('Post updated successfully.');
+    globalThis.setTimeout(() => setSaveToast(''), 2400);
+  }, [refreshPosts]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadDbPosts = async () => {
-      setIsLoadingDbPosts(true);
       try {
         const items = await getAllPostsCached({ forceRefresh: true });
         if (!cancelled) {
           setDbPosts(Array.isArray(items) ? items.filter(Boolean) : []);
+          setIsLoadingDbPosts(false);
         }
       } catch {
         if (!cancelled) {
           setDbPosts([]);
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoadingDbPosts(false);
         }
       }
     };
 
+    setIsLoadingDbPosts(true);
     loadDbPosts();
 
     return () => {
@@ -440,6 +982,10 @@ export default function PostView({ posts = [], isLoggedIn = false, onUpload, onD
         <div className="alert alert-light border small mb-3">Log in to upload, like, comment, and manage posts.</div>
       )}
 
+      {saveToast && (
+        <div className="postview-toast" role="status" aria-live="polite">{saveToast}</div>
+      )}
+
       <div className="postview-feed">
         {isLoadingDbPosts && (
           <div className="text-secondary small">Loading posts from database...</div>
@@ -450,7 +996,13 @@ export default function PostView({ posts = [], isLoggedIn = false, onUpload, onD
         )}
 
         {visiblePosts.map((post) => (
-          <PostCard key={post.id || `${post.title}-${post.author}`} post={post} onDelete={onDelete} />
+          <PostCard
+            key={post.id || `${post.title}-${post.author}`}
+            post={post}
+            onDelete={onDelete}
+            onUpdated={refreshPostsAfterEdit}
+            canEdit={canCurrentUserEditPost(post)}
+          />
         ))}
       </div>
     </section>

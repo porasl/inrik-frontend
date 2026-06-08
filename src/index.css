@@ -836,12 +836,17 @@ html {
 .postview-card-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 10px;
 }
 
 .postview-title-wrap {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .postview-title {
@@ -855,8 +860,66 @@ html {
 }
 
 .postview-owner {
+  display: block;
   font-size: 12px;
   color: #6b7280;
+}
+
+.postview-owner-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.postview-owner-row::after {
+  content: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  transform: none;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: none;
+  overflow-wrap: normal;
+  text-align: right;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 4;
+}
+
+.postview-owner-row:hover::after {
+  opacity: 0;
+}
+
+.postview-owner-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid #d8e0eb;
+  background: #f8fafc;
+}
+
+.postview-owner-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #d8e0eb;
+  background: #f8fafc;
+  color: #6b7280;
+  font-size: 0.8rem;
 }
 
 .postview-head-actions {
@@ -934,8 +997,24 @@ html {
   margin-top: 10px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.postview-footer-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.postview-footer-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .postview-comments {
@@ -970,6 +1049,87 @@ html {
   font-weight: 600;
   color: #374151;
   margin-bottom: 2px;
+}
+
+.postview-edit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 16px;
+}
+
+.postview-edit-modal {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #dbe4f0;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.2);
+  padding: 16px;
+}
+
+.postview-edit-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.postview-edit-section {
+  border: 1px solid #e4ebf5;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: #fbfdff;
+}
+
+.postview-edit-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5a72;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.postview-edit-list-block + .postview-edit-list-block {
+  margin-top: 8px;
+}
+
+.postview-edit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.postview-edit-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e3eaf4;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fff;
+}
+
+.postview-toast {
+  margin-bottom: 10px;
+  border: 1px solid #c9eed8;
+  background: #eafcf2;
+  color: #1f6e43;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 /* --- 10. BoxView workstation simulation --- */
