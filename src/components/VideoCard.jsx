@@ -97,6 +97,37 @@ function formatDuration(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function decodeJwtPayload(token) {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
+    return null;
+  }
+}
+
+function getCurrentViewer() {
+  const token = localStorage.getItem('token') || '';
+  const payload = decodeJwtPayload(token) || {};
+  return {
+    email: String(localStorage.getItem('email') || payload.email || payload.preferred_username || '').trim().toLowerCase(),
+    id: String(localStorage.getItem('userId') || payload.userId || payload.userid || payload.uid || payload.sub || '').trim().toLowerCase(),
+  };
+}
+
+function isPostOwnedByViewer(post) {
+  const viewer = getCurrentViewer();
+  if (!viewer.email && !viewer.id) return false;
+
+  const ownerEmail = String(post?.email || post?.authorEmail || post?.userEmail || '').trim().toLowerCase();
+  const ownerId = String(post?.userId || post?.ownerId || post?.authorId || post?.idUser || '').trim().toLowerCase();
+  const authorRaw = String(post?.author || '').trim().toLowerCase();
+
+  if (viewer.email && (ownerEmail === viewer.email || authorRaw === viewer.email)) return true;
+  if (viewer.id && (ownerId === viewer.id || authorRaw === viewer.id)) return true;
+  return false;
+}
+
 /* ── Owner avatar with initials fallback ── */
 const avatarCache = {};
 
@@ -388,15 +419,19 @@ export default function VideoCard({ post, onDelete, onWatch }) {
                   onClick={(e) => { e.stopPropagation(); setShowEmbed(true); setMenuOpen(false); }}>
                   <i className="bi bi-code-slash"></i> Embed
                 </button>
-                <hr className="my-1" />
-                <button className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm("Delete this video permanently?")) onDelete?.();
-                    setMenuOpen(false);
-                  }}>
-                  <i className="bi bi-trash"></i> Delete
-                </button>
+                {isPostOwnedByViewer(post) && (
+                  <>
+                    <hr className="my-1" />
+                    <button className="dropdown-item py-2 px-3 small text-danger d-flex align-items-center gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm("Delete this video permanently?")) onDelete?.();
+                        setMenuOpen(false);
+                      }}>
+                      <i className="bi bi-trash"></i> Delete
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -174,6 +174,7 @@ function getCurrentViewerIdentity() {
 
 function canCurrentUserEditPost(post) {
   const viewer = getCurrentViewerIdentity();
+  // Must be logged in to edit/delete
   if (!viewer.email && !viewer.userId) return false;
 
   const storedAuthor = String(localStorage.getItem('author') || '').trim().toLowerCase();
@@ -182,21 +183,22 @@ function canCurrentUserEditPost(post) {
     .map((value) => String(value || '').trim().toLowerCase())
     .filter((value) => value.includes('@'));
 
+  // Check email match
   if (viewer.email && postEmailCandidates.includes(viewer.email)) {
     return true;
   }
 
-  const postUserIdCandidates = [post?.userId, post?.author, post?.ownerId, post?.user?.id, post?.user?.userId]
+  const postUserIdCandidates = [post?.userId, post?.ownerId, post?.user?.id, post?.user?.userId]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter(Boolean);
 
-  // Some feed responses omit owner markers. In that case, allow editing for logged-in users
-  // rather than hiding edit action from the real owner.
-  if (postEmailCandidates.length === 0 && postUserIdCandidates.length === 0) {
+  // Check userId match
+  if (viewer.userId && postUserIdCandidates.includes(viewer.userId)) {
     return true;
   }
 
-  return viewer.userId ? postUserIdCandidates.includes(viewer.userId) : false;
+  // If no ownership markers found, reject edit/delete to be safe
+  return false;
 }
 
 function getFileKind(file) {

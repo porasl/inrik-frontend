@@ -632,7 +632,7 @@ MediaPreview.propTypes = {
   }),
 };
 
-function renderExplorerItem(item, selectItem, onDelete, onEmbed) {
+function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = false) {
   if (item.kind === 'folder') {
     return (
       <button key={item.label} type="button" className="boxview-folder-card boxview-folder-card--inline" onClick={() => selectItem(item)}>
@@ -686,10 +686,12 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed) {
                 <i className="bi bi-code-slash"></i>
                 <span>Embed</span>
               </button>
-              <button type="button" className="boxview-file-menu-item boxview-file-menu-item--danger" onClick={() => onDelete?.(item)}>
-                <i className="bi bi-trash"></i>
-                <span>Delete</span>
-              </button>
+              {canDelete && (
+                <button type="button" className="boxview-file-menu-item boxview-file-menu-item--danger" onClick={() => onDelete?.(item)}>
+                  <i className="bi bi-trash"></i>
+                  <span>Delete</span>
+                </button>
+              )}
             </div>
           </details>
         </div>
@@ -699,7 +701,48 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed) {
 }
 
 export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome, onDelete }) {
-  const identity = useMemo(() => getOwnerIdentity(user), [user]);
+  const identity = useMemo(() => {
+    // Get CURRENTLY LOGGED-IN user identity from localStorage
+    if (!isLoggedIn) {
+      return { emails: [], userIds: [], userNames: [] };
+    }
+
+    const token = localStorage.getItem('token');
+    let tokenPayload = null;
+    if (token) {
+      try {
+        tokenPayload = JSON.parse(atob(token.split('.')[1] || ''));
+      } catch {
+        tokenPayload = null;
+      }
+    }
+
+    const emailCandidates = [
+      localStorage.getItem('email'),
+      localStorage.getItem('author'),
+      tokenPayload?.email,
+      tokenPayload?.preferred_username,
+      tokenPayload?.upn,
+    ]
+      .map((v) => normalizeText(v).toLowerCase())
+      .filter(Boolean);
+
+    const idCandidates = [
+      localStorage.getItem('userId'),
+      tokenPayload?.userId,
+      tokenPayload?.uid,
+      tokenPayload?.id,
+      tokenPayload?.sub,
+    ]
+      .map((v) => normalizeText(v).toLowerCase())
+      .filter(Boolean);
+
+    return {
+      emails: [...new Set(emailCandidates)],
+      userIds: [...new Set(idCandidates)],
+      userNames: [],
+    };
+  }, [isLoggedIn]);
   const [started, setStarted] = useState(true);
   const [path, setPath] = useState(['inrik']);
   const [previewItem, setPreviewItem] = useState(null);
@@ -895,6 +938,18 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const handleDelete = async (item) => {
     const postId = item?.post?.id || item?.postId || item?.id;
     if (!postId) return;
+
+    // Only owner of logged-in user can delete
+    if (!isLoggedIn) {
+      alert('You must be logged in to delete.');
+      return;
+    }
+
+    if (!matchesOwner(item.post, identity)) {
+      alert('You can only delete your own videos.');
+      return;
+    }
+
     if (!globalThis.confirm('Delete this video permanently?')) return;
     await onDelete?.(postId);
   };
@@ -990,7 +1045,13 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
 
             <div className="boxview-browser-grid">
               {currentItems.length ? (
-                currentItems.map((item) => renderExplorerItem(item, selectItem, handleDelete, setEmbedItem))
+                currentItems.map((item) => renderExplorerItem(
+                  item,
+                  selectItem,
+                  handleDelete,
+                  setEmbedItem,
+                  isLoggedIn && item.post && matchesOwner(item.post, identity)
+                ))
               ) : (
                 <div className="boxview-empty-state">
                   <i className="bi bi-folder2-open"></i>
@@ -1027,6 +1088,18 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const deleteMobileVideo = async (item) => {
     const postId = item?.post?.id || item?.postId || item?.id;
     if (!postId) return;
+
+    // Only logged-in owner can delete
+    if (!isLoggedIn) {
+      alert('You must be logged in to delete.');
+      return;
+    }
+
+    if (!matchesOwner(item.post, identity)) {
+      alert('You can only delete your own videos.');
+      return;
+    }
+
     if (!globalThis.confirm('Delete this video permanently?')) return;
     await onDelete?.(postId);
     const newIdx = Math.max(0, mobileVideoIndex - 1);
@@ -1070,14 +1143,16 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
             >
               <i className="bi bi-chevron-left"></i>
             </button>
-            <button
-              type="button"
-              className="boxview-mobile-overlay-btn boxview-mobile-overlay-btn--danger"
-              onClick={() => deleteMobileVideo(mobileCurrentVideo)}
-              aria-label="Delete video"
-            >
-              <i className="bi bi-trash"></i>
-            </button>
+            {isLoggedIn && mobileCurrentVideo && matchesOwner(mobileCurrentVideo.post, identity) && (
+              <button
+                type="button"
+                className="boxview-mobile-overlay-btn boxview-mobile-overlay-btn--danger"
+                onClick={() => deleteMobileVideo(mobileCurrentVideo)}
+                aria-label="Delete video"
+              >
+                <i className="bi bi-trash"></i>
+              </button>
+            )}
             <button
               type="button"
               className="boxview-mobile-overlay-btn"
