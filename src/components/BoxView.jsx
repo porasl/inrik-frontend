@@ -995,7 +995,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
               <i className="bi bi-film"></i>
               <span>Videos</span>
             </button>
-            <div className="boxview-tree-divider" aria-hidden="true">---</div>
             <button type="button" className={`boxview-tree-item ${path[1] === 'audios' ? 'active' : ''}`} onClick={() => openFolder('audios')}>
               <i className="bi bi-music-note-beamed"></i>
               <span>Audios</span>
