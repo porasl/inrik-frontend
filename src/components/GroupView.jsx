@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../../app.config.js';
 
-export default function GroupView({ token, userId }) {
+export default function GroupView() {
+  const token = localStorage.getItem('token') || '';
+  const userId = localStorage.getItem('userId') || '';
+
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -10,28 +13,17 @@ export default function GroupView({ token, userId }) {
   const [createError, setCreateError] = useState('');
   const [createSuccess, setCreateSuccess] = useState('');
 
-  // Load groups on mount
   useEffect(() => {
-    loadGroups();
-  }, []);
-
-  const loadGroups = async () => {
     if (!token) return;
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/groups`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(Array.isArray(data) ? data : data.groups || []);
-      }
-    } catch (err) {
-      console.error('Failed to load groups:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetch(`${API_BASE}/api/groups`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => setGroups(Array.isArray(data) ? data : data.groups || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();

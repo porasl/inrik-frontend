@@ -1386,7 +1386,7 @@ function App() {
             />
           ) : activeSection === 'groups' ? (
             /* ── GROUPS PAGE ── */
-            <GroupView token={xAuthToken} userId={userId} />
+            <GroupView />
           ) : activeSection === 'news' ? (
             <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
               <h3 className="mb-2">News View</h3>
