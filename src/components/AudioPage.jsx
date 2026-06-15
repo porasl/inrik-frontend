@@ -7,7 +7,23 @@ const AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'ogg', 'm4a', 'flac', 'opus'];
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
   if (/^https?:\/\//i.test(fsPath)) return fsPath;
-  const normalized = String(fsPath).replace(/\\/g, '/');
+  const normalized = String(fsPath).replaceAll('\\', '/');
+
+  // Convert absolute server file paths to browser-accessible public paths.
+  const webdataIndex = normalized.indexOf('webdata/');
+  if (webdataIndex >= 0) {
+    return `${PUBLIC_BASE}/${normalized.slice(webdataIndex + 'webdata/'.length)}`;
+  }
+
+  const audiosIndex = normalized.indexOf('/audios/');
+  if (audiosIndex >= 0) {
+    return `${PUBLIC_BASE}${normalized.slice(audiosIndex)}`;
+  }
+
+  if (normalized.startsWith('audios/')) {
+    return `${PUBLIC_BASE}/${normalized}`;
+  }
+
   const relative = normalized.startsWith('/') ? normalized : `/${normalized}`;
   return `${PUBLIC_BASE}${relative}`;
 }
