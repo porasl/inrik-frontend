@@ -152,7 +152,6 @@ export default function Rightbar({
     setSearchError('');
     try {
       await onAddConnection?.(searchResult);
-      setShowTargetPlaceholder(true);
       setUserIdInput('');
       setSearchResult(null);
     } catch (err) {
@@ -397,30 +396,7 @@ export default function Rightbar({
         </ul>
       </div>
 
-      {showTargetPlaceholder && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-          style={{ background: 'rgba(0,0,0,0.45)', zIndex: 2200 }}
-          onClick={() => setShowTargetPlaceholder(false)}
-        >
-          <div
-            className="bg-white rounded-3 shadow p-3"
-            style={{ width: 'min(460px, 92vw)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h6 className="mb-2 fw-bold">Request Placeholder</h6>
-            <p className="mb-2 text-secondary" style={{ fontSize: '0.9rem' }}>
-              Connection is auto-accepted for now.
-            </p>
-            <p className="mb-3 text-secondary" style={{ fontSize: '0.82rem' }}>
-              Placeholder: in the next step, the target user should see a popup to Accept/Reject the request.
-            </p>
-            <div className="d-flex justify-content-end">
-              <button className="btn btn-sm btn-primary" onClick={() => setShowTargetPlaceholder(false)}>OK</button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {showSearchResultPopup && searchResult && (
         <div
