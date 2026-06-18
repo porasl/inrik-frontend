@@ -826,11 +826,13 @@ html {
 .postview-feed {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .postview-card {
-  padding: 12px;
+  padding: 14px;
+  background: #e8eaed;
+  border-color: #c8cbd1;
 }
 
 .postview-card-head {
