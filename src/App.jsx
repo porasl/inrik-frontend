@@ -298,6 +298,7 @@ function App() {
   const [page, setPage] = useState(0);
   const [hasNext, setHasNext] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [feedError, setFeedError] = useState('');
 
   /* ─── Watch page state ─── */
   const [watchingPost, setWatchingPost] = useState(null);
@@ -691,6 +692,7 @@ function App() {
 
     setIsLoading(true);
     try {
+      setFeedError('');
       const data = await getPagedPosts({ page: pageNum, size: 10, forceRefresh });
       if (!data) return;
 
@@ -710,6 +712,7 @@ function App() {
       setPage(pageNum);
     } catch (err) {
       console.error("GraphQL fetch error:", err);
+      setFeedError('Content service is unavailable. Start the backend API on port 8082, then refresh.');
       // Stop auto-load retry loops after a backend failure until next manual refresh/login.
       setHasNext(false);
     } finally {
@@ -1435,6 +1438,13 @@ function App() {
                   />
                 ))}
               </div>
+
+              {!isLoading && feedError && mainFeedPosts.length === 0 && (
+                <div className="alert alert-warning border d-flex align-items-start gap-2 mt-3" role="status">
+                  <i className="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
+                  <div>{feedError}</div>
+                </div>
+              )}
 
               {/* Infinite-scroll sentinel */}
               {hasNext && <div ref={loadMoreSentinelRef} style={{ height: 1 }} aria-hidden="true" />}
