@@ -28,7 +28,6 @@ const buildOrigin = (originKey, portKey) => {
 };
 
 export const APPLICATION_IP = APPLICATION_HOST;
-
 export const API_PORT = readConfig('API_PORT');
 export const NOTIFY_PORT = readConfig('NOTIFY_PORT');
 export const PUBLIC_PORT = readConfig('PUBLIC_PORT');
