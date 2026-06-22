@@ -36,7 +36,7 @@ function normalizeGroups(payload) {
   }));
 }
 
-export default function GroupView() {
+export default function GroupView({ authFetch = fetch }) {
   const token = localStorage.getItem('token') || '';
   const currentUserId = String(localStorage.getItem('userId') || '');
   const [groups, setGroups] = useState([]);
@@ -66,13 +66,13 @@ export default function GroupView() {
     setLoading(true);
     setLoadError('');
     try {
-      setGroups(normalizeGroups(await listGroups(token)));
+      setGroups(normalizeGroups(await listGroups(token, authFetch)));
     } catch (error) {
       setLoadError(error.message || 'Groups could not be loaded.');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, authFetch]);
 
   useEffect(() => {
     loadGroups();
@@ -99,7 +99,7 @@ export default function GroupView() {
       const created = normalizeGroups([await createGroup(token, {
         name,
         description: groupDescription.trim(),
-      })])[0];
+      }, authFetch)])[0];
       setGroups((current) => [created, ...current]);
       setGroupName('');
       setGroupDescription('');
@@ -120,7 +120,7 @@ export default function GroupView() {
     setSaving(true);
     setFormError('');
     try {
-      updateGroup(await addGroupMember(token, selectedGroup.id, email));
+      updateGroup(await addGroupMember(token, selectedGroup.id, email, authFetch));
       setMemberEmail('');
       setNotice(`${email} was added to the group.`);
     } catch (error) {
@@ -138,7 +138,7 @@ export default function GroupView() {
     setRemovingId(id);
     setFormError('');
     try {
-      updateGroup(await removeGroupMember(token, selectedGroup.id, id));
+      updateGroup(await removeGroupMember(token, selectedGroup.id, id, authFetch));
       setNotice(`${memberName(member)} was removed from the group.`);
     } catch (error) {
       setFormError(error.message || 'Member could not be removed.');

@@ -7,8 +7,8 @@ function authHeaders(token, includeJson = false) {
   };
 }
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, options);
+async function request(path, options = {}, fetcher = fetch) {
+  const response = await fetcher(`${API_BASE}${path}`, options);
   if (response.ok) {
     if (response.status === 204) return null;
     return response.json();
@@ -25,29 +25,30 @@ async function request(path, options = {}) {
   throw new Error(message);
 }
 
-export function listGroups(token) {
-  return request('/api/groups', { headers: authHeaders(token) });
+export function listGroups(token, fetcher) {
+  return request('/api/groups', { headers: authHeaders(token) }, fetcher);
 }
 
-export function createGroup(token, group) {
+export function createGroup(token, group, fetcher) {
   return request('/api/groups', {
     method: 'POST',
     headers: authHeaders(token, true),
     body: JSON.stringify(group),
-  });
+  }, fetcher);
 }
 
-export function addGroupMember(token, groupId, email) {
+export function addGroupMember(token, groupId, email, fetcher) {
   return request(`/api/groups/${encodeURIComponent(groupId)}/members`, {
     method: 'POST',
     headers: authHeaders(token, true),
     body: JSON.stringify({ email }),
-  });
+  }, fetcher);
 }
 
-export function removeGroupMember(token, groupId, memberId) {
+export function removeGroupMember(token, groupId, memberId, fetcher) {
   return request(
     `/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}`,
     { method: 'DELETE', headers: authHeaders(token) },
+    fetcher,
   );
 }
