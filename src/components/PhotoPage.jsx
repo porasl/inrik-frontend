@@ -97,20 +97,54 @@ function PhotoEmbedModal({ photo, onClose }) {
   );
 }
 
+const BINOCULAR_LENS_SIZE = 140;
+
+function BinocularLens({ imageUrl, position, zoom, size = BINOCULAR_LENS_SIZE }) {
+  const bgX = position.rectW
+    ? `${((position.x / position.rectW) * 100).toFixed(2)}%`
+    : '50%';
+  const bgY = position.rectH
+    ? `${((position.y / position.rectH) * 100).toFixed(2)}%`
+    : '50%';
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        left: position.x - size / 2,
+        top: position.y - size / 2,
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        border: '3px solid rgba(255,255,255,0.9)',
+        boxShadow: '0 0 0 3px rgba(0,0,0,0.4), 0 4px 20px rgba(0,0,0,0.6)',
+        backgroundImage: `url(${imageUrl})`,
+        // Pixel dimensions make the lens magnify relative to the rendered image.
+        backgroundSize: `${position.rectW * zoom}px ${position.rectH * zoom}px`,
+        backgroundPosition: `${bgX} ${bgY}`,
+        backgroundRepeat: 'no-repeat',
+        pointerEvents: 'none',
+        overflow: 'hidden',
+        zIndex: 10,
+      }}
+    />
+  );
+}
+
 /* ─── Binocular Zoom Popup ─── */
-function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, isLoggedIn, onLike, onDownload, onEmbed }) {
-  const [zoom, setZoom] = useState(2.5);
+function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, isLoggedIn, onLike, onDownload, onEmbed, zoom, onZoomChange }) {
   const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
   const [showLens, setShowLens] = useState(false);
+  const [binocularEnabled, setBinocularEnabled] = useState(true);
   const [touchDx, setTouchDx] = useState(0);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const imgRef = useRef(null);
   const overlayRef = useRef(null);
   const touchStartRef = useRef(null);
 
-  const LENS_SIZE = 140;
-
   const handleMouseMove = useCallback((e) => {
+    if (!binocularEnabled) return;
     const rect = imgRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -123,7 +157,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
     }
     setShowLens(true);
     setLensPos({ x, y, rectW: rect.width, rectH: rect.height });
-  }, []);
+  }, [binocularEnabled]);
 
   const handleMouseLeave = useCallback(() => setShowLens(false), []);
 
@@ -176,14 +210,6 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
     return () => globalThis.removeEventListener('keydown', onKey);
   }, [onClose, onPrev, onNext, hasPrev, hasNext]);
 
-  // Zoomfactor clamp
-  const bgX = lensPos.rectW
-    ? `${((lensPos.x / lensPos.rectW) * 100).toFixed(2)}%`
-    : '50%';
-  const bgY = lensPos.rectH
-    ? `${((lensPos.y / lensPos.rectH) * 100).toFixed(2)}%`
-    : '50%';
-
   const authorName = [photo.post.userFirstName, photo.post.userLastName].filter(Boolean).join(' ')
     || photo.post.email || 'Unknown';
 
@@ -232,20 +258,32 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
         <i className="bi bi-chevron-right" />
       </button>
 
-      {/* Zoom slider */}
+      {/* Binocular controller */}
       <div style={{ position: 'absolute', top: 16, left: 20, display: 'flex', alignItems: 'center', gap: 8, zIndex: 2001 }}>
-        <i className="bi bi-zoom-in" style={{ color: '#fff', fontSize: '1.1rem' }} />
+        <button
+          type="button"
+          className={`btn btn-sm ${binocularEnabled ? 'btn-primary' : 'btn-dark'}`}
+          onClick={() => {
+            setBinocularEnabled((enabled) => !enabled);
+            setShowLens(false);
+          }}
+          title={binocularEnabled ? 'Turn binocular off' : 'Turn binocular on'}
+          aria-pressed={binocularEnabled}
+          aria-label="Toggle binocular zoom"
+        >
+          <i className="bi bi-binoculars-fill" />
+        </button>
         <input
           type="range"
           min={1.5}
           max={6}
           step={0.5}
           value={zoom}
-          onChange={e => setZoom(Number(e.target.value))}
-          style={{ width: 100, accentColor: '#0d6efd' }}
-          aria-label="Zoom level"
+          onChange={e => onZoomChange(Number(e.target.value))}
+          style={{ width: 120, accentColor: '#0d6efd' }}
+          aria-label="Binocular zoom strength"
         />
-        <span style={{ color: '#ccc', fontSize: '0.8rem' }}>{zoom}×</span>
+        <span style={{ color: '#fff', fontSize: '0.8rem', minWidth: 30 }}>{zoom}x</span>
       </div>
 
       {/* Image + lens */}
@@ -258,7 +296,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
             maxHeight: '80vh',
             maxWidth: '80vw',
             display: 'inline-block',
-            cursor: 'none',
+            cursor: binocularEnabled ? 'none' : 'default',
             transform: `translateX(${touchDx}px)`,
           transition: isTouchDragging ? 'none' : 'transform 220ms ease-out',
             flexShrink: 0,
@@ -286,33 +324,8 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           />
 
           {/* Binocular lens */}
-          {showLens && (
-            <div
-              style={{
-                position: 'absolute',
-                left: lensPos.x - LENS_SIZE / 2,
-                top: lensPos.y - LENS_SIZE / 2,
-                width: LENS_SIZE,
-                height: LENS_SIZE,
-                borderRadius: '50%',
-                border: '3px solid rgba(255,255,255,0.85)',
-                boxShadow: '0 0 0 3px rgba(0,0,0,0.4), 0 4px 20px rgba(0,0,0,0.6)',
-                backgroundImage: `url(${photo.url})`,
-                backgroundSize: `${zoom * 100}%`,
-                backgroundPosition: `${bgX} ${bgY}`,
-                backgroundRepeat: 'no-repeat',
-                pointerEvents: 'none',
-                overflow: 'hidden',
-                zIndex: 10,
-              }}
-            >
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
-                backgroundSize: '20px 20px',
-                borderRadius: '50%',
-              }} />
-            </div>
+          {binocularEnabled && showLens && (
+            <BinocularLens imageUrl={photo.url} position={lensPos} zoom={zoom} />
           )}
         </div>
 
@@ -373,8 +386,12 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
 }
 
 /* ─── Photo Grid Card ─── */
-function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmbed }) {
+function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmbed, zoom }) {
   const [loaded, setLoaded] = useState(false);
+  const [binocularEnabled, setBinocularEnabled] = useState(false);
+  const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
+  const [showLens, setShowLens] = useState(false);
+  const imageRef = useRef(null);
   const authorName = [photo.post.userFirstName, photo.post.userLastName].filter(Boolean).join(' ')
     || photo.post.email || '';
 
@@ -393,6 +410,18 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'scale(1)';
         e.currentTarget.style.boxShadow = 'none';
+        setShowLens(false);
+      }}
+      onMouseMove={(e) => {
+        if (!binocularEnabled || !imageRef.current) return;
+        const rect = imageRef.current.getBoundingClientRect();
+        setLensPos({
+          x: Math.max(0, Math.min(rect.width, e.clientX - rect.left)),
+          y: Math.max(0, Math.min(rect.height, e.clientY - rect.top)),
+          rectW: rect.width,
+          rectH: rect.height,
+        });
+        setShowLens(true);
       }}
     >
       {!loaded && (
@@ -404,6 +433,7 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
         </div>
       )}
       <img
+        ref={imageRef}
         src={photo.url}
         alt={photo.post.description || 'Photo'}
         onLoad={() => setLoaded(true)}
@@ -416,6 +446,9 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
         }}
         draggable={false}
       />
+      {binocularEnabled && showLens && (
+        <BinocularLens imageUrl={photo.url} position={lensPos} zoom={zoom} size={120} />
+      )}
       {/* Hover overlay */}
       <div
         className="photo-card-hover"
@@ -443,6 +476,17 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
         </div>
 
         <div className="photo-actions d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            className={`btn btn-sm ${binocularEnabled ? 'btn-primary' : 'btn-light'} py-0 px-2`}
+            title={binocularEnabled ? 'Turn binocular off' : 'Inspect with binocular'}
+            aria-pressed={binocularEnabled}
+            onClick={() => {
+              setBinocularEnabled((enabled) => !enabled);
+              setShowLens(false);
+            }}
+          >
+            <i className="bi bi-binoculars-fill" />
+          </button>
           <button
             className={`btn btn-sm ${stats.liked ? 'btn-danger' : 'btn-light'} py-0 px-2`}
             title={isLoggedIn ? 'Like' : 'Login to like'}
@@ -478,6 +522,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(null);
   const [embedPhoto, setEmbedPhoto] = useState(null);
+  const [binocularZoom, setBinocularZoom] = useState(2.5);
 
   const [postStats, setPostStats] = useState({});
   const didLoadInitialMine = useRef(false);
@@ -731,6 +776,20 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
           )}
         </div>
         <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center gap-2" title="Binocular zoom strength">
+            <i className="bi bi-binoculars-fill text-secondary" />
+            <input
+              type="range"
+              min="1.5"
+              max="6"
+              step="0.5"
+              value={binocularZoom}
+              onChange={(e) => setBinocularZoom(Number(e.target.value))}
+              aria-label="Binocular zoom strength"
+              style={{ width: 110, accentColor: '#0d6efd' }}
+            />
+            <span className="small text-secondary" style={{ minWidth: 28 }}>{binocularZoom}x</span>
+          </div>
           {isLoggedIn && (
             <button className="btn btn-primary btn-sm d-flex align-items-center gap-1" onClick={onUpload}>
               <i className="bi bi-cloud-upload" />
@@ -795,6 +854,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
               onLike={togglePhotoLike}
               onDownload={downloadPhoto}
               onEmbed={setEmbedPhoto}
+              zoom={binocularZoom}
             />
           ))}
         </div>
@@ -830,6 +890,8 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
           onLike={togglePhotoLike}
           onDownload={downloadPhoto}
           onEmbed={(photo) => { setViewerIndex(null); setEmbedPhoto(photo); }}
+          zoom={binocularZoom}
+          onZoomChange={setBinocularZoom}
         />
       )}
       {embedPhoto && (
