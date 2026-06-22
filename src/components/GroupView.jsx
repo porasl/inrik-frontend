@@ -1,181 +1,257 @@
-import React, { useState, useEffect } from 'react';
-import { API_BASE } from '../../app.config.js';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  addGroupMember,
+  createGroup,
+  listGroups,
+  removeGroupMember,
+} from '../services/groupsService';
+import './GroupView.css';
+
+function getId(value) {
+  return String(value?.id || value?._id || '');
+}
+
+function initials(value) {
+  return String(value || 'G')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'G';
+}
+
+function memberName(member) {
+  return member.displayName
+    || [member.firstName, member.lastName].filter(Boolean).join(' ')
+    || member.email
+    || 'Member';
+}
+
+function normalizeGroups(payload) {
+  const values = Array.isArray(payload) ? payload : payload?.groups || [];
+  return values.map((group) => ({
+    ...group,
+    id: getId(group),
+    members: Array.isArray(group.members) ? group.members : [],
+  }));
+}
 
 export default function GroupView() {
   const token = localStorage.getItem('token') || '';
-  const userId = localStorage.getItem('userId') || '';
-
+  const currentUserId = String(localStorage.getItem('userId') || '');
   const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [notice, setNotice] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
-  const [createError, setCreateError] = useState('');
-  const [createSuccess, setCreateSuccess] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState('');
 
-  useEffect(() => {
-    if (!token) return;
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === selectedGroupId) || null,
+    [groups, selectedGroupId],
+  );
+
+  const loadGroups = useCallback(async () => {
+    if (!token) {
+      setLoadError('Please log in to view your groups.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    fetch(`${API_BASE}/api/groups`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.ok ? res.json() : [])
-      .then((data) => setGroups(Array.isArray(data) ? data : data.groups || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    setLoadError('');
+    try {
+      setGroups(normalizeGroups(await listGroups(token)));
+    } catch (error) {
+      setLoadError(error.message || 'Groups could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  const handleCreateGroup = async (e) => {
-    e.preventDefault();
-    setCreateError('');
-    setCreateSuccess('');
+  useEffect(() => {
+    loadGroups();
+  }, [loadGroups]);
 
+  const updateGroup = (updated) => {
+    const normalized = normalizeGroups([updated])[0];
+    setGroups((current) => current.map((group) => (
+      group.id === normalized.id ? normalized : group
+    )));
+  };
+
+  const handleCreateGroup = async (event) => {
+    event.preventDefault();
     const name = groupName.trim();
-    const description = groupDescription.trim();
-
     if (!name) {
-      setCreateError('Group name is required');
+      setFormError('Group name is required.');
       return;
     }
 
-    if (!token) {
-      setCreateError('Please log in to create a group');
-      return;
-    }
-
+    setSaving(true);
+    setFormError('');
     try {
-      const res = await fetch(`${API_BASE}/api/groups`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          userId,
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.text();
-        throw new Error(error || `Failed to create group (${res.status})`);
-      }
-
-      const newGroup = await res.json();
-      setGroups([newGroup, ...groups]);
+      const created = normalizeGroups([await createGroup(token, {
+        name,
+        description: groupDescription.trim(),
+      })])[0];
+      setGroups((current) => [created, ...current]);
       setGroupName('');
       setGroupDescription('');
       setShowCreateModal(false);
-      setCreateSuccess('Group created successfully!');
-      setTimeout(() => setCreateSuccess(''), 3000);
-    } catch (err) {
-      setCreateError(err.message || 'Failed to create group');
+      setNotice('Group created successfully.');
+    } catch (error) {
+      setFormError(error.message || 'Group could not be created.');
+    } finally {
+      setSaving(false);
     }
   };
 
+  const handleAddMember = async (event) => {
+    event.preventDefault();
+    const email = memberEmail.trim().toLowerCase();
+    if (!email || !selectedGroup) return;
+
+    setSaving(true);
+    setFormError('');
+    try {
+      updateGroup(await addGroupMember(token, selectedGroup.id, email));
+      setMemberEmail('');
+      setNotice(`${email} was added to the group.`);
+    } catch (error) {
+      setFormError(error.message || 'Member could not be added.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveMember = async (member) => {
+    if (!selectedGroup) return;
+    const id = getId(member) || String(member.userId || '');
+    if (!id || !window.confirm(`Remove ${memberName(member)} from this group?`)) return;
+
+    setRemovingId(id);
+    setFormError('');
+    try {
+      updateGroup(await removeGroupMember(token, selectedGroup.id, id));
+      setNotice(`${memberName(member)} was removed from the group.`);
+    } catch (error) {
+      setFormError(error.message || 'Member could not be removed.');
+    } finally {
+      setRemovingId('');
+    }
+  };
+
+  const openMembers = (group) => {
+    setSelectedGroupId(group.id);
+    setMemberEmail('');
+    setFormError('');
+  };
+
+  const isOwner = (group) => Boolean(group?.isOwner)
+    || String(group?.owner?.userId || group?.ownerId || '') === currentUserId;
+
   return (
-    <div className="border rounded-3 bg-white shadow-sm">
-      <div className="p-3 p-md-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">Groups</h2>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <i className="bi bi-plus-circle me-2"></i>
-          Create Group
+    <div className="groups-shell border rounded-3 bg-white shadow-sm p-3 p-md-4">
+      <div className="groups-heading d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h2 className="mb-1">Groups</h2>
+          <p className="text-muted mb-0">Create spaces and manage the people in them.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => { setFormError(''); setShowCreateModal(true); }}>
+          <i className="bi bi-plus-lg me-2" />Create group
         </button>
       </div>
 
-      {createSuccess && (
-        <div className="alert alert-success alert-dismissible fade show mb-3" role="alert">
-          {createSuccess}
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setCreateSuccess('')}
-          ></button>
+      {notice && (
+        <div className="alert alert-success alert-dismissible" role="status">
+          {notice}
+          <button type="button" className="btn-close" aria-label="Dismiss" onClick={() => setNotice('')} />
+        </div>
+      )}
+      {loadError && (
+        <div className="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
+          <span>{loadError}</span>
+          {token && <button className="btn btn-sm btn-outline-danger" onClick={loadGroups}>Try again</button>}
         </div>
       )}
 
-      {/* Create Group Modal */}
-      {showCreateModal && (
-        <div
-          className="modal"
-          style={{
-            display: 'block',
-            position: 'fixed',
-            zIndex: 2000,
-            left: 0,
-            top: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          }}
-          onClick={() => setShowCreateModal(false)}
-        >
-          <div
-            className="modal-dialog modal-dialog-centered"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Create New Group</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowCreateModal(false)}
-                ></button>
-              </div>
-              <form onSubmit={handleCreateGroup}>
-                <div className="modal-body">
-                  {createError && (
-                    <div className="alert alert-danger" role="alert">
-                      {createError}
+      {loading ? (
+        <div className="text-center py-5" aria-live="polite">
+          <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading groups</span></div>
+        </div>
+      ) : !loadError && groups.length === 0 ? (
+        <div className="text-center border rounded-3 bg-light py-5 px-3">
+          <i className="bi bi-people fs-1 text-secondary" />
+          <h5 className="mt-3">No groups yet</h5>
+          <p className="text-muted mb-3">Create your first group and invite members by email.</p>
+          <button className="btn btn-outline-primary" onClick={() => setShowCreateModal(true)}>Create a group</button>
+        </div>
+      ) : (
+        <div className="row g-3">
+          {groups.map((group) => {
+            const members = group.members || [];
+            const memberCount = group.memberCount ?? members.length;
+            return (
+              <div key={group.id} className="col-md-6 col-xl-4">
+                <article className="group-card h-100 p-3 d-flex flex-column">
+                  <div className="d-flex gap-3 align-items-start">
+                    <div className="group-avatar" aria-hidden="true">{initials(group.name)}</div>
+                    <div className="min-w-0 flex-grow-1">
+                      <div className="d-flex align-items-center gap-2 flex-wrap">
+                        <h5 className="mb-0 text-break">{group.name}</h5>
+                        {isOwner(group) && <span className="owner-chip">OWNER</span>}
+                      </div>
+                      <div className="small text-muted mt-1">
+                        Owned by {memberName(group.owner || {})}
+                      </div>
                     </div>
-                  )}
-
-                  <div className="mb-3">
-                    <label htmlFor="groupName" className="form-label">
-                      Group Name *
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="groupName"
-                      value={groupName}
-                      onChange={(e) => setGroupName(e.target.value)}
-                      placeholder="Enter group name"
-                      autoFocus
-                    />
                   </div>
-
-                  <div className="mb-3">
-                    <label htmlFor="groupDescription" className="form-label">
-                      Description
-                    </label>
-                    <textarea
-                      className="form-control"
-                      id="groupDescription"
-                      value={groupDescription}
-                      onChange={(e) => setGroupDescription(e.target.value)}
-                      placeholder="Enter group description (optional)"
-                      rows="3"
-                    ></textarea>
+                  <p className="group-description text-muted small my-3">
+                    {group.description || 'No description provided.'}
+                  </p>
+                  <div className="mt-auto d-flex justify-content-between align-items-center">
+                    <span className="small text-secondary">
+                      <i className="bi bi-people me-1" />
+                      {memberCount} member{memberCount === 1 ? '' : 's'}
+                    </span>
+                    <button className="btn btn-sm btn-outline-primary" onClick={() => openMembers(group)}>
+                      View members
+                    </button>
                   </div>
+                </article>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="modal d-block" tabIndex="-1" role="dialog" aria-modal="true">
+          <div className="modal-backdrop show" onClick={() => !saving && setShowCreateModal(false)} />
+          <div className="modal-dialog modal-dialog-centered position-relative" style={{ zIndex: 1060 }}>
+            <div className="modal-content">
+              <form onSubmit={handleCreateGroup}>
+                <div className="modal-header">
+                  <h5 className="modal-title">Create a new group</h5>
+                  <button type="button" className="btn-close" disabled={saving} onClick={() => setShowCreateModal(false)} />
                 </div>
-
+                <div className="modal-body">
+                  {formError && <div className="alert alert-danger">{formError}</div>}
+                  <label htmlFor="group-name" className="form-label">Group name</label>
+                  <input id="group-name" className="form-control mb-3" maxLength="100" value={groupName} onChange={(e) => setGroupName(e.target.value)} autoFocus required />
+                  <label htmlFor="group-description" className="form-label">Description <span className="text-muted">(optional)</span></label>
+                  <textarea id="group-description" className="form-control" rows="3" maxLength="500" value={groupDescription} onChange={(e) => setGroupDescription(e.target.value)} />
+                </div>
                 <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                    onClick={() => setShowCreateModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    Create Group
+                  <button type="button" className="btn btn-light" disabled={saving} onClick={() => setShowCreateModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                    {saving && <span className="spinner-border spinner-border-sm me-2" />}Create group
                   </button>
                 </div>
               </form>
@@ -184,56 +260,65 @@ export default function GroupView() {
         </div>
       )}
 
-      {/* Groups List */}
-      <div className="row g-3">
-        {loading ? (
-          <div className="col-12">
-            <div className="text-center py-5">
-              <div className="spinner-border spinner-border-sm text-secondary" role="status">
-                <span className="visually-hidden">Loading...</span>
+      {selectedGroup && (
+        <div className="modal d-block" tabIndex="-1" role="dialog" aria-modal="true">
+          <div className="modal-backdrop show" onClick={() => setSelectedGroupId('')} />
+          <div className="modal-dialog modal-dialog-centered modal-lg position-relative" style={{ zIndex: 1060 }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <div>
+                  <h5 className="modal-title">{selectedGroup.name}</h5>
+                  <div className="small text-muted">{selectedGroup.members.length} group member{selectedGroup.members.length === 1 ? '' : 's'}</div>
+                </div>
+                <button type="button" className="btn-close" aria-label="Close" onClick={() => setSelectedGroupId('')} />
+              </div>
+              <div className="modal-body">
+                {formError && <div className="alert alert-danger">{formError}</div>}
+                {isOwner(selectedGroup) && (
+                  <form className="members-panel p-3 mb-3" onSubmit={handleAddMember}>
+                    <label htmlFor="member-email" className="form-label fw-semibold">Add a member</label>
+                    <div className="input-group">
+                      <input id="member-email" type="email" className="form-control" placeholder="member@example.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} required />
+                      <button className="btn btn-primary" type="submit" disabled={saving}>
+                        {saving ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-person-plus me-2" />Add</>}
+                      </button>
+                    </div>
+                    <div className="form-text">Only the group owner can add or remove members.</div>
+                  </form>
+                )}
+
+                <div className="members-panel px-3">
+                  {selectedGroup.members.length === 0 ? (
+                    <p className="text-muted text-center py-4 mb-0">This group has no members.</p>
+                  ) : selectedGroup.members.map((member) => {
+                    const memberId = getId(member) || String(member.userId || '');
+                    const owner = member.role === 'OWNER' || memberId === String(selectedGroup.owner?.userId || selectedGroup.ownerId || '');
+                    return (
+                      <div key={memberId || member.email} className="member-row d-flex align-items-center gap-3 py-3">
+                        <div className="member-avatar">
+                          {member.profileImageUrl ? <img src={member.profileImageUrl} alt="" /> : initials(memberName(member))}
+                        </div>
+                        <div className="flex-grow-1 min-w-0">
+                          <div className="fw-semibold text-truncate">{memberName(member)}</div>
+                          <div className="small text-muted text-truncate">{member.email}</div>
+                        </div>
+                        {owner ? <span className="owner-chip">OWNER</span> : isOwner(selectedGroup) && (
+                          <button className="btn btn-sm btn-outline-danger" disabled={removingId === memberId} onClick={() => handleRemoveMember(member)} aria-label={`Remove ${memberName(member)}`}>
+                            {removingId === memberId ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-person-dash me-1" />Remove</>}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-light" onClick={() => setSelectedGroupId('')}>Close</button>
               </div>
             </div>
           </div>
-        ) : groups.length === 0 ? (
-          <div className="col-12">
-            <div className="alert alert-light border text-center py-5" role="alert">
-              <i className="bi bi-inbox fs-1 text-secondary d-block mb-2"></i>
-              <h6 className="text-muted">No groups yet</h6>
-              <p className="text-muted small">Create a group to get started</p>
-            </div>
-          </div>
-        ) : (
-          groups.map((group) => (
-            <div key={group.id} className="col-md-6 col-lg-4">
-              <div className="card h-100 border-0 shadow-sm">
-                <div className="card-body">
-                  <h5 className="card-title text-truncate">{group.name}</h5>
-                  {group.description && (
-                    <p className="card-text text-muted small">{group.description}</p>
-                  )}
-                  <div className="text-secondary small">
-                    {group.memberCount ? (
-                      <span>
-                        <i className="bi bi-people me-1"></i>
-                        {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-muted">No members yet</span>
-                    )}
-                  </div>
-                </div>
-                <div className="card-footer bg-white border-top-0">
-                  <button className="btn btn-sm btn-outline-primary w-100">
-                    <i className="bi bi-box-arrow-in-right me-1"></i>
-                    Join
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,81 @@
+.groups-shell {
+  min-height: 520px;
+}
+
+.group-card {
+  border: 1px solid #e8ecf2;
+  border-radius: 16px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.group-card:hover {
+  border-color: #c9d6ff;
+  box-shadow: 0 12px 28px rgba(32, 56, 117, 0.1);
+  transform: translateY(-2px);
+}
+
+.group-avatar,
+.member-avatar {
+  align-items: center;
+  background: linear-gradient(135deg, #e8eeff, #d9e5ff);
+  color: #315ec7;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 700;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.group-avatar {
+  border-radius: 14px;
+  font-size: 1.1rem;
+  height: 48px;
+  width: 48px;
+}
+
+.member-avatar {
+  border-radius: 50%;
+  height: 42px;
+  width: 42px;
+}
+
+.member-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.group-description {
+  display: -webkit-box;
+  min-height: 42px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.owner-chip {
+  background: #fff5d6;
+  border-radius: 999px;
+  color: #8a6500;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.55rem;
+}
+
+.members-panel {
+  background: #f8faff;
+  border: 1px solid #e8ecf5;
+  border-radius: 14px;
+}
+
+.member-row + .member-row {
+  border-top: 1px solid #e7ebf2;
+}
+
+@media (max-width: 575.98px) {
+  .groups-heading {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
