@@ -1,4 +1,14 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { listGroups, subscribeGroupUpdates } from '../services/groupsService';
+
+function groupInitials(name) {
+  return String(name || 'G')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'G';
+}
 
 function shouldShowPendingBadge(connection) {
   if (connection?.pending === true) return true;
@@ -42,13 +52,14 @@ export default function Rightbar({
   onRemoveConnection,
   onFetchSentMessages,
   onSendMessage,
+  authFetch = fetch,
+  onOpenGroups,
 }) {
   const [userIdInput, setUserIdInput] = useState('');
   const [searchingUser, setSearchingUser] = useState(false);
   const [searchResult, setSearchResult] = useState(null);
   const [searchError, setSearchError] = useState('');
   const [addingConnection, setAddingConnection] = useState(false);
-  const [showTargetPlaceholder, setShowTargetPlaceholder] = useState(false);
   const [showSearchResultPopup, setShowSearchResultPopup] = useState(false);
   const [selectedConnectionKey, setSelectedConnectionKey] = useState('');
   const [actionError, setActionError] = useState('');
@@ -63,6 +74,42 @@ export default function Rightbar({
   const [messagesError, setMessagesError] = useState('');
   const [newMessageText, setNewMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsError, setGroupsError] = useState('');
+  const authFetchRef = useRef(authFetch);
+
+  useEffect(() => {
+    authFetchRef.current = authFetch;
+  }, [authFetch]);
+
+  const loadGroups = useCallback(async () => {
+    if (!isLoggedIn) {
+      setGroups([]);
+      setGroupsError('');
+      return;
+    }
+
+    const token = localStorage.getItem('token') || '';
+    if (!token) return;
+
+    setGroupsLoading(true);
+    setGroupsError('');
+    try {
+      const payload = await listGroups(token, authFetchRef.current);
+      setGroups(Array.isArray(payload) ? payload : payload?.groups || []);
+    } catch (error) {
+      setGroups([]);
+      setGroupsError(error?.message || 'Groups could not be loaded.');
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    loadGroups();
+    return subscribeGroupUpdates(loadGroups);
+  }, [loadGroups]);
 
   const normalizedQuery = userIdInput.trim().toLowerCase();
   const filteredConnections = !normalizedQuery
@@ -102,7 +149,22 @@ export default function Rightbar({
         || emailCandidates.some(startsWith)
         || idCandidates.some(startsWith);
     });
-  const canSuggestAdd = isLoggedIn && normalizedQuery && filteredConnections.length === 0;
+  const filteredGroups = !normalizedQuery
+    ? groups
+    : groups.filter((group) => {
+      const searchable = [
+        group?.name,
+        group?.description,
+        group?.owner?.email,
+        group?.owner?.firstName,
+        group?.owner?.lastName,
+      ].map((value) => String(value || '').toLowerCase());
+      return searchable.some((value) => value.includes(normalizedQuery));
+    });
+  const canSuggestAdd = isLoggedIn
+    && normalizedQuery
+    && filteredConnections.length === 0
+    && filteredGroups.length === 0;
 
   const handleSearchUser = async () => {
     const trimmed = userIdInput.trim();
@@ -257,8 +319,15 @@ export default function Rightbar({
         </a>
 
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <h6 className="m-0 fw-bold">Connections ({connections.length})</h6>
-          <button className="btn btn-sm btn-outline-secondary" type="button">
+          <h6 className="m-0 fw-bold">Connections &amp; Groups</h6>
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            type="button"
+            title="Refresh groups"
+            aria-label="Refresh groups"
+            disabled={groupsLoading}
+            onClick={loadGroups}
+          >
             <i className="bi bi-arrow-clockwise"></i>
           </button>
         </div>
@@ -303,7 +372,59 @@ export default function Rightbar({
           <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{actionError}</div>
         )}
 
+        {/* --- GROUP LIST --- */}
+        {isLoggedIn && (
+          <section className="mb-3" aria-labelledby="rightbar-groups-heading">
+            <h6 id="rightbar-groups-heading" className="small fw-bold text-secondary mb-2">
+              Groups ({groups.length})
+            </h6>
+
+            {groupsError ? (
+              <div className="small text-danger p-2 border rounded">{groupsError}</div>
+            ) : groupsLoading && groups.length === 0 ? (
+              <div className="small text-secondary p-2">
+                <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+                Loading groups
+              </div>
+            ) : filteredGroups.length > 0 ? (
+              <ul className="list-unstyled mb-0">
+                {filteredGroups.map((group) => (
+                  <li key={group.id} className="mb-1">
+                    <button
+                      type="button"
+                      className="btn w-100 border-0 d-flex align-items-center gap-2 p-2 text-start rightbar-group-row"
+                      onClick={onOpenGroups}
+                    >
+                      <span
+                        className="d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
+                        style={{ width: 40, height: 40, borderRadius: 8, background: '#e8eeff', color: '#315ec7' }}
+                        aria-hidden="true"
+                      >
+                        {groupInitials(group.name)}
+                      </span>
+                      <span className="min-w-0 flex-grow-1">
+                        <span className="d-block fw-medium text-dark text-truncate">{group.name}</span>
+                        <span className="d-block small text-secondary">
+                          {group.memberCount ?? group.members?.length ?? 0} members
+                        </span>
+                      </span>
+                      <span className={`badge flex-shrink-0 ${group.isOwner ? 'text-bg-warning' : 'text-bg-light border text-secondary'}`}>
+                        {group.isOwner ? 'OWNER' : 'MEMBER'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="small text-secondary p-2 bg-light rounded">
+                {normalizedQuery ? 'No matching groups' : 'No groups yet'}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* --- CONTACT LIST --- */}
+        <h6 className="small fw-bold text-secondary mb-2">People ({connections.length})</h6>
         <ul className="list-unstyled mb-0">
           {filteredConnections.length > 0 ? (
             filteredConnections.map((conn) => {
@@ -546,6 +667,12 @@ export default function Rightbar({
           </div>
         </div>
       )}
+      <style>{`
+        .rightbar-group-row:hover,
+        .rightbar-group-row:focus-visible {
+          background: #f4f7ff;
+        }
+      `}</style>
     </aside>
   );
 }

@@ -1361,7 +1361,15 @@ function App() {
             <SlicePage startPostId={sliceStartId} onClose={goHome} />
           ) : activeSection === 'box' ? (
             /* ── BOX VIEW ── */
-            <BoxView posts={posts} user={user} isLoggedIn={isLoggedIn} onHome={goHome} onDelete={handleDeletePost} />
+            <BoxView
+              posts={posts}
+              user={user}
+              isLoggedIn={isLoggedIn}
+              onHome={goHome}
+              onDelete={handleDeletePost}
+              authFetch={authFetch}
+              onOpenGroups={goGroups}
+            />
           ) : activeSection === 'posts' ? (
             /* ── POST VIEW ── */
             <PostView
@@ -1469,6 +1477,8 @@ function App() {
             onRemoveConnection={removeConnection}
             onFetchSentMessages={fetchSentMessagesForConnection}
             onSendMessage={sendMessageToConnection}
+            authFetch={authFetch}
+            onOpenGroups={goGroups}
           />
         )}
       </div>

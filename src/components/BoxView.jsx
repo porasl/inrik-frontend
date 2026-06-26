@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Hls from 'hls.js';
 import { PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached } from '../services/postsService';
+import { listGroups, subscribeGroupUpdates } from '../services/groupsService';
 
 const CAPTION_TRACK_SRC = 'data:text/vtt,WEBVTT%0A%0A';
 
@@ -303,6 +304,7 @@ function getCurrentFolderLabel(path) {
 }
 
 function getItemIcon(item) {
+  if (item.kind === 'group') return 'bi-people-fill';
   if (item.kind === 'video') return 'bi-play-btn-fill';
   if (item.kind === 'audio') return 'bi-music-note-beamed';
   if (item.kind === 'image') return 'bi-image';
@@ -375,7 +377,7 @@ EmbedModal.propTypes = {
   onClose: PropTypes.func.isRequired,
 };
 
-function MediaPreview({ item }) {
+function MediaPreview({ item, onOpenGroups }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -468,6 +470,29 @@ function MediaPreview({ item }) {
         <i className="bi bi-window-stack"></i>
         <h5>Select a file</h5>
         <p>Choose a video, image, audio, or document from the explorer.</p>
+      </div>
+    );
+  }
+
+  if (item.kind === 'group') {
+    const group = item.groupData || {};
+    const members = Array.isArray(group.members) ? group.members : [];
+    return (
+      <div className="boxview-preview-empty">
+        <i className="bi bi-people-fill"></i>
+        <h5>{group.name || item.name}</h5>
+        <p>{group.description || 'No group description.'}</p>
+        <div className="d-flex align-items-center gap-2 mb-3">
+          <span className={`badge ${group.isOwner ? 'text-bg-warning' : 'text-bg-light border text-secondary'}`}>
+            {group.isOwner ? 'OWNER' : 'MEMBER'}
+          </span>
+          <span className="small text-secondary">
+            {group.memberCount ?? members.length} member{(group.memberCount ?? members.length) === 1 ? '' : 's'}
+          </span>
+        </div>
+        <button type="button" className="btn btn-sm btn-primary" onClick={onOpenGroups}>
+          Open group
+        </button>
       </div>
     );
   }
@@ -629,7 +654,9 @@ MediaPreview.propTypes = {
     post: PropTypes.shape({
       videoImagePath: PropTypes.string,
     }),
+    groupData: PropTypes.shape({}),
   }),
+  onOpenGroups: PropTypes.func,
 };
 
 function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = false) {
@@ -638,7 +665,7 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = fal
       <button key={item.label} type="button" className="boxview-folder-card boxview-folder-card--inline" onClick={() => selectItem(item)}>
         <i className={`bi ${item.icon}`}></i>
         <strong>{item.label}</strong>
-        <span>{item.count} files</span>
+        <span>{item.count} {item.folder === 'groups' ? 'groups' : 'files'}</span>
       </button>
     );
   }
@@ -700,7 +727,7 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = fal
   );
 }
 
-export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome, onDelete }) {
+export default function BoxView({ posts = [], user = null, isLoggedIn = false, onHome, onDelete, authFetch = fetch, onOpenGroups }) {
   const identity = useMemo(() => {
     // Get CURRENTLY LOGGED-IN user identity from localStorage
     if (!isLoggedIn) {
@@ -748,8 +775,36 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
   const [allPosts, setAllPosts] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const [mobileVideoIndex, setMobileVideoIndex] = useState(-1);
+  const authFetchRef = useRef(authFetch);
+
+  useEffect(() => {
+    authFetchRef.current = authFetch;
+  }, [authFetch]);
+
+  const loadGroups = useCallback(async () => {
+    if (!isLoggedIn) {
+      setGroups([]);
+      return;
+    }
+
+    const token = localStorage.getItem('token') || '';
+    if (!token) return;
+
+    try {
+      const payload = await listGroups(token, authFetchRef.current);
+      setGroups(Array.isArray(payload) ? payload : payload?.groups || []);
+    } catch {
+      setGroups([]);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    loadGroups();
+    return subscribeGroupUpdates(loadGroups);
+  }, [loadGroups]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -831,6 +886,13 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   }, [isLoggedIn, ownedPosts, sourcePosts]);
 
   const catalog = useMemo(() => resolveMediaEntries(scopedPosts), [scopedPosts]);
+  const groupItems = useMemo(() => groups.map((group) => ({
+    id: `group-${group.id}`,
+    kind: 'group',
+    name: group.name || 'Untitled group',
+    owner: `${group.isOwner ? 'Owner' : 'Member'} - ${group.memberCount ?? group.members?.length ?? 0} members`,
+    groupData: group,
+  })), [groups]);
 
   const documentGroups = useMemo(() => {
     const groups = {
@@ -847,6 +909,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     getFolderMeta('Audios', catalog.audios.length, 'bi-music-note-beamed', '#60a5fa', 'audios'),
     getFolderMeta('Documents', catalog.documents.length, 'bi-file-earmark-text', '#f59e0b', 'documents'),
     getFolderMeta('Images', catalog.images.length, 'bi-images', '#f472b6', 'images'),
+    getFolderMeta('Groups', groupItems.length, 'bi-people-fill', '#8b5cf6', 'groups'),
   ];
 
   function getCurrentItems() {
@@ -856,6 +919,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     if (section === 'videos') return catalog.videos;
     if (section === 'audios') return catalog.audios;
     if (section === 'images') return catalog.images;
+    if (section === 'groups') return groupItems;
 
     if (section === 'documents') {
       if (!subSection) {
@@ -924,6 +988,10 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
         return;
       }
       openFolder(item.folder || 'videos');
+      return;
+    }
+    if (item.kind === 'group') {
+      setPreviewItem(item);
       return;
     }
     if (isMobile && item.kind === 'video') {
@@ -1007,6 +1075,10 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
               <i className="bi bi-images"></i>
               <span>Images</span>
             </button>
+            <button type="button" className={`boxview-tree-item ${path[1] === 'groups' ? 'active' : ''}`} onClick={() => openFolder('groups')}>
+              <i className="bi bi-people-fill"></i>
+              <span>Groups</span>
+            </button>
           </aside>
 
           <section className="boxview-browser">
@@ -1062,7 +1134,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
           </section>
 
           <aside className="boxview-preview-panel">
-            <MediaPreview item={previewItem} />
+            <MediaPreview item={previewItem} onOpenGroups={onOpenGroups} />
           </aside>
         </div>
       </div>
@@ -1174,4 +1246,6 @@ BoxView.propTypes = {
   isLoggedIn: PropTypes.bool,
   onHome: PropTypes.func,
   onDelete: PropTypes.func,
+  authFetch: PropTypes.func,
+  onOpenGroups: PropTypes.func,
 };

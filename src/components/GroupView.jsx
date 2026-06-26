@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addGroupMember,
+  deleteGroup,
   createGroup,
   listGroups,
   removeGroupMember,
+  updateGroup,
 } from '../services/groupsService';
 import './GroupView.css';
 
@@ -47,15 +49,28 @@ export default function GroupView({ authFetch = fetch }) {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
+  const [editingGroupId, setEditingGroupId] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState('');
 
+  const isOwner = useCallback((group) => (
+    Boolean(group?.isOwner)
+    || String(group?.owner?.userId || group?.ownerId || '') === currentUserId
+  ), [currentUserId]);
+
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === selectedGroupId) || null,
     [groups, selectedGroupId],
   );
+
+  const editingGroup = useMemo(
+    () => groups.find((group) => group.id === editingGroupId) || null,
+    [groups, editingGroupId],
+  );
+  const ownedGroups = useMemo(() => groups.filter((group) => isOwner(group)), [groups, isOwner]);
+  const memberGroups = useMemo(() => groups.filter((group) => !isOwner(group)), [groups, isOwner]);
 
   const loadGroups = useCallback(async () => {
     if (!token) {
@@ -78,7 +93,7 @@ export default function GroupView({ authFetch = fetch }) {
     loadGroups();
   }, [loadGroups]);
 
-  const updateGroup = (updated) => {
+  const applyGroupUpdate = (updated) => {
     const normalized = normalizeGroups([updated])[0];
     setGroups((current) => current.map((group) => (
       group.id === normalized.id ? normalized : group
@@ -112,6 +127,31 @@ export default function GroupView({ authFetch = fetch }) {
     }
   };
 
+  const handleEditGroup = async (event) => {
+    event.preventDefault();
+    const name = groupName.trim();
+    if (!name || !editingGroup) {
+      setFormError('Group name is required.');
+      return;
+    }
+
+    setSaving(true);
+    setFormError('');
+    try {
+      const updated = normalizeGroups([await updateGroup(token, editingGroup.id, {
+        name,
+        description: groupDescription.trim(),
+      })])[0];
+      applyGroupUpdate(updated);
+      setNotice('Group updated successfully.');
+      setEditingGroupId('');
+    } catch (error) {
+      setFormError(error.message || 'Group could not be updated.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAddMember = async (event) => {
     event.preventDefault();
     const email = memberEmail.trim().toLowerCase();
@@ -120,7 +160,7 @@ export default function GroupView({ authFetch = fetch }) {
     setSaving(true);
     setFormError('');
     try {
-      updateGroup(await addGroupMember(token, selectedGroup.id, email, authFetch));
+      applyGroupUpdate(await addGroupMember(token, selectedGroup.id, email, authFetch));
       setMemberEmail('');
       setNotice(`${email} was added to the group.`);
     } catch (error) {
@@ -138,12 +178,30 @@ export default function GroupView({ authFetch = fetch }) {
     setRemovingId(id);
     setFormError('');
     try {
-      updateGroup(await removeGroupMember(token, selectedGroup.id, id, authFetch));
+      applyGroupUpdate(await removeGroupMember(token, selectedGroup.id, id, authFetch));
       setNotice(`${memberName(member)} was removed from the group.`);
     } catch (error) {
       setFormError(error.message || 'Member could not be removed.');
     } finally {
       setRemovingId('');
+    }
+  };
+
+  const handleDeleteGroup = async (group) => {
+    if (!group || !window.confirm(`Delete ${group.name}? This cannot be undone.`)) return;
+
+    setSaving(true);
+    setFormError('');
+    try {
+      await deleteGroup(token, group.id);
+      setGroups((current) => current.filter((item) => item.id !== group.id));
+      if (selectedGroupId === group.id) setSelectedGroupId('');
+      if (editingGroupId === group.id) setEditingGroupId('');
+      setNotice('Group deleted successfully.');
+    } catch (error) {
+      setFormError(error.message || 'Group could not be deleted.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -153,8 +211,12 @@ export default function GroupView({ authFetch = fetch }) {
     setFormError('');
   };
 
-  const isOwner = (group) => Boolean(group?.isOwner)
-    || String(group?.owner?.userId || group?.ownerId || '') === currentUserId;
+  const openEditGroup = (group) => {
+    setEditingGroupId(group.id);
+    setGroupName(group.name || '');
+    setGroupDescription(group.description || '');
+    setFormError('');
+  };
 
   return (
     <div className="groups-shell border rounded-3 bg-white shadow-sm p-3 p-md-4">
@@ -193,8 +255,69 @@ export default function GroupView({ authFetch = fetch }) {
           <button className="btn btn-outline-primary" onClick={() => setShowCreateModal(true)}>Create a group</button>
         </div>
       ) : (
-        <div className="row g-3">
-          {groups.map((group) => {
+        <>
+        <div className="mb-4">
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <h5 className="mb-0">My groups</h5>
+            <span className="text-muted small">{ownedGroups.length} owned</span>
+          </div>
+          <div className="row g-3">
+            {ownedGroups.length === 0 ? (
+              <div className="col-12">
+                <div className="text-muted small border rounded-3 p-3 bg-light">You do not own any groups yet.</div>
+              </div>
+            ) : ownedGroups.map((group) => {
+              const members = group.members || [];
+              const memberCount = group.memberCount ?? members.length;
+              return (
+                <div key={group.id} className="col-md-6 col-xl-4">
+                  <article className="group-card h-100 p-3 d-flex flex-column">
+                    <div className="d-flex gap-3 align-items-start">
+                      <div className="group-avatar" aria-hidden="true">{initials(group.name)}</div>
+                      <div className="min-w-0 flex-grow-1">
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                          <h5 className="mb-0 text-break">{group.name}</h5>
+                          <span className="owner-chip">OWNER</span>
+                        </div>
+                        <div className="small text-muted mt-1">
+                          Owned by {memberName(group.owner || {})}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="group-description text-muted small my-3">
+                      {group.description || 'No description provided.'}
+                    </p>
+                    <div className="mt-auto d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                      <span className="small text-secondary">
+                        <i className="bi bi-people me-1" />
+                        {memberCount} member{memberCount === 1 ? '' : 's'}
+                      </span>
+                      <div className="d-flex gap-2">
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditGroup(group)}>
+                          Edit
+                        </button>
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteGroup(group)}>
+                          Delete
+                        </button>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => openMembers(group)}>
+                          View members
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <h5 className="mb-0">Groups I belong to</h5>
+            <span className="text-muted small">{memberGroups.length} listed</span>
+          </div>
+          <div className="row g-3">
+          {memberGroups.map((group) => {
             const members = group.members || [];
             const memberCount = group.memberCount ?? members.length;
             return (
@@ -228,7 +351,9 @@ export default function GroupView({ authFetch = fetch }) {
               </div>
             );
           })}
+          </div>
         </div>
+        </>
       )}
 
       {showCreateModal && (
@@ -315,6 +440,35 @@ export default function GroupView({ authFetch = fetch }) {
               <div className="modal-footer">
                 <button className="btn btn-light" onClick={() => setSelectedGroupId('')}>Close</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingGroup && (
+        <div className="modal d-block" tabIndex="-1" role="dialog" aria-modal="true">
+          <div className="modal-backdrop show" onClick={() => !saving && setEditingGroupId('')} />
+          <div className="modal-dialog modal-dialog-centered position-relative" style={{ zIndex: 1060 }}>
+            <div className="modal-content">
+              <form onSubmit={handleEditGroup}>
+                <div className="modal-header">
+                  <h5 className="modal-title">Edit group</h5>
+                  <button type="button" className="btn-close" disabled={saving} onClick={() => setEditingGroupId('')} />
+                </div>
+                <div className="modal-body">
+                  {formError && <div className="alert alert-danger">{formError}</div>}
+                  <label htmlFor="edit-group-name" className="form-label">Group name</label>
+                  <input id="edit-group-name" className="form-control mb-3" maxLength="100" value={groupName} onChange={(e) => setGroupName(e.target.value)} autoFocus required />
+                  <label htmlFor="edit-group-description" className="form-label">Description <span className="text-muted">(optional)</span></label>
+                  <textarea id="edit-group-description" className="form-control" rows="3" maxLength="500" value={groupDescription} onChange={(e) => setGroupDescription(e.target.value)} />
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-light" disabled={saving} onClick={() => setEditingGroupId('')}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                    {saving && <span className="spinner-border spinner-border-sm me-2" />}Save changes
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
