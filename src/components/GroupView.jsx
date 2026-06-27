@@ -7,6 +7,9 @@ import {
   removeGroupMember,
   updateGroup,
 } from '../services/groupsService';
+import { API_BASE } from '../../app.config.js';
+import { getAllPostsCached, invalidatePostsCache, subscribePostsCacheUpdates } from '../services/postsService';
+import UploadModal from './UploadModal';
 import './GroupView.css';
 
 function getId(value) {
@@ -20,6 +23,13 @@ function initials(value) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'G';
+}
+
+function groupAvatarUrl(group) {
+  const raw = String(group?.groupImageUrl || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return raw.startsWith('/') ? raw : `/${raw}`;
 }
 
 function memberName(member) {
@@ -42,10 +52,15 @@ export default function GroupView({ authFetch = fetch }) {
   const token = localStorage.getItem('token') || '';
   const currentUserId = String(localStorage.getItem('userId') || '');
   const [groups, setGroups] = useState([]);
+  const [groupPosts, setGroupPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [postsError, setPostsError] = useState('');
   const [notice, setNotice] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showGroupImagePicker, setShowGroupImagePicker] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
@@ -63,6 +78,10 @@ export default function GroupView({ authFetch = fetch }) {
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === selectedGroupId) || null,
     [groups, selectedGroupId],
+  );
+  const selectedGroupPosts = useMemo(
+    () => groupPosts.filter((post) => String(post?.groupId || '') === String(selectedGroupId || '')),
+    [groupPosts, selectedGroupId],
   );
 
   const editingGroup = useMemo(
@@ -92,6 +111,28 @@ export default function GroupView({ authFetch = fetch }) {
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  const loadGroupPosts = useCallback(async () => {
+    if (!token) return;
+    setPostsLoading(true);
+    setPostsError('');
+    try {
+      const posts = await getAllPostsCached({ forceRefresh: true });
+      setGroupPosts(Array.isArray(posts) ? posts : []);
+    } catch (error) {
+      setPostsError(error.message || 'Group content could not be loaded.');
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadGroupPosts();
+    const unsubscribe = subscribePostsCacheUpdates(({ items }) => {
+      if (Array.isArray(items)) setGroupPosts(items);
+    });
+    return unsubscribe;
+  }, [loadGroupPosts]);
 
   const applyGroupUpdate = (updated) => {
     const normalized = normalizeGroups([updated])[0];
@@ -205,10 +246,41 @@ export default function GroupView({ authFetch = fetch }) {
     }
   };
 
+  const openGroupPage = (group) => {
+    setSelectedGroupId(group.id);
+    setMemberEmail('');
+    setFormError('');
+  };
+
   const openMembers = (group) => {
     setSelectedGroupId(group.id);
     setMemberEmail('');
     setFormError('');
+  };
+
+  const handleUploadGroupImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !selectedGroup) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await authFetch(`${API_BASE}/api/groups/${encodeURIComponent(selectedGroup.id)}/image`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const updated = normalizeGroups([await response.json()])[0];
+      applyGroupUpdate(updated);
+      setNotice('Group image updated successfully.');
+    } catch (error) {
+      setFormError(error.message || 'Group image could not be uploaded.');
+    }
   };
 
   const openEditGroup = (group) => {
@@ -272,8 +344,12 @@ export default function GroupView({ authFetch = fetch }) {
               return (
                 <div key={group.id} className="col-md-6 col-xl-4">
                   <article className="group-card h-100 p-3 d-flex flex-column">
-                    <div className="d-flex gap-3 align-items-start">
-                      <div className="group-avatar" aria-hidden="true">{initials(group.name)}</div>
+                      <div className="d-flex gap-3 align-items-start">
+                      <div className="group-avatar" aria-hidden="true">
+                        {groupAvatarUrl(group) ? (
+                          <img src={groupAvatarUrl(group)} alt="" />
+                        ) : initials(group.name)}
+                      </div>
                       <div className="min-w-0 flex-grow-1">
                         <div className="d-flex align-items-center gap-2 flex-wrap">
                           <h5 className="mb-0 text-break">{group.name}</h5>
@@ -293,6 +369,9 @@ export default function GroupView({ authFetch = fetch }) {
                         {memberCount} member{memberCount === 1 ? '' : 's'}
                       </span>
                       <div className="d-flex gap-2">
+                        <button className="btn btn-sm btn-primary" onClick={() => openGroupPage(group)}>
+                          Open
+                        </button>
                         <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditGroup(group)}>
                           Edit
                         </button>
@@ -323,8 +402,12 @@ export default function GroupView({ authFetch = fetch }) {
             return (
               <div key={group.id} className="col-md-6 col-xl-4">
                 <article className="group-card h-100 p-3 d-flex flex-column">
-                  <div className="d-flex gap-3 align-items-start">
-                    <div className="group-avatar" aria-hidden="true">{initials(group.name)}</div>
+                    <div className="d-flex gap-3 align-items-start">
+                    <div className="group-avatar" aria-hidden="true">
+                      {groupAvatarUrl(group) ? (
+                        <img src={groupAvatarUrl(group)} alt="" />
+                      ) : initials(group.name)}
+                    </div>
                     <div className="min-w-0 flex-grow-1">
                       <div className="d-flex align-items-center gap-2 flex-wrap">
                         <h5 className="mb-0 text-break">{group.name}</h5>
@@ -343,7 +426,7 @@ export default function GroupView({ authFetch = fetch }) {
                       <i className="bi bi-people me-1" />
                       {memberCount} member{memberCount === 1 ? '' : 's'}
                     </span>
-                    <button className="btn btn-sm btn-outline-primary" onClick={() => openMembers(group)}>
+                    <button className="btn btn-sm btn-outline-primary" onClick={() => openGroupPage(group)}>
                       View members
                     </button>
                   </div>
@@ -354,6 +437,88 @@ export default function GroupView({ authFetch = fetch }) {
           </div>
         </div>
         </>
+      )}
+
+      {selectedGroup && (
+        <div className="border rounded-3 bg-white shadow-sm p-3 p-md-4 mt-4">
+          <div className="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div className="d-flex align-items-center gap-3">
+              <div className="group-avatar group-avatar--lg" aria-hidden="true">
+                {groupAvatarUrl(selectedGroup) ? (
+                  <img src={groupAvatarUrl(selectedGroup)} alt="" />
+                ) : initials(selectedGroup.name)}
+              </div>
+              <div>
+              <h3 className="mb-1">{selectedGroup.name}</h3>
+              <p className="text-muted mb-0">{selectedGroup.description || 'No description provided.'}</p>
+              </div>
+            </div>
+            <div className="d-flex gap-2">
+              <label className="btn btn-outline-primary mb-0">
+                <i className="bi bi-image me-2" />
+                {selectedGroup.groupImageUrl ? 'Change image' : 'Upload image'}
+                <input type="file" accept="image/*" className="d-none" onChange={handleUploadGroupImage} />
+              </label>
+              <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
+                <i className="bi bi-cloud-upload me-2" />
+                Upload to group
+              </button>
+              <button className="btn btn-outline-secondary" onClick={() => setSelectedGroupId('')}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          <div className="row g-3 mb-4">
+            <div className="col-md-4">
+              <div className="border rounded-3 p-3 h-100 bg-light">
+                <div className="small text-muted text-uppercase mb-1">Owner</div>
+                <div className="fw-semibold">{memberName(selectedGroup.owner || {})}</div>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="border rounded-3 p-3 h-100 bg-light">
+                <div className="small text-muted text-uppercase mb-1">Members</div>
+                <div className="fw-semibold">{selectedGroup.members.length}</div>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="border rounded-3 p-3 h-100 bg-light">
+                <div className="small text-muted text-uppercase mb-1">Group ID</div>
+                <div className="fw-semibold text-truncate">{selectedGroup.id}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <h5 className="mb-0">Group content</h5>
+            <button className="btn btn-sm btn-outline-secondary" onClick={loadGroupPosts} disabled={postsLoading}>
+              Refresh
+            </button>
+          </div>
+          {postsError ? (
+            <div className="alert alert-danger">{postsError}</div>
+          ) : postsLoading ? (
+            <div className="text-muted py-3">Loading group content...</div>
+          ) : selectedGroupPosts.length === 0 ? (
+            <div className="text-muted border rounded-3 p-3 bg-light">No content has been uploaded to this group yet.</div>
+          ) : (
+            <div className="row g-3">
+              {selectedGroupPosts.map((post) => (
+                <div key={post.id} className="col-md-6 col-xl-4">
+                  <article className="border rounded-3 p-3 h-100 bg-white">
+                    <div className="small text-uppercase text-muted mb-1">Post</div>
+                    <h6 className="mb-2 text-truncate">{post.title || post.description || 'Untitled post'}</h6>
+                    <p className="small text-muted mb-2 text-truncate">{post.description || 'No description provided.'}</p>
+                    <div className="small text-secondary">
+                      {post.imageUrls?.length || post.videoUrls?.length || post.audioUrls?.length || post.documents?.length || 0} attachment(s)
+                    </div>
+                  </article>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {showCreateModal && (
@@ -472,6 +637,19 @@ export default function GroupView({ authFetch = fetch }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showUploadModal && selectedGroup && (
+        <UploadModal
+          apiBase={API_BASE}
+          groupId={selectedGroup.id}
+          onClose={() => setShowUploadModal(false)}
+          onUploaded={() => {
+            setShowUploadModal(false);
+            invalidatePostsCache();
+            loadGroupPosts();
+          }}
+        />
       )}
     </div>
   );

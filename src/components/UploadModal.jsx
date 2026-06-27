@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
+const UploadModal = ({ onClose, onUploaded, apiBase = "", groupId = "" }) => {
   const [uploadItems, setUploadItems] = useState([]); // List of {id, name, format, kind, progress, status, previewUrl}
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(true);
@@ -114,6 +114,7 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
     formData.append("ismemory", String(isMemory));
     formData.append("isevent", String(isEvent));
     formData.append("isslice", String(isSlice));
+    formData.append("groupId", String(groupId || ''));
 
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
@@ -239,6 +240,7 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
       ismemory: isMemory,
       isevent: isEvent,
       isslice: isSlice,
+      groupId: groupId || '',
       userId: userId || '',
       author
     };
@@ -285,10 +287,15 @@ const UploadModal = ({ onClose, onUploaded, apiBase = "" }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content-custom shadow-lg" onClick={e => e.stopPropagation()}>
-        <div className="d-flex justify-content-between align-items-center mb-3">
+          <div className="d-flex justify-content-between align-items-center mb-3">
           <h4 className="m-0 fw-bold">Upload Content</h4>
           <button className="btn-close" onClick={onClose}></button>
         </div>
+        {groupId ? (
+          <div className="alert alert-info py-2 small">
+            This upload will be attached to the selected group.
+          </div>
+        ) : null}
 
         {/* Drop Zone */}
         <div

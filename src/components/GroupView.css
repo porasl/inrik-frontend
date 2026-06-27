@@ -33,12 +33,18 @@
   width: 48px;
 }
 
+.group-avatar--lg {
+  height: 72px;
+  width: 72px;
+}
+
 .member-avatar {
   border-radius: 50%;
   height: 42px;
   width: 42px;
 }
 
+.group-avatar img,
 .member-avatar img {
   height: 100%;
   object-fit: cover;

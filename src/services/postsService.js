@@ -29,6 +29,7 @@ const GET_POSTS_QUERY_EXTENDED = `
         userLastName
         email
         author
+        groupId
       }
       pageInfo { page size hasNext }
     }
@@ -55,6 +56,7 @@ const GET_POSTS_QUERY = `
         userLastName
         email
         author
+        groupId
       }
       pageInfo { page size hasNext }
     }

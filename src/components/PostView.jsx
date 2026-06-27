@@ -257,6 +257,7 @@ function EditPostModal({ post, onClose = () => {}, onSaved = async () => {} }) {
     formData.append('ismemory', String(post?.ismemory ?? false));
     formData.append('isevent', String(post?.isevent ?? false));
     formData.append('isslice', String(post?.isslice ?? false));
+    formData.append('groupId', String(post?.groupId || ''));
 
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
@@ -344,6 +345,7 @@ function EditPostModal({ post, onClose = () => {}, onSaved = async () => {} }) {
         ismemory: post?.ismemory ?? false,
         isevent: post?.isevent ?? false,
         isslice: post?.isslice ?? false,
+        groupId: post?.groupId || '',
         videoUrls: nextAttachments.videos,
         imageUrls: nextAttachments.images,
         audioUrls: nextAttachments.audios,
