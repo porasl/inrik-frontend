@@ -295,7 +295,6 @@ export default function GroupView({ authFetch = fetch }) {
       <div className="groups-heading d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="mb-1">Groups</h2>
-          <p className="text-muted mb-0">Create spaces and manage the people in them.</p>
         </div>
         <button className="btn btn-primary" onClick={() => { setFormError(''); setShowCreateModal(true); }}>
           <i className="bi bi-plus-lg me-2" />Create group
@@ -329,10 +328,6 @@ export default function GroupView({ authFetch = fetch }) {
       ) : (
         <>
         <div className="mb-4">
-          <div className="d-flex align-items-center justify-content-between mb-2">
-            <h5 className="mb-0">My groups</h5>
-            <span className="text-muted small">{ownedGroups.length} owned</span>
-          </div>
           <div className="row g-3">
             {ownedGroups.length === 0 ? (
               <div className="col-12">
@@ -355,14 +350,8 @@ export default function GroupView({ authFetch = fetch }) {
                           <h5 className="mb-0 text-break">{group.name}</h5>
                           <span className="owner-chip">OWNER</span>
                         </div>
-                        <div className="small text-muted mt-1">
-                          Owned by {memberName(group.owner || {})}
-                        </div>
                       </div>
                     </div>
-                    <p className="group-description text-muted small my-3">
-                      {group.description || 'No description provided.'}
-                    </p>
                     <div className="mt-auto d-flex flex-wrap gap-2 justify-content-between align-items-center">
                       <span className="small text-secondary">
                         <i className="bi bi-people me-1" />
@@ -391,10 +380,6 @@ export default function GroupView({ authFetch = fetch }) {
         </div>
 
         <div>
-          <div className="d-flex align-items-center justify-content-between mb-2">
-            <h5 className="mb-0">Groups I belong to</h5>
-            <span className="text-muted small">{memberGroups.length} listed</span>
-          </div>
           <div className="row g-3">
           {memberGroups.map((group) => {
             const members = group.members || [];
@@ -413,14 +398,8 @@ export default function GroupView({ authFetch = fetch }) {
                         <h5 className="mb-0 text-break">{group.name}</h5>
                         {isOwner(group) && <span className="owner-chip">OWNER</span>}
                       </div>
-                      <div className="small text-muted mt-1">
-                        Owned by {memberName(group.owner || {})}
-                      </div>
                     </div>
                   </div>
-                  <p className="group-description text-muted small my-3">
-                    {group.description || 'No description provided.'}
-                  </p>
                   <div className="mt-auto d-flex justify-content-between align-items-center">
                     <span className="small text-secondary">
                       <i className="bi bi-people me-1" />
@@ -450,7 +429,6 @@ export default function GroupView({ authFetch = fetch }) {
               </div>
               <div>
               <h3 className="mb-1">{selectedGroup.name}</h3>
-              <p className="text-muted mb-0">{selectedGroup.description || 'No description provided.'}</p>
               </div>
             </div>
             <div className="d-flex gap-2">

@@ -318,20 +318,6 @@ export default function Rightbar({
           </div>
         </a>
 
-        <div className="d-flex align-items-center justify-content-between mb-3">
-          <h6 className="m-0 fw-bold">Connections &amp; Groups</h6>
-          <button
-            className="btn btn-sm btn-outline-secondary"
-            type="button"
-            title="Refresh groups"
-            aria-label="Refresh groups"
-            disabled={groupsLoading}
-            onClick={loadGroups}
-          >
-            <i className="bi bi-arrow-clockwise"></i>
-          </button>
-        </div>
-
         {isLoggedIn && (
           <div className="mb-3">
             <div className="input-group input-group-sm">
@@ -360,6 +346,16 @@ export default function Rightbar({
               >
                 {searchingUser ? '...' : <i className="bi bi-search" />}
               </button>
+              <button
+                className="btn btn-outline-secondary rounded-end-pill ms-2"
+                type="button"
+                title="Refresh groups"
+                aria-label="Refresh groups"
+                disabled={groupsLoading}
+                onClick={loadGroups}
+              >
+                <i className="bi bi-arrow-clockwise" />
+              </button>
             </div>
           </div>
         )}
@@ -372,62 +368,67 @@ export default function Rightbar({
           <div className="text-danger mb-2" style={{ fontSize: '12px' }}>{actionError}</div>
         )}
 
-        {/* --- GROUP LIST --- */}
         {isLoggedIn && (
-          <section className="mb-3" aria-labelledby="rightbar-groups-heading">
-            <h6 id="rightbar-groups-heading" className="small fw-bold text-secondary mb-2">
-              Groups ({groups.length})
-            </h6>
-
-            {groupsError ? (
-              <div className="small text-danger p-2 border rounded">{groupsError}</div>
-            ) : groupsLoading && groups.length === 0 ? (
-              <div className="small text-secondary p-2">
-                <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
-                Loading groups
+          <>
+            <section className="mb-3 p-3 bg-white border rounded-3 shadow-sm" aria-labelledby="rightbar-groups-heading">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <h6 id="rightbar-groups-heading" className="small fw-bold text-secondary mb-0">
+                  Groups ({groups.length})
+                </h6>
               </div>
-            ) : filteredGroups.length > 0 ? (
-              <ul className="list-unstyled mb-0">
-                {filteredGroups.map((group) => (
-                  <li key={group.id} className="mb-1">
-                    <button
-                      type="button"
-                      className="btn w-100 border-0 d-flex align-items-center gap-2 p-2 text-start rightbar-group-row"
-                      onClick={onOpenGroups}
-                    >
-                      <span
-                        className="d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
-                        style={{ width: 40, height: 40, borderRadius: 8, background: '#e8eeff', color: '#315ec7' }}
-                        aria-hidden="true"
+
+              {groupsError ? (
+                <div className="small text-danger p-2 border rounded">{groupsError}</div>
+              ) : groupsLoading && groups.length === 0 ? (
+                <div className="small text-secondary p-2">
+                  <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+                  Loading groups
+                </div>
+              ) : filteredGroups.length > 0 ? (
+                <ul className="list-unstyled mb-0">
+                  {filteredGroups.map((group) => (
+                    <li key={group.id} className="mb-1">
+                      <button
+                        type="button"
+                        className="btn w-100 border-0 d-flex align-items-center gap-2 p-2 text-start rightbar-group-row"
+                        onClick={onOpenGroups}
                       >
-                        {groupInitials(group.name)}
-                      </span>
-                      <span className="min-w-0 flex-grow-1">
-                        <span className="d-block fw-medium text-dark text-truncate">{group.name}</span>
-                        <span className="d-block small text-secondary">
-                          {group.memberCount ?? group.members?.length ?? 0} members
+                        <span
+                          className="d-inline-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
+                          style={{ width: 40, height: 40, borderRadius: 8, background: '#e8eeff', color: '#315ec7' }}
+                          aria-hidden="true"
+                        >
+                          {groupInitials(group.name)}
                         </span>
-                      </span>
-                      <span className={`badge flex-shrink-0 ${group.isOwner ? 'text-bg-warning' : 'text-bg-light border text-secondary'}`}>
-                        {group.isOwner ? 'OWNER' : 'MEMBER'}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="small text-secondary p-2 bg-light rounded">
-                {normalizedQuery ? 'No matching groups' : 'No groups yet'}
-              </div>
-            )}
-          </section>
-        )}
+                        <span className="min-w-0 flex-grow-1">
+                          <span className="d-block fw-medium text-dark text-truncate">{group.name}</span>
+                          <span className="d-block small text-secondary">
+                            {group.memberCount ?? group.members?.length ?? 0} members
+                          </span>
+                        </span>
+                        <span className={`badge flex-shrink-0 ${group.isOwner ? 'text-bg-warning' : 'text-bg-light border text-secondary'}`}>
+                          {group.isOwner ? 'OWNER' : 'MEMBER'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="small text-secondary p-2 bg-light rounded">
+                  {normalizedQuery ? 'No matching groups' : 'No groups yet'}
+                </div>
+              )}
+            </section>
 
-        {/* --- CONTACT LIST --- */}
-        <h6 className="small fw-bold text-secondary mb-2">People ({connections.length})</h6>
-        <ul className="list-unstyled mb-0">
-          {filteredConnections.length > 0 ? (
-            filteredConnections.map((conn) => {
+            <section className="p-3 bg-white border rounded-3 shadow-sm" aria-labelledby="rightbar-connections-heading">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <h6 id="rightbar-connections-heading" className="small fw-bold text-secondary mb-0">
+                  People ({connections.length})
+                </h6>
+              </div>
+              <ul className="list-unstyled mb-0">
+                {filteredConnections.length > 0 ? (
+                  filteredConnections.map((conn) => {
               const isPending = shouldShowPendingBadge(conn);
               const rowKey = String(conn.requestKey || conn.id || conn.email);
               const isSelected = selectedConnectionKey === rowKey;
@@ -493,28 +494,31 @@ export default function Rightbar({
                 )}
               </li>
               );
-            })
-          ) : canSuggestAdd ? (
-            <li className="p-3 small bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
-              <div className="text-secondary">
-                No connection starts with "{userIdInput.trim()}".
-              </div>
-              <button
-                className="btn btn-sm btn-primary"
-                type="button"
-                onClick={handleSearchUser}
-                disabled={searchingUser || addingConnection}
-              >
-                {searchingUser ? 'Searching...' : 'Find & Add'}
-              </button>
-            </li>
-          ) : (
-            <li className="p-3 text-muted text-center small bg-light rounded-3">
-              <i className="bi bi-people fs-4 d-block mb-2 text-secondary-subtle"></i>
-              {normalizedQuery ? 'No matching connections' : 'No connections yet'}
-            </li>
-          )}
-        </ul>
+                  })
+                ) : canSuggestAdd ? (
+                  <li className="p-3 small bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
+                    <div className="text-secondary">
+                      No connection starts with "{userIdInput.trim()}".
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      type="button"
+                      onClick={handleSearchUser}
+                      disabled={searchingUser || addingConnection}
+                    >
+                      {searchingUser ? 'Searching...' : 'Find & Add'}
+                    </button>
+                  </li>
+                ) : (
+                  <li className="p-3 text-muted text-center small bg-light rounded-3">
+                    <i className="bi bi-people fs-4 d-block mb-2 text-secondary-subtle"></i>
+                    {normalizedQuery ? 'No matching connections' : 'No connections yet'}
+                  </li>
+                )}
+              </ul>
+            </section>
+          </>
+        )}
       </div>
 
 
