@@ -134,6 +134,12 @@ export default function GroupView({ authFetch = fetch }) {
     return unsubscribe;
   }, [loadGroupPosts]);
 
+  useEffect(() => {
+    if (selectedGroupId) {
+      loadGroupPosts();
+    }
+  }, [selectedGroupId, loadGroupPosts]);
+
   const applyGroupUpdate = (updated) => {
     const normalized = normalizeGroups([updated])[0];
     setGroups((current) => current.map((group) => (
@@ -338,7 +344,18 @@ export default function GroupView({ authFetch = fetch }) {
               const memberCount = group.memberCount ?? members.length;
               return (
                 <div key={group.id} className="col-md-6 col-xl-4">
-                  <article className="group-card h-100 p-3 d-flex flex-column">
+                  <article
+                    className="group-card h-100 p-3 d-flex flex-column"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openGroupPage(group)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openGroupPage(group);
+                      }
+                    }}
+                  >
                       <div className="d-flex gap-3 align-items-start">
                       <div className="group-avatar" aria-hidden="true">
                         {groupAvatarUrl(group) ? (
@@ -367,8 +384,14 @@ export default function GroupView({ authFetch = fetch }) {
                         <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteGroup(group)}>
                           Delete
                         </button>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => openMembers(group)}>
-                          View members
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openGroupPage(group);
+                          }}
+                        >
+                          Enter
                         </button>
                       </div>
                     </div>
@@ -384,9 +407,20 @@ export default function GroupView({ authFetch = fetch }) {
           {memberGroups.map((group) => {
             const members = group.members || [];
             const memberCount = group.memberCount ?? members.length;
-            return (
-              <div key={group.id} className="col-md-6 col-xl-4">
-                <article className="group-card h-100 p-3 d-flex flex-column">
+              return (
+                <div key={group.id} className="col-md-6 col-xl-4">
+                <article
+                  className="group-card h-100 p-3 d-flex flex-column"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openGroupPage(group)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openGroupPage(group);
+                    }
+                  }}
+                >
                     <div className="d-flex gap-3 align-items-start">
                     <div className="group-avatar" aria-hidden="true">
                       {groupAvatarUrl(group) ? (
@@ -405,8 +439,14 @@ export default function GroupView({ authFetch = fetch }) {
                       <i className="bi bi-people me-1" />
                       {memberCount} member{memberCount === 1 ? '' : 's'}
                     </span>
-                    <button className="btn btn-sm btn-outline-primary" onClick={() => openGroupPage(group)}>
-                      View members
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openGroupPage(group);
+                      }}
+                    >
+                      Enter
                     </button>
                   </div>
                 </article>
@@ -469,7 +509,7 @@ export default function GroupView({ authFetch = fetch }) {
           </div>
 
           <div className="d-flex align-items-center justify-content-between mb-2">
-            <h5 className="mb-0">Group content</h5>
+            <h5 className="mb-0">Published content</h5>
             <button className="btn btn-sm btn-outline-secondary" onClick={loadGroupPosts} disabled={postsLoading}>
               Refresh
             </button>
