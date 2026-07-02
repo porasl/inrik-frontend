@@ -12,6 +12,7 @@ import PhotoPage from './components/PhotoPage';
 import BoxView from './components/BoxView';
 import PostView from './components/PostView';
 import GroupView from './components/GroupView';
+import NoteView from './components/NoteView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -420,6 +421,8 @@ function App() {
   const goPosts = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('posts'); };
 
   const goGroups = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('groups'); };
+
+  const goNotes = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('notes'); };
 
   const goNews = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('news'); };
 
@@ -1308,7 +1311,7 @@ function App() {
         onLogout={handleLogout}
         onUploadClick={() => setShowUpload(true)}
         onHome={goHome}
-        onNotes={goHome}
+        onNotes={goNotes}
         onVideos={goVideos}
         onPosts={goPosts}
         onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
@@ -1332,7 +1335,7 @@ function App() {
           onPhotos={goPhotos}
           onBox={goBox}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
-          onNotes={goHome}
+          onNotes={goNotes}
         />
 
         <main className="main-content">
@@ -1341,6 +1344,7 @@ function App() {
             && activeSection !== 'photos'
             && activeSection !== 'box'
             && activeSection !== 'posts'
+            && activeSection !== 'notes'
             && activeSection !== 'groups'
             && activeSection !== 'news'
             && activeSection !== 'sport'
@@ -1398,6 +1402,9 @@ function App() {
           ) : activeSection === 'groups' ? (
             /* ── GROUPS PAGE ── */
             <GroupView authFetch={authFetch} />
+          ) : activeSection === 'notes' ? (
+            /* ── NOTES PAGE ── */
+            <NoteView />
           ) : activeSection === 'news' ? (
             <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
               <h3 className="mb-2">News View</h3>
