@@ -567,66 +567,6 @@ export default function GroupView({ authFetch = fetch }) {
         </div>
       )}
 
-      {selectedGroup && (
-        <div className="modal d-block" tabIndex="-1" role="dialog" aria-modal="true">
-          <div className="modal-backdrop show" onClick={() => setSelectedGroupId('')} />
-          <div className="modal-dialog modal-dialog-centered modal-lg position-relative" style={{ zIndex: 1060 }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <div>
-                  <h5 className="modal-title">{selectedGroup.name}</h5>
-                  <div className="small text-muted">{selectedGroup.members.length} group member{selectedGroup.members.length === 1 ? '' : 's'}</div>
-                </div>
-                <button type="button" className="btn-close" aria-label="Close" onClick={() => setSelectedGroupId('')} />
-              </div>
-              <div className="modal-body">
-                {formError && <div className="alert alert-danger">{formError}</div>}
-                {isOwner(selectedGroup) && (
-                  <form className="members-panel p-3 mb-3" onSubmit={handleAddMember}>
-                    <label htmlFor="member-email" className="form-label fw-semibold">Add a member</label>
-                    <div className="input-group">
-                      <input id="member-email" type="email" className="form-control" placeholder="member@example.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} required />
-                      <button className="btn btn-primary" type="submit" disabled={saving}>
-                        {saving ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-person-plus me-2" />Add</>}
-                      </button>
-                    </div>
-                    <div className="form-text">Only the group owner can add or remove members.</div>
-                  </form>
-                )}
-
-                <div className="members-panel px-3">
-                  {selectedGroup.members.length === 0 ? (
-                    <p className="text-muted text-center py-4 mb-0">This group has no members.</p>
-                  ) : selectedGroup.members.map((member) => {
-                    const memberId = getId(member) || String(member.userId || '');
-                    const owner = member.role === 'OWNER' || memberId === String(selectedGroup.owner?.userId || selectedGroup.ownerId || '');
-                    return (
-                      <div key={memberId || member.email} className="member-row d-flex align-items-center gap-3 py-3">
-                        <div className="member-avatar">
-                          {member.profileImageUrl ? <img src={member.profileImageUrl} alt="" /> : initials(memberName(member))}
-                        </div>
-                        <div className="flex-grow-1 min-w-0">
-                          <div className="fw-semibold text-truncate">{memberName(member)}</div>
-                          <div className="small text-muted text-truncate">{member.email}</div>
-                        </div>
-                        {owner ? <span className="owner-chip">OWNER</span> : isOwner(selectedGroup) && (
-                          <button className="btn btn-sm btn-outline-danger" disabled={removingId === memberId} onClick={() => handleRemoveMember(member)} aria-label={`Remove ${memberName(member)}`}>
-                            {removingId === memberId ? <span className="spinner-border spinner-border-sm" /> : <><i className="bi bi-person-dash me-1" />Remove</>}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-light" onClick={() => setSelectedGroupId('')}>Close</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {editingGroup && (
         <div className="modal d-block" tabIndex="-1" role="dialog" aria-modal="true">
           <div className="modal-backdrop show" onClick={() => !saving && setEditingGroupId('')} />
