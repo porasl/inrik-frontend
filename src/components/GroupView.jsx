@@ -96,6 +96,51 @@ function resolveImageUrls(post) {
   ].map(toPublicUrl).filter(Boolean);
 }
 
+function ImageGallery({ imageUrls }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [openImageUrl, setOpenImageUrl] = useState('');
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [imageUrls]);
+
+  if (!imageUrls.length) return null;
+
+  const featured = imageUrls[Math.min(activeIndex, imageUrls.length - 1)] || imageUrls[0];
+  const thumbnails = imageUrls.slice(0, 8);
+
+  return (
+    <div className="group-image-gallery">
+      <button type="button" className="group-image-feature" onClick={() => setOpenImageUrl(featured)}>
+        <img src={featured} alt="" className="group-image-feature-img" />
+      </button>
+      {imageUrls.length > 1 && (
+        <div className="group-image-strip">
+          {thumbnails.map((url, index) => (
+            <button
+              key={url}
+              type="button"
+              className={`group-image-thumb ${index === activeIndex ? 'is-active' : ''}`}
+              onClick={() => {
+                setActiveIndex(index);
+                setOpenImageUrl(url);
+              }}
+            >
+              <img src={url} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+      {openImageUrl && (
+        <div className="group-image-lightbox" role="dialog" aria-modal="true" onClick={() => setOpenImageUrl('')}>
+          <button type="button" className="group-image-lightbox-close" onClick={() => setOpenImageUrl('')}>×</button>
+          <img src={openImageUrl} alt="Expanded attachment" className="group-image-lightbox-img" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function resolveAudioUrls(post) {
   const candidates = [
     ...toArray(post?.audioUrls),
@@ -159,11 +204,7 @@ function renderMediaPreview(post) {
             <i className="bi bi-images me-1" />
             Images ({imageUrls.length})
           </div>
-          <div className="d-grid gap-2">
-            {imageUrls.slice(0, 3).map((url, index) => (
-              <img key={`${url}-${index}`} src={url} alt="" className="img-fluid rounded-3 border" style={{ maxHeight: 220, objectFit: 'cover', width: '100%' }} />
-            ))}
-          </div>
+          <ImageGallery imageUrls={imageUrls} />
         </div>
       )}
 
@@ -748,16 +789,14 @@ export default function GroupView({ authFetch = fetch }) {
           ) : selectedGroupPosts.length === 0 ? (
             <div className="text-muted border rounded-3 p-3 bg-light">No content has been uploaded to this group yet.</div>
           ) : (
-            <div className="row g-3">
+            <div className="d-grid gap-3">
               {selectedGroupPosts.map((post) => (
-                <div key={post.id} className="col-md-6 col-xl-4">
-                  <article className="border rounded-3 p-3 h-100 bg-white">
-                    <div className="small text-uppercase text-muted mb-1">Post</div>
-                    <h6 className="mb-2 text-truncate">{post.title || post.description || 'Untitled post'}</h6>
-                    <p className="small text-muted mb-2 text-truncate">{post.description || 'No description provided.'}</p>
-                    {renderMediaPreview(post)}
-                  </article>
-                </div>
+                <article key={post.id} className="border rounded-3 p-3 bg-white w-100">
+                  <div className="small text-uppercase text-muted mb-1">Post</div>
+                  <h6 className="mb-2">{post.title || post.description || 'Untitled post'}</h6>
+                  <p className="small text-muted mb-3">{post.description || 'No description provided.'}</p>
+                  {renderMediaPreview(post)}
+                </article>
               ))}
             </div>
           )}

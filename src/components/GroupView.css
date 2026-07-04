@@ -78,6 +78,14 @@
   border-top: 1px solid #e7ebf2;
 }
 
+.group-image-gallery {
+  width: 100%;
+}
+
+.group-image-feature-img {
+  max-height: 520px;
+}
+
 @media (max-width: 575.98px) {
   .groups-heading {
     align-items: stretch !important;

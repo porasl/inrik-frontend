@@ -61,6 +61,44 @@ function resolveImageUrls(post) {
     .filter(Boolean);
 }
 
+function ImageGallery({ imageUrls, onImageOpen }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [imageUrls]);
+
+  if (!imageUrls.length) return null;
+
+  const featured = imageUrls[Math.min(activeIndex, imageUrls.length - 1)] || imageUrls[0];
+  const thumbnails = imageUrls.slice(0, 8);
+
+  return (
+    <div className="postview-image-gallery">
+      <button type="button" className="postview-image-feature" onClick={() => onImageOpen?.(featured)}>
+        <img src={featured} alt="Attachment" className="postview-image-feature-img" />
+      </button>
+      {imageUrls.length > 1 && (
+        <div className="postview-image-strip">
+          {thumbnails.map((url, index) => (
+            <button
+              key={url}
+              type="button"
+              className={`postview-image-thumb ${index === activeIndex ? 'is-active' : ''}`}
+              onClick={() => {
+                setActiveIndex(index);
+                onImageOpen?.(url);
+              }}
+            >
+              <img src={url} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function resolveAudioUrls(post) {
   return [
     ...toArray(post?.audioUrls),
@@ -744,6 +782,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
   const [views, setViews] = useState(post?.views || 0);
   const [showComments, setShowComments] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [openImageUrl, setOpenImageUrl] = useState('');
 
   const title = String(post?.title || post?.description || 'Untitled Post').trim();
   const videoUrl = useMemo(() => resolveVideoUrl(post), [post]);
@@ -835,11 +874,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
         {imageUrls.length > 0 && (
           <div className="postview-attachment-block">
             <div className="postview-attachment-label"><i className="bi bi-images me-1"></i>Images ({imageUrls.length})</div>
-            <div className="postview-image-grid">
-              {imageUrls.map((url) => (
-                <img key={url} src={url} alt="Attachment" className="postview-image" onClick={incrementView} />
-              ))}
-            </div>
+            <ImageGallery imageUrls={imageUrls} onImageOpen={setOpenImageUrl} />
           </div>
         )}
 
@@ -911,6 +946,12 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
           onClose={() => setShowEditModal(false)}
           onSaved={onUpdated}
         />
+      )}
+      {openImageUrl && (
+        <div className="postview-image-lightbox" role="dialog" aria-modal="true" onClick={() => setOpenImageUrl('')}>
+          <button type="button" className="postview-image-lightbox-close" onClick={() => setOpenImageUrl('')}>×</button>
+          <img src={openImageUrl} alt="Expanded attachment" className="postview-image-lightbox-img" onClick={(e) => e.stopPropagation()} />
+        </div>
       )}
     </article>
   );
