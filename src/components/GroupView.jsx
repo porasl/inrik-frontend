@@ -97,9 +97,35 @@ function resolveImageUrls(post) {
 }
 
 function resolveAudioUrls(post) {
-  return [...toArray(post?.audioUrls), ...toArray(post?.hlsAudioUrls), post?.audioUrl]
-    .map(toPublicUrl)
-    .filter(Boolean);
+  const candidates = [
+    ...toArray(post?.audioUrls),
+    ...toArray(post?.hlsAudioUrls),
+    post?.audioUrl,
+  ].filter(Boolean);
+
+  return candidates.map((value) => {
+    const raw = String(value).trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+
+    const normalized = raw.replace(/\\/g, '/');
+    const webdataIdx = normalized.indexOf('webdata/');
+    if (webdataIdx >= 0) {
+      return `${PUBLIC_BASE}/${normalized.slice(webdataIdx + 'webdata/'.length)}`;
+    }
+
+    const audiosIdx = normalized.indexOf('/audios/');
+    if (audiosIdx >= 0) {
+      return `${PUBLIC_BASE}${normalized.slice(audiosIdx)}`;
+    }
+
+    if (normalized.startsWith('audios/')) {
+      return `${PUBLIC_BASE}/${normalized}`;
+    }
+
+    const rel = normalized.startsWith('/') ? normalized : `/${normalized}`;
+    return `${PUBLIC_BASE}${rel}`;
+  }).filter(Boolean);
 }
 
 function resolveDocumentUrls(post) {
