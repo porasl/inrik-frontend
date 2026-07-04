@@ -9,6 +9,7 @@ import {
   updateGroup,
 } from '../services/groupsService';
 import { API_BASE } from '../../app.config.js';
+import { PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache, subscribePostsCacheUpdates } from '../services/postsService';
 import UploadModal from './UploadModal';
 import './GroupView.css';
@@ -49,7 +50,11 @@ function toPublicUrl(fsPath) {
   if (!fsPath) return '';
   if (/^https?:\/\//i.test(fsPath)) return fsPath;
   const normalized = String(fsPath).replace(/\\/g, '/');
-  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+  if (normalized.includes('/videos/')) {
+    return `${PUBLIC_BASE}${normalized.slice(normalized.indexOf('/videos/'))}`;
+  }
+  const rel = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `${PUBLIC_BASE}${rel}`;
 }
 
 function resolveHlsVideoUrl(post) {
@@ -83,7 +88,12 @@ function resolveVideoUrl(post) {
 }
 
 function resolveImageUrls(post) {
-  return toArray(post?.imageUrls).map(toPublicUrl).filter(Boolean);
+  return [
+    ...toArray(post?.imageUrls),
+    post?.imageUrl,
+    post?.photoUrls?.[0],
+    post?.photoUrl,
+  ].map(toPublicUrl).filter(Boolean);
 }
 
 function resolveAudioUrls(post) {
