@@ -64,6 +64,7 @@ export default function GroupView({ authFetch = fetch }) {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
+  const [groupPublicGroup, setGroupPublicGroup] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
   const [formError, setFormError] = useState('');
@@ -92,11 +93,6 @@ export default function GroupView({ authFetch = fetch }) {
   const memberGroups = useMemo(() => groups.filter((group) => !isOwner(group)), [groups, isOwner]);
 
   const loadGroups = useCallback(async () => {
-    if (!token) {
-      setLoadError('Please log in to view your groups.');
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setLoadError('');
     try {
@@ -161,6 +157,7 @@ export default function GroupView({ authFetch = fetch }) {
       const created = normalizeGroups([await createGroup(token, {
         name,
         description: groupDescription.trim(),
+        publicGroup: groupPublicGroup,
       }, authFetch)])[0];
       setGroups((current) => [created, ...current]);
       setGroupName('');
@@ -188,6 +185,7 @@ export default function GroupView({ authFetch = fetch }) {
       const updated = normalizeGroups([await updateGroup(token, editingGroup.id, {
         name,
         description: groupDescription.trim(),
+        publicGroup: groupPublicGroup,
       })])[0];
       applyGroupUpdate(updated);
       setNotice('Group updated successfully.');
@@ -293,6 +291,7 @@ export default function GroupView({ authFetch = fetch }) {
     setEditingGroupId(group.id);
     setGroupName(group.name || '');
     setGroupDescription(group.description || '');
+    setGroupPublicGroup(Boolean(group.publicGroup));
     setFormError('');
   };
 

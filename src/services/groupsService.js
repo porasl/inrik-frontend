@@ -14,7 +14,7 @@ export function subscribeGroupUpdates(listener) {
 function authHeaders(token, includeJson = false) {
   return {
     ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
-    Authorization: `Bearer ${token}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
