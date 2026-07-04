@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Hls from 'hls.js';
 import {
   addGroupMember,
   deleteGroup,
@@ -37,6 +38,164 @@ function memberName(member) {
     || [member.firstName, member.lastName].filter(Boolean).join(' ')
     || member.email
     || 'Member';
+}
+
+function toArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function toPublicUrl(fsPath) {
+  if (!fsPath) return '';
+  if (/^https?:\/\//i.test(fsPath)) return fsPath;
+  const normalized = String(fsPath).replace(/\\/g, '/');
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
+function resolveHlsVideoUrl(post) {
+  const raw = String(post?.hlsUrl || post?.hlsVideoUrls?.[0] || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const normalized = raw.replace(/\\/g, '/');
+  const webdataIdx = normalized.indexOf('webdata/');
+  if (webdataIdx >= 0) return `/${normalized.slice(webdataIdx + 'webdata/'.length)}`;
+  if (normalized.startsWith('/')) return normalized;
+  return `/${normalized}`;
+}
+
+function resolveVideoUrl(post) {
+  const candidates = [
+    ...toArray(post?.videoUrls),
+    post?.videoUrl,
+    post?.videoPath,
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const raw = String(candidate).trim();
+    if (!raw) continue;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const normalized = raw.replace(/\\/g, '/');
+    if (normalized.startsWith('/')) return normalized;
+    return `/${normalized}`;
+  }
+
+  return '';
+}
+
+function resolveImageUrls(post) {
+  return toArray(post?.imageUrls).map(toPublicUrl).filter(Boolean);
+}
+
+function resolveAudioUrls(post) {
+  return [...toArray(post?.audioUrls), ...toArray(post?.hlsAudioUrls), post?.audioUrl]
+    .map(toPublicUrl)
+    .filter(Boolean);
+}
+
+function resolveDocumentUrls(post) {
+  return [...toArray(post?.documentUrls), ...toArray(post?.documents)]
+    .map((entry) => (typeof entry === 'string' ? entry : entry?.url || entry?.path || entry?.fileUrl || entry?.documentUrl || ''))
+    .map(toPublicUrl)
+    .filter(Boolean);
+}
+
+function renderMediaPreview(post) {
+  const imageUrls = resolveImageUrls(post);
+  const audioUrls = resolveAudioUrls(post);
+  const documentUrls = resolveDocumentUrls(post);
+  const hlsVideoUrl = resolveHlsVideoUrl(post);
+  const videoUrl = resolveVideoUrl(post);
+  const attachmentCount = imageUrls.length + audioUrls.length + documentUrls.length + (hlsVideoUrl || videoUrl ? 1 : 0);
+
+  if (!attachmentCount) {
+    return (
+      <div className="text-muted border rounded-3 p-3 bg-light">
+        No preview available for this post.
+      </div>
+    );
+  }
+
+  return (
+    <div className="group-media-stack d-grid gap-3">
+      {imageUrls.length > 0 && (
+        <div>
+          <div className="small text-muted text-uppercase mb-2">
+            <i className="bi bi-images me-1" />
+            Images ({imageUrls.length})
+          </div>
+          <div className="d-grid gap-2">
+            {imageUrls.slice(0, 3).map((url, index) => (
+              <img key={`${url}-${index}`} src={url} alt="" className="img-fluid rounded-3 border" style={{ maxHeight: 220, objectFit: 'cover', width: '100%' }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {audioUrls.length > 0 && (
+        <div>
+          <div className="small text-muted text-uppercase mb-2">
+            <i className="bi bi-music-note-beamed me-1" />
+            Audio ({audioUrls.length})
+          </div>
+          <div className="d-grid gap-2">
+            {audioUrls.slice(0, 2).map((url, index) => (
+              <audio key={`${url}-${index}`} controls preload="metadata" className="w-100">
+                <source src={url} />
+              </audio>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(hlsVideoUrl || videoUrl) && (
+        <div>
+          <div className="small text-muted text-uppercase mb-2">
+            <i className="bi bi-film me-1" />
+            Video
+          </div>
+          <div className="ratio ratio-16x9 rounded-3 overflow-hidden border bg-dark">
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              className="w-100 h-100"
+              ref={(video) => {
+                if (!video) return;
+                const src = hlsVideoUrl || videoUrl;
+                if (!hlsVideoUrl) {
+                  video.src = src;
+                  return;
+                }
+                if (Hls.isSupported()) {
+                  const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                  hls.loadSource(src);
+                  hls.attachMedia(video);
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                  video.src = src;
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {documentUrls.length > 0 && (
+        <div>
+          <div className="small text-muted text-uppercase mb-2">
+            <i className="bi bi-file-earmark-text me-1" />
+            Documents ({documentUrls.length})
+          </div>
+          <div className="d-grid gap-2">
+            {documentUrls.slice(0, 3).map((url, index) => (
+              <a key={`${url}-${index}`} className="btn btn-outline-secondary w-100 text-start" href={url} target="_blank" rel="noreferrer">
+                Open attachment
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function normalizeGroups(payload) {
@@ -507,6 +666,39 @@ export default function GroupView({ authFetch = fetch }) {
             </div>
           </div>
 
+          {isOwner(selectedGroup) && (
+            <div className="border rounded-3 p-3 bg-light mb-4">
+              <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                <div>
+                  <div className="small text-muted text-uppercase mb-1">Members</div>
+                  <h6 className="mb-0">Invite a member</h6>
+                </div>
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => openMembers(selectedGroup)}>
+                  <i className="bi bi-people me-2" />
+                  Focus this group
+                </button>
+              </div>
+              <form className="row g-2 align-items-end" onSubmit={handleAddMember}>
+                <div className="col-md-8">
+                  <label className="form-label" htmlFor="group-member-email">Member email</label>
+                  <input
+                    id="group-member-email"
+                    className="form-control"
+                    type="email"
+                    value={memberEmail}
+                    onChange={(event) => setMemberEmail(event.target.value)}
+                    placeholder="name@example.com"
+                  />
+                </div>
+                <div className="col-md-4 d-flex gap-2">
+                  <button className="btn btn-primary flex-grow-1" type="submit" disabled={saving || !memberEmail.trim()}>
+                    {saving ? 'Adding...' : 'Add member'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           <div className="d-flex align-items-center justify-content-between mb-2">
             <h5 className="mb-0">Published content</h5>
             <button className="btn btn-sm btn-outline-secondary" onClick={loadGroupPosts} disabled={postsLoading}>
@@ -527,9 +719,7 @@ export default function GroupView({ authFetch = fetch }) {
                     <div className="small text-uppercase text-muted mb-1">Post</div>
                     <h6 className="mb-2 text-truncate">{post.title || post.description || 'Untitled post'}</h6>
                     <p className="small text-muted mb-2 text-truncate">{post.description || 'No description provided.'}</p>
-                    <div className="small text-secondary">
-                      {post.imageUrls?.length || post.videoUrls?.length || post.audioUrls?.length || post.documents?.length || 0} attachment(s)
-                    </div>
+                    {renderMediaPreview(post)}
                   </article>
                 </div>
               ))}
