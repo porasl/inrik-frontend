@@ -319,7 +319,7 @@ function ImageGallery({ imageUrls }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showLens, setShowLens] = useState(false);
   const [lensPos, setLensPos] = useState({ x: 0, y: 0, rectW: 1, rectH: 1 });
-  const [liked, setLiked] = useState(false);
+  const [likedByUrl, setLikedByUrl] = useState({});
   const imageSignature = imageUrls.join('|');
 
   useEffect(() => {
@@ -329,6 +329,7 @@ function ImageGallery({ imageUrls }) {
   if (!imageUrls.length) return null;
 
   const featured = imageUrls[Math.min(activeIndex, imageUrls.length - 1)] || imageUrls[0];
+  const liked = !!likedByUrl[featured];
   const thumbnails = imageUrls.slice(0, 8);
   const zoom = 1.8;
 
@@ -364,7 +365,10 @@ function ImageGallery({ imageUrls }) {
           className={`group-image-like ${liked ? 'is-liked' : ''}`}
           onClick={(event) => {
             event.stopPropagation();
-            setLiked((value) => !value);
+            setLikedByUrl((current) => ({
+              ...current,
+              [featured]: !current[featured],
+            }));
           }}
         >
           <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`} />
