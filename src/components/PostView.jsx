@@ -63,6 +63,9 @@ function resolveImageUrls(post) {
 
 function ImageGallery({ imageUrls, onImageOpen }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showLens, setShowLens] = useState(false);
+  const [lensPos, setLensPos] = useState({ x: 0, y: 0, rectW: 1, rectH: 1 });
+  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -72,12 +75,47 @@ function ImageGallery({ imageUrls, onImageOpen }) {
 
   const featured = imageUrls[Math.min(activeIndex, imageUrls.length - 1)] || imageUrls[0];
   const thumbnails = imageUrls.slice(0, 8);
+  const zoom = 1.8;
 
   return (
     <div className="postview-image-gallery">
-      <button type="button" className="postview-image-feature" onClick={() => onImageOpen?.(featured)}>
+      <div
+        className="postview-image-feature postview-image-feature--interactive"
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+          const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+          setLensPos({ x, y, rectW: rect.width, rectH: rect.height });
+          setShowLens(true);
+        }}
+        onMouseLeave={() => setShowLens(false)}
+      >
         <img src={featured} alt="Attachment" className="postview-image-feature-img" />
-      </button>
+        {showLens && (
+          <div
+            className="postview-image-lens"
+            aria-hidden="true"
+            style={{
+              left: lensPos.x - 70,
+              top: lensPos.y - 70,
+              backgroundImage: `url(${featured})`,
+              backgroundSize: `${lensPos.rectW * zoom}px ${lensPos.rectH * zoom}px`,
+              backgroundPosition: `${((lensPos.x / lensPos.rectW) * 100).toFixed(2)}% ${((lensPos.y / lensPos.rectH) * 100).toFixed(2)}%`,
+            }}
+          />
+        )}
+        <button
+          type="button"
+          className={`postview-image-like ${liked ? 'is-liked' : ''}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setLiked((value) => !value);
+          }}
+        >
+          <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`} />
+          Like
+        </button>
+      </div>
       {imageUrls.length > 1 && (
         <div className="postview-image-strip">
           {thumbnails.map((url, index) => (
@@ -87,7 +125,6 @@ function ImageGallery({ imageUrls, onImageOpen }) {
               className={`postview-image-thumb ${index === activeIndex ? 'is-active' : ''}`}
               onClick={() => {
                 setActiveIndex(index);
-                onImageOpen?.(url);
               }}
             >
               <img src={url} alt="" />
@@ -782,7 +819,6 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
   const [views, setViews] = useState(post?.views || 0);
   const [showComments, setShowComments] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [openImageUrl, setOpenImageUrl] = useState('');
 
   const title = String(post?.title || post?.description || 'Untitled Post').trim();
   const videoUrl = useMemo(() => resolveVideoUrl(post), [post]);
@@ -874,7 +910,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
         {imageUrls.length > 0 && (
           <div className="postview-attachment-block">
             <div className="postview-attachment-label"><i className="bi bi-images me-1"></i>Images ({imageUrls.length})</div>
-            <ImageGallery imageUrls={imageUrls} onImageOpen={setOpenImageUrl} />
+            <ImageGallery imageUrls={imageUrls} />
           </div>
         )}
 
@@ -946,12 +982,6 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
           onClose={() => setShowEditModal(false)}
           onSaved={onUpdated}
         />
-      )}
-      {openImageUrl && (
-        <div className="postview-image-lightbox" role="dialog" aria-modal="true" onClick={() => setOpenImageUrl('')}>
-          <button type="button" className="postview-image-lightbox-close" onClick={() => setOpenImageUrl('')}>×</button>
-          <img src={openImageUrl} alt="Expanded attachment" className="postview-image-lightbox-img" onClick={(e) => e.stopPropagation()} />
-        </div>
       )}
     </article>
   );

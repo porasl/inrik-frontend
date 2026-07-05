@@ -11,6 +11,7 @@ import {
 import { API_BASE } from '../../app.config.js';
 import { PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache, subscribePostsCacheUpdates } from '../services/postsService';
+import { getUserProfileCached } from '../services/userProfileService';
 import UploadModal from './UploadModal';
 import './GroupView.css';
 
@@ -39,6 +40,224 @@ function memberName(member) {
     || [member.firstName, member.lastName].filter(Boolean).join(' ')
     || member.email
     || 'Member';
+}
+
+function isLikelyFileLabel(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return /[\w-]+\.(jpg|jpeg|png|gif|webp|bmp|svg|mp3|wav|aac|ogg|m4a|flac|mp4|mov|avi|mkv|webm|pdf|docx?|xlsx?|csv|txt)$/i.test(text)
+    || /^[\w-]+(?:_[\w-]+)+$/i.test(text);
+}
+
+function postHeading(post) {
+  const title = String(post?.title || '').trim();
+  const description = String(post?.description || '').trim();
+
+  if (description) return description;
+  if (title && !isLikelyFileLabel(title)) return title;
+  return '';
+}
+
+function resolveOwnerAvatar(post) {
+  const candidate = post?.user?.avatar
+    || post?.userProfileImageUrl
+    || post?.user?.profileImageUrl
+    || post?.profileImageUrl
+    || post?.profile_image_url
+    || '';
+  return toPublicUrl(candidate);
+}
+
+function GroupPostOwnerAvatar({ post }) {
+  const owner = ownerLabel(post);
+  const [avatar, setAvatar] = useState(resolveOwnerAvatar(post));
+  const [hasError, setHasError] = useState(false);
+  const email = ownerEmail(post);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHasError(false);
+    setAvatar(resolveOwnerAvatar(post));
+
+    if (resolveOwnerAvatar(post)) return () => { cancelled = true; };
+    if (!email || !email.includes('@')) return () => { cancelled = true; };
+
+    getUserProfileCached(email.toLowerCase())
+      .then((profile) => {
+        if (cancelled) return;
+        const profileAvatar = String(profile?.profileImageUrl || '').trim();
+        if (profileAvatar) setAvatar(toPublicUrl(profileAvatar));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post, email]);
+
+  return (
+    <div
+      title={email || owner}
+      aria-label={email || owner}
+      className="group-post-owner-wrap"
+    >
+      {avatar && !hasError ? (
+        <img
+          src={avatar}
+          alt={owner}
+          className="postview-owner-avatar group-post-owner-avatar"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <div className="postview-owner-fallback postview-owner-fallback--group group-post-owner-avatar" aria-hidden="true">
+          <i className="bi bi-person-fill" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ownerLabel(post) {
+  return [post?.userFirstName, post?.userLastName].filter(Boolean).join(' ')
+    || post?.author
+    || post?.email
+    || 'User';
+}
+
+function ownerEmail(post) {
+  return String(post?.email || post?.author || '').trim();
+}
+
+function GroupComments({ postId }) {
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (!postId || loaded) return;
+      const tokenValue = localStorage.getItem('token');
+      if (!tokenValue) return;
+
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_BASE}/graphql`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenValue}` },
+          body: JSON.stringify({
+            query: `query { getComments(postId: "${postId}") { id text userEmail createdAt } }`,
+          }),
+        });
+        const json = await response.json();
+        if (!cancelled) {
+          setComments(json?.data?.getComments || []);
+          setLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setComments([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [postId, loaded]);
+
+  if (loading) return <div className="small text-secondary mt-3">Loading comments...</div>;
+
+  const addComment = async (event) => {
+    event.preventDefault();
+    const tokenValue = localStorage.getItem('token');
+    if (!tokenValue) {
+      alert('Please log in to comment.');
+      return;
+    }
+
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return;
+
+    try {
+      const escaped = trimmed.replace(/"/g, '\\"');
+      const response = await fetch(`${API_BASE}/graphql`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenValue}` },
+        body: JSON.stringify({
+          query: `mutation { addComment(postId: "${postId}", text: "${escaped}") { id text userEmail createdAt } }`,
+        }),
+      });
+      const json = await response.json();
+      const newComment = json?.data?.addComment;
+      if (newComment) {
+        setComments((prev) => [newComment, ...prev]);
+        setText('');
+      }
+    } catch {
+      // Ignore UI comment errors.
+    }
+  };
+
+  return (
+    <div className="mt-3 pt-2 border-top">
+      <form className="d-flex gap-2 mb-2" onSubmit={addComment}>
+        <input
+          className="form-control form-control-sm"
+          placeholder="Write a comment..."
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+        />
+        <button type="submit" className="btn btn-sm btn-primary">Comment</button>
+      </form>
+      <div className="small text-muted mb-2">Comments</div>
+      {!comments.length && <div className="small text-secondary">No comments yet.</div>}
+      <div className="d-grid gap-2">
+        {comments.slice(0, 3).map((comment) => (
+          <div key={comment.id} className="small bg-light border rounded-3 p-2">
+            <div className="text-muted">{comment.userEmail || 'User'}</div>
+            <div>{comment.text}</div>
+          </div>
+        ))}
+        {comments.length > 3 && <div className="small text-muted">+{comments.length - 3} more</div>}
+      </div>
+    </div>
+  );
+}
+
+function canCurrentUserEditPost(post) {
+  const viewerEmail = String(localStorage.getItem('email') || localStorage.getItem('author') || '').trim().toLowerCase();
+  const viewerId = String(localStorage.getItem('userId') || '').trim().toLowerCase();
+  const postEmailCandidates = [
+    post?.email,
+    post?.author,
+    post?.user?.email,
+    post?.userEmail,
+    post?.ownerEmail,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  const postUserIdCandidates = [
+    post?.userId,
+    post?.ownerId,
+    post?.user?.id,
+    post?.user?.userId,
+    post?.authorId,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!viewerEmail && !viewerId) return false;
+  if (viewerEmail && postEmailCandidates.includes(viewerEmail)) return true;
+  if (viewerId && postUserIdCandidates.includes(viewerId)) return true;
+  return false;
+}
+
+function postIconLabel(post) {
+  return post?.type || 'Post';
 }
 
 function toArray(value) {
@@ -98,7 +317,9 @@ function resolveImageUrls(post) {
 
 function ImageGallery({ imageUrls }) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [openImageUrl, setOpenImageUrl] = useState('');
+  const [showLens, setShowLens] = useState(false);
+  const [lensPos, setLensPos] = useState({ x: 0, y: 0, rectW: 1, rectH: 1 });
+  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -108,12 +329,47 @@ function ImageGallery({ imageUrls }) {
 
   const featured = imageUrls[Math.min(activeIndex, imageUrls.length - 1)] || imageUrls[0];
   const thumbnails = imageUrls.slice(0, 8);
+  const zoom = 1.8;
 
   return (
     <div className="group-image-gallery">
-      <button type="button" className="group-image-feature" onClick={() => setOpenImageUrl(featured)}>
+      <div
+        className="group-image-feature group-image-feature--interactive"
+        onMouseMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+          const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+          setLensPos({ x, y, rectW: rect.width, rectH: rect.height });
+          setShowLens(true);
+        }}
+        onMouseLeave={() => setShowLens(false)}
+        >
         <img src={featured} alt="" className="group-image-feature-img" />
-      </button>
+        {showLens && (
+          <div
+            className="group-image-lens"
+            aria-hidden="true"
+            style={{
+              left: lensPos.x - 70,
+              top: lensPos.y - 70,
+              backgroundImage: `url(${featured})`,
+              backgroundSize: `${lensPos.rectW * zoom}px ${lensPos.rectH * zoom}px`,
+              backgroundPosition: `${((lensPos.x / lensPos.rectW) * 100).toFixed(2)}% ${((lensPos.y / lensPos.rectH) * 100).toFixed(2)}%`,
+            }}
+          />
+        )}
+        <button
+          type="button"
+          className={`group-image-like ${liked ? 'is-liked' : ''}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setLiked((value) => !value);
+          }}
+        >
+          <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`} />
+          Like
+        </button>
+      </div>
       {imageUrls.length > 1 && (
         <div className="group-image-strip">
           {thumbnails.map((url, index) => (
@@ -123,18 +379,11 @@ function ImageGallery({ imageUrls }) {
               className={`group-image-thumb ${index === activeIndex ? 'is-active' : ''}`}
               onClick={() => {
                 setActiveIndex(index);
-                setOpenImageUrl(url);
               }}
             >
               <img src={url} alt="" />
             </button>
           ))}
-        </div>
-      )}
-      {openImageUrl && (
-        <div className="group-image-lightbox" role="dialog" aria-modal="true" onClick={() => setOpenImageUrl('')}>
-          <button type="button" className="group-image-lightbox-close" onClick={() => setOpenImageUrl('')}>×</button>
-          <img src={openImageUrl} alt="Expanded attachment" className="group-image-lightbox-img" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
@@ -200,20 +449,12 @@ function renderMediaPreview(post) {
     <div className="group-media-stack d-grid gap-3">
       {imageUrls.length > 0 && (
         <div>
-          <div className="small text-muted text-uppercase mb-2">
-            <i className="bi bi-images me-1" />
-            Images ({imageUrls.length})
-          </div>
           <ImageGallery imageUrls={imageUrls} />
         </div>
       )}
 
       {audioUrls.length > 0 && (
         <div>
-          <div className="small text-muted text-uppercase mb-2">
-            <i className="bi bi-music-note-beamed me-1" />
-            Audio ({audioUrls.length})
-          </div>
           <div className="d-grid gap-2">
             {audioUrls.slice(0, 2).map((url, index) => (
               <audio key={`${url}-${index}`} controls preload="metadata" className="w-100">
@@ -226,10 +467,6 @@ function renderMediaPreview(post) {
 
       {(hlsVideoUrl || videoUrl) && (
         <div>
-          <div className="small text-muted text-uppercase mb-2">
-            <i className="bi bi-film me-1" />
-            Video
-          </div>
           <div className="ratio ratio-16x9 rounded-3 overflow-hidden border bg-dark">
             <video
               controls
@@ -258,10 +495,6 @@ function renderMediaPreview(post) {
 
       {documentUrls.length > 0 && (
         <div>
-          <div className="small text-muted text-uppercase mb-2">
-            <i className="bi bi-file-earmark-text me-1" />
-            Documents ({documentUrls.length})
-          </div>
           <div className="d-grid gap-2">
             {documentUrls.slice(0, 3).map((url, index) => (
               <a key={`${url}-${index}`} className="btn btn-outline-secondary w-100 text-start" href={url} target="_blank" rel="noreferrer">
@@ -294,6 +527,7 @@ export default function GroupView({ authFetch = fetch }) {
   const [loadError, setLoadError] = useState('');
   const [postsError, setPostsError] = useState('');
   const [notice, setNotice] = useState('');
+  const [openCommentsFor, setOpenCommentsFor] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showGroupImagePicker, setShowGroupImagePicker] = useState(false);
@@ -451,6 +685,123 @@ export default function GroupView({ authFetch = fetch }) {
     }
   };
 
+  const handleToggleLike = async (post) => {
+    const tokenValue = localStorage.getItem('token');
+    if (!tokenValue) {
+      setFormError('Please log in to like posts.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/graphql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenValue}`,
+        },
+        body: JSON.stringify({
+          query: `mutation { toggleLike(postId: "${post.id}") { id likes isLikedByCurrentUser } }`,
+        }),
+      });
+      const json = await response.json();
+      const updated = json?.data?.toggleLike;
+      if (updated) {
+        setGroupPosts((current) => current.map((item) => (
+          item.id === post.id ? { ...item, likes: updated.likes || 0, isLikedByCurrentUser: !!updated.isLikedByCurrentUser } : item
+        )));
+      }
+    } catch (error) {
+      setFormError(error.message || 'Could not like the post.');
+    }
+  };
+
+  const handleIncrementView = async (post) => {
+    const tokenValue = localStorage.getItem('token');
+    try {
+      if (!tokenValue) {
+        setGroupPosts((current) => current.map((item) => (
+          item.id === post.id ? { ...item, views: (item.views || 0) + 1 } : item
+        )));
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/graphql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenValue}`,
+        },
+        body: JSON.stringify({
+          query: `mutation { incrementPostViews(postId: "${post.id}") { id views } }`,
+        }),
+      });
+      const json = await response.json();
+      const updated = json?.data?.incrementPostViews;
+      if (updated && typeof updated.views === 'number') {
+        setGroupPosts((current) => current.map((item) => (
+          item.id === post.id ? { ...item, views: updated.views } : item
+        )));
+      }
+    } catch (error) {
+      setFormError(error.message || 'Could not update post views.');
+    }
+  };
+
+  const handleDeletePost = async (post) => {
+    if (!window.confirm('Delete this post?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/graphql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          query: `mutation($postId: String!) { deletePost(postId: $postId) }`,
+          variables: { postId: post.id },
+        }),
+      });
+      if (!response.ok) throw new Error('Delete failed');
+      setGroupPosts((current) => current.filter((item) => item.id !== post.id));
+      setNotice('Post deleted successfully.');
+    } catch (error) {
+      setFormError(error.message || 'Could not delete the post.');
+    }
+  };
+
+  const handleEditPost = async (post) => {
+    const nextDescription = window.prompt('Edit post description', String(post?.description || ''));
+    if (nextDescription == null) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/posts/update`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: post.id,
+          description: nextDescription.trim(),
+          author: post.author || post.email || '',
+          email: post.email || post.author || '',
+          ispublic: post.ispublic ?? true,
+          ismemory: post.ismemory ?? false,
+          isevent: post.isevent ?? false,
+          isslice: post.isslice ?? false,
+          groupId: post.groupId || '',
+        }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      setGroupPosts((current) => current.map((item) => (
+        item.id === post.id ? { ...item, description: nextDescription.trim() } : item
+      )));
+      setNotice('Post updated successfully.');
+    } catch (error) {
+      setFormError(error.message || 'Could not update the post.');
+    }
+  };
+
   const handleRemoveMember = async (member) => {
     if (!selectedGroup) return;
     const id = getId(member) || String(member.userId || '');
@@ -532,10 +883,10 @@ export default function GroupView({ authFetch = fetch }) {
   };
 
   return (
-    <div className="groups-shell border rounded-3 bg-white shadow-sm p-3 p-md-4">
-      <div className="groups-heading d-flex justify-content-between align-items-center mb-4">
+    <div className="groups-shell border rounded-3 bg-white shadow-sm p-3 p-md-3">
+      <div className="groups-heading d-flex justify-content-between align-items-center mb-2">
         <div>
-          <h2 className="mb-1">Groups</h2>
+          <h4 className="mb-1">Groups</h4>
         </div>
         <button className="btn btn-primary" onClick={() => { setFormError(''); setShowCreateModal(true); }}>
           <i className="bi bi-plus-lg me-2" />Create group
@@ -565,6 +916,120 @@ export default function GroupView({ authFetch = fetch }) {
           <h5 className="mt-3">No groups yet</h5>
           <p className="text-muted mb-3">Create your first group and invite members by email.</p>
           <button className="btn btn-outline-primary" onClick={() => setShowCreateModal(true)}>Create a group</button>
+        </div>
+      ) : selectedGroup ? (
+        <div className="selected-group-panel border rounded-3 bg-white shadow-sm p-2 p-md-2 mt-2">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+            <div className="d-flex align-items-center gap-3 min-w-0">
+              <div className="group-avatar group-avatar--sm" aria-hidden="true">
+                {groupAvatarUrl(selectedGroup) ? (
+                  <img src={groupAvatarUrl(selectedGroup)} alt="" />
+                ) : initials(selectedGroup.name)}
+              </div>
+              <div className="min-w-0">
+                <h6 className="mb-0 text-truncate group-title-small">{selectedGroup.name}</h6>
+                <div className="small text-muted group-role-small">
+                  {isOwner(selectedGroup) ? 'Owner' : 'Member'}
+                  <span className="mx-2">•</span>
+                  {selectedGroup.members.length} member{selectedGroup.members.length === 1 ? '' : 's'}
+                </div>
+              </div>
+            </div>
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedGroupId('')}>
+                <i className="bi bi-arrow-left me-1" />
+                Back to groups
+              </button>
+              <button className="btn btn-primary" onClick={() => setShowUploadModal(true)} aria-label="Upload to group" title="Upload to group">
+                <i className="bi bi-cloud-upload" />
+              </button>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={loadGroupPosts}
+                disabled={postsLoading}
+                aria-label="Refresh group content"
+                title="Refresh group content"
+              >
+                <i className={`bi ${postsLoading ? 'bi-arrow-repeat spin' : 'bi-arrow-clockwise'}`} />
+              </button>
+            </div>
+          </div>
+
+          {postsError ? (
+            <div className="alert alert-danger">{postsError}</div>
+          ) : postsLoading ? (
+            <div className="text-muted py-3">Loading group content...</div>
+          ) : selectedGroupPosts.length === 0 ? (
+            <div className="text-muted border rounded-3 p-3 bg-light">No content has been uploaded to this group yet.</div>
+          ) : (
+            <div className="d-grid gap-3">
+              {selectedGroupPosts.map((post) => (
+                <article key={post.id} className="border rounded-3 p-2 bg-white w-100">
+                  <div className="d-flex align-items-start gap-2 mb-2">
+                    <div className="min-w-0 flex-grow-1">
+                      {postHeading(post) && <h6 className="mb-1 text-truncate">{postHeading(post)}</h6>}
+                      {String(post?.description || '').trim() && (
+                        <div className="small text-muted">{post.description}</div>
+                      )}
+                    </div>
+                  </div>
+                  {renderMediaPreview(post)}
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 pt-2 border-top">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <div className="d-flex align-items-center gap-2">
+                        <GroupPostOwnerAvatar post={post} />
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => setOpenCommentsFor((current) => (current === post.id ? '' : post.id))}
+                        >
+                          <i className="bi bi-chat-left-text me-1" />
+                          Comments
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${post.isLikedByCurrentUser ? 'btn-danger' : 'btn-outline-secondary'}`}
+                        onClick={() => handleToggleLike(post)}
+                      >
+                        <i className={`bi ${post.isLikedByCurrentUser ? 'bi-heart-fill' : 'bi-heart'} me-1`} />
+                        {post.likes || 0}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => handleIncrementView(post)}
+                      >
+                        <i className="bi bi-eye me-1" />
+                        {post.views || 0}
+                      </button>
+                    </div>
+                    {canCurrentUserEditPost(post) && (
+                      <div className="d-flex align-items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleEditPost(post)}
+                        >
+                          <i className="bi bi-pencil-square me-1" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => handleDeletePost(post)}
+                        >
+                          <i className="bi bi-trash me-1" />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {openCommentsFor === post.id && <GroupComments postId={post.id} />}
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -691,116 +1156,6 @@ export default function GroupView({ authFetch = fetch }) {
           </div>
         </div>
         </>
-      )}
-
-      {selectedGroup && (
-        <div className="border rounded-3 bg-white shadow-sm p-3 p-md-4 mt-4">
-          <div className="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
-            <div className="d-flex align-items-center gap-3">
-              <div className="group-avatar group-avatar--lg" aria-hidden="true">
-                {groupAvatarUrl(selectedGroup) ? (
-                  <img src={groupAvatarUrl(selectedGroup)} alt="" />
-                ) : initials(selectedGroup.name)}
-              </div>
-              <div>
-              <h3 className="mb-1">{selectedGroup.name}</h3>
-              </div>
-            </div>
-            <div className="d-flex gap-2">
-              <label className="btn btn-outline-primary mb-0">
-                <i className="bi bi-image me-2" />
-                {selectedGroup.groupImageUrl ? 'Change image' : 'Upload image'}
-                <input type="file" accept="image/*" className="d-none" onChange={handleUploadGroupImage} />
-              </label>
-              <button className="btn btn-primary" onClick={() => setShowUploadModal(true)}>
-                <i className="bi bi-cloud-upload me-2" />
-                Upload to group
-              </button>
-              <button className="btn btn-outline-secondary" onClick={() => setSelectedGroupId('')}>
-                Close
-              </button>
-            </div>
-          </div>
-
-          <div className="row g-3 mb-4">
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 h-100 bg-light">
-                <div className="small text-muted text-uppercase mb-1">Owner</div>
-                <div className="fw-semibold">{memberName(selectedGroup.owner || {})}</div>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 h-100 bg-light">
-                <div className="small text-muted text-uppercase mb-1">Members</div>
-                <div className="fw-semibold">{selectedGroup.members.length}</div>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="border rounded-3 p-3 h-100 bg-light">
-                <div className="small text-muted text-uppercase mb-1">Group ID</div>
-                <div className="fw-semibold text-truncate">{selectedGroup.id}</div>
-              </div>
-            </div>
-          </div>
-
-          {isOwner(selectedGroup) && (
-            <div className="border rounded-3 p-3 bg-light mb-4">
-              <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
-                <div>
-                  <div className="small text-muted text-uppercase mb-1">Members</div>
-                  <h6 className="mb-0">Invite a member</h6>
-                </div>
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => openMembers(selectedGroup)}>
-                  <i className="bi bi-people me-2" />
-                  Focus this group
-                </button>
-              </div>
-              <form className="row g-2 align-items-end" onSubmit={handleAddMember}>
-                <div className="col-md-8">
-                  <label className="form-label" htmlFor="group-member-email">Member email</label>
-                  <input
-                    id="group-member-email"
-                    className="form-control"
-                    type="email"
-                    value={memberEmail}
-                    onChange={(event) => setMemberEmail(event.target.value)}
-                    placeholder="name@example.com"
-                  />
-                </div>
-                <div className="col-md-4 d-flex gap-2">
-                  <button className="btn btn-primary flex-grow-1" type="submit" disabled={saving || !memberEmail.trim()}>
-                    {saving ? 'Adding...' : 'Add member'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="d-flex align-items-center justify-content-between mb-2">
-            <h5 className="mb-0">Published content</h5>
-            <button className="btn btn-sm btn-outline-secondary" onClick={loadGroupPosts} disabled={postsLoading}>
-              Refresh
-            </button>
-          </div>
-          {postsError ? (
-            <div className="alert alert-danger">{postsError}</div>
-          ) : postsLoading ? (
-            <div className="text-muted py-3">Loading group content...</div>
-          ) : selectedGroupPosts.length === 0 ? (
-            <div className="text-muted border rounded-3 p-3 bg-light">No content has been uploaded to this group yet.</div>
-          ) : (
-            <div className="d-grid gap-3">
-              {selectedGroupPosts.map((post) => (
-                <article key={post.id} className="border rounded-3 p-3 bg-white w-100">
-                  <div className="small text-uppercase text-muted mb-1">Post</div>
-                  <h6 className="mb-2">{post.title || post.description || 'Untitled post'}</h6>
-                  <p className="small text-muted mb-3">{post.description || 'No description provided.'}</p>
-                  {renderMediaPreview(post)}
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       {showCreateModal && (

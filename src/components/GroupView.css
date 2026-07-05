@@ -2,6 +2,10 @@
   min-height: 520px;
 }
 
+.groups-heading h4 {
+  margin-bottom: 0;
+}
+
 .group-card {
   border: 1px solid #e8ecf2;
   border-radius: 16px;
@@ -38,10 +42,60 @@
   width: 72px;
 }
 
+.group-avatar--sm {
+  height: 40px;
+  width: 40px;
+  font-size: 0.95rem;
+}
+
+.group-title-small {
+  font-size: 0.98rem;
+  line-height: 1.1;
+}
+
+.group-role-small {
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
 .member-avatar {
   border-radius: 50%;
   height: 42px;
   width: 42px;
+}
+
+.postview-owner-fallback--group {
+  align-items: center;
+  background: linear-gradient(135deg, #e8eeff, #d9e5ff);
+  border-radius: 50%;
+  color: #315ec7;
+  display: inline-flex;
+  justify-content: center;
+  font-size: 0.95rem;
+  box-shadow: inset 0 0 0 1px rgba(49, 94, 199, 0.12);
+}
+
+.group-post-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #315ec7;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  flex: 0 0 auto;
+}
+
+.group-post-owner-wrap {
+  flex: 0 0 auto;
+}
+
+.group-post-owner-avatar {
+  width: 36px;
+  height: 36px;
 }
 
 .group-avatar img,

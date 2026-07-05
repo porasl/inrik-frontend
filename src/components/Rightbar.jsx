@@ -77,6 +77,7 @@ export default function Rightbar({
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupsError, setGroupsError] = useState('');
+  const [groupsCollapsed, setGroupsCollapsed] = useState(true);
   const authFetchRef = useRef(authFetch);
 
   useEffect(() => {
@@ -293,11 +294,11 @@ export default function Rightbar({
           href="https://bazaartoday.com"
           target="_blank"
           rel="noreferrer"
-          className="d-block text-decoration-none mb-3"
+          className="d-block text-decoration-none mb-3 rightbar-ad-link"
         >
-          <div className="rounded-3 border p-3 shadow-sm" style={{ background: 'linear-gradient(135deg, #fff7e6 0%, #ffffff 100%)' }}>
-            <div className="d-flex align-items-start gap-3">
-              <div className="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center overflow-hidden" style={{ width: 52, height: 52, background: '#fff' }}>
+          <div className="rounded-3 border p-2 shadow-sm rightbar-ad-card" style={{ background: 'linear-gradient(135deg, #fff7e6 0%, #ffffff 100%)' }}>
+            <div className="d-flex align-items-start gap-2 rightbar-ad-row">
+              <div className="flex-shrink-0 rounded-3 d-flex align-items-center justify-content-center overflow-hidden rightbar-ad-logo" style={{ background: '#fff' }}>
                 <img
                   src="/resources/images/bazaartoday.png"
                   alt="Bazaar Today"
@@ -375,17 +376,27 @@ export default function Rightbar({
                 <h6 id="rightbar-groups-heading" className="small fw-bold text-secondary mb-0">
                   Groups ({groups.length})
                 </h6>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary py-0 px-2"
+                  onClick={() => setGroupsCollapsed((current) => !current)}
+                  aria-expanded={!groupsCollapsed}
+                  aria-controls="rightbar-groups-list"
+                  title={groupsCollapsed ? 'Expand groups list' : 'Collapse groups list'}
+                >
+                  <i className={`bi ${groupsCollapsed ? 'bi-chevron-down' : 'bi-chevron-up'}`} />
+                </button>
               </div>
 
-              {groupsError ? (
+              {!groupsCollapsed && groupsError ? (
                 <div className="small text-danger p-2 border rounded">{groupsError}</div>
-              ) : groupsLoading && groups.length === 0 ? (
+              ) : !groupsCollapsed && groupsLoading && groups.length === 0 ? (
                 <div className="small text-secondary p-2">
                   <span className="spinner-border spinner-border-sm me-2" aria-hidden="true" />
                   Loading groups
                 </div>
-              ) : filteredGroups.length > 0 ? (
-                <ul className="list-unstyled mb-0">
+              ) : !groupsCollapsed && filteredGroups.length > 0 ? (
+                <ul id="rightbar-groups-list" className="list-unstyled mb-0">
                   {filteredGroups.map((group) => (
                     <li key={group.id} className="mb-1">
                       <button
@@ -402,9 +413,6 @@ export default function Rightbar({
                         </span>
                         <span className="min-w-0 flex-grow-1">
                           <span className="d-block fw-medium text-dark text-truncate">{group.name}</span>
-                          <span className="d-block small text-secondary">
-                            {group.memberCount ?? group.members?.length ?? 0} members
-                          </span>
                         </span>
                         <span className={`badge flex-shrink-0 ${group.isOwner ? 'text-bg-warning' : 'text-bg-light border text-secondary'}`}>
                           {group.isOwner ? 'OWNER' : 'MEMBER'}
@@ -413,11 +421,11 @@ export default function Rightbar({
                     </li>
                   ))}
                 </ul>
-              ) : (
+              ) : !groupsCollapsed ? (
                 <div className="small text-secondary p-2 bg-light rounded">
                   {normalizedQuery ? 'No matching groups' : 'No groups yet'}
                 </div>
-              )}
+              ) : null}
             </section>
 
             <section className="p-3 bg-white border rounded-3 shadow-sm" aria-labelledby="rightbar-connections-heading">

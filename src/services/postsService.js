@@ -24,6 +24,7 @@ const GET_POSTS_QUERY_EXTENDED = `
         views
         likes
         isLikedByCurrentUser
+        comments
         userProfileImageUrl
         userFirstName
         userLastName
@@ -51,6 +52,7 @@ const GET_POSTS_QUERY = `
         views
         likes
         isLikedByCurrentUser
+        comments
         userProfileImageUrl
         userFirstName
         userLastName
