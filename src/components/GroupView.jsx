@@ -320,10 +320,11 @@ function ImageGallery({ imageUrls }) {
   const [showLens, setShowLens] = useState(false);
   const [lensPos, setLensPos] = useState({ x: 0, y: 0, rectW: 1, rectH: 1 });
   const [liked, setLiked] = useState(false);
+  const imageSignature = imageUrls.join('|');
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [imageUrls]);
+  }, [imageSignature]);
 
   if (!imageUrls.length) return null;
 
@@ -449,7 +450,7 @@ function renderMediaPreview(post) {
     <div className="group-media-stack d-grid gap-3">
       {imageUrls.length > 0 && (
         <div>
-          <ImageGallery imageUrls={imageUrls} />
+          <ImageGallery key={imageUrls.join('|')} imageUrls={imageUrls} />
         </div>
       )}
 
