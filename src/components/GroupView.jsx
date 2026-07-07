@@ -13,6 +13,7 @@ import { PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache, subscribePostsCacheUpdates } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
 import UploadModal from './UploadModal';
+import PostComments from './PostComments';
 import './GroupView.css';
 
 function getId(value) {
@@ -126,106 +127,6 @@ function ownerLabel(post) {
 
 function ownerEmail(post) {
   return String(post?.email || post?.author || '').trim();
-}
-
-function GroupComments({ postId }) {
-  const [comments, setComments] = useState([]);
-  const [text, setText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      if (!postId || loaded) return;
-      const tokenValue = localStorage.getItem('token');
-      if (!tokenValue) return;
-
-      setLoading(true);
-      try {
-        const response = await fetch(`${API_BASE}/graphql`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenValue}` },
-          body: JSON.stringify({
-            query: `query { getComments(postId: "${postId}") { id text userEmail createdAt } }`,
-          }),
-        });
-        const json = await response.json();
-        if (!cancelled) {
-          setComments(json?.data?.getComments || []);
-          setLoaded(true);
-        }
-      } catch {
-        if (!cancelled) setComments([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [postId, loaded]);
-
-  if (loading) return <div className="small text-secondary mt-3">Loading comments...</div>;
-
-  const addComment = async (event) => {
-    event.preventDefault();
-    const tokenValue = localStorage.getItem('token');
-    if (!tokenValue) {
-      alert('Please log in to comment.');
-      return;
-    }
-
-    const trimmed = String(text || '').trim();
-    if (!trimmed) return;
-
-    try {
-      const escaped = trimmed.replace(/"/g, '\\"');
-      const response = await fetch(`${API_BASE}/graphql`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenValue}` },
-        body: JSON.stringify({
-          query: `mutation { addComment(postId: "${postId}", text: "${escaped}") { id text userEmail createdAt } }`,
-        }),
-      });
-      const json = await response.json();
-      const newComment = json?.data?.addComment;
-      if (newComment) {
-        setComments((prev) => [newComment, ...prev]);
-        setText('');
-      }
-    } catch {
-      // Ignore UI comment errors.
-    }
-  };
-
-  return (
-    <div className="mt-3 pt-2 border-top">
-      <form className="d-flex gap-2 mb-2" onSubmit={addComment}>
-        <input
-          className="form-control form-control-sm"
-          placeholder="Write a comment..."
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
-        <button type="submit" className="btn btn-sm btn-primary">Comment</button>
-      </form>
-      <div className="small text-muted mb-2">Comments</div>
-      {!comments.length && <div className="small text-secondary">No comments yet.</div>}
-      <div className="d-grid gap-2">
-        {comments.slice(0, 3).map((comment) => (
-          <div key={comment.id} className="small bg-light border rounded-3 p-2">
-            <div className="text-muted">{comment.userEmail || 'User'}</div>
-            <div>{comment.text}</div>
-          </div>
-        ))}
-        {comments.length > 3 && <div className="small text-muted">+{comments.length - 3} more</div>}
-      </div>
-    </div>
-  );
 }
 
 function canCurrentUserEditPost(post) {
@@ -1030,7 +931,9 @@ export default function GroupView({ authFetch = fetch }) {
                       </div>
                     )}
                   </div>
-                  {openCommentsFor === post.id && <GroupComments postId={post.id} />}
+                  {openCommentsFor === post.id && (
+                    <PostComments postId={post.id} className="mt-3 pt-2 border-top" compact autoLoad />
+                  )}
                 </article>
               ))}
             </div>

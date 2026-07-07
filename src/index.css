@@ -475,6 +475,33 @@ html {
   max-width: 100%;
 }
 
+.rightbar-connection-row {
+  min-width: 0;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.rightbar-connection-name {
+  min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.15;
+}
+
+.rightbar-connection-meta {
+  max-width: 50%;
+  min-width: 0;
+}
+
+.rightbar-pending-badge {
+  white-space: normal;
+  max-width: 100%;
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 0.35rem 0.45rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 /* --- 7. Responsive Breakdown --- */
 
 /* Breakpoint 1: Keep rightbar visible on medium screens */
@@ -506,8 +533,29 @@ html {
   .rightbar .btn,
   .rightbar .form-control,
   .rightbar .rightbar-group-row,
-  .rightbar .rightbar-person-row {
-    font-size: 0.74rem;
+  .rightbar .rightbar-person-row,
+  .rightbar .rightbar-connection-name,
+  .rightbar .rightbar-pending-badge {
+    font-size: 0.72rem;
+  }
+
+  .rightbar-connection-row {
+    flex-wrap: wrap;
+  }
+
+  .rightbar-connection-meta {
+    max-width: 100%;
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .rightbar-connection-name {
+    font-size: 0.78rem;
+  }
+
+  .rightbar-pending-badge {
+    font-size: 0.6rem;
   }
 }
 

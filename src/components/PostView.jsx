@@ -4,6 +4,7 @@ import Hls from 'hls.js';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
+import PostComments from './PostComments';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
@@ -677,102 +678,6 @@ OwnerLine.propTypes = {
   }),
 };
 
-function CommentsPanel({ postId }) {
-  const [comments, setComments] = useState([]);
-  const [text, setText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  const loadComments = async () => {
-    if (loaded || !postId) return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/graphql`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          query: `query { getComments(postId: "${postId}") { id text userEmail createdAt } }`,
-        }),
-      });
-      const json = await res.json();
-      setComments(json?.data?.getComments || []);
-      setLoaded(true);
-    } catch {
-      setComments([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addComment = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('Please log in to comment.');
-      return;
-    }
-
-    const trimmed = String(text || '').trim();
-    if (!trimmed) return;
-
-    try {
-      const escaped = trimmed.replace(/"/g, '\\"');
-      const res = await fetch(`${API_BASE}/graphql`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          query: `mutation { addComment(postId: "${postId}", text: "${escaped}") { id text userEmail createdAt } }`,
-        }),
-      });
-
-      const json = await res.json();
-      const newComment = json?.data?.addComment;
-      if (newComment) {
-        setComments((prev) => [newComment, ...prev]);
-      }
-      setText('');
-    } catch {
-      // Ignore network/mutation errors in UI.
-    }
-  };
-
-  return (
-    <section className="postview-comments" onMouseEnter={loadComments}>
-      <form className="postview-comment-form" onSubmit={addComment}>
-        <input
-          className="form-control"
-          placeholder="Write a comment..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" className="btn btn-sm btn-primary">Comment</button>
-      </form>
-
-      {loading && <div className="small text-secondary">Loading comments...</div>}
-
-      {!loading && comments.length === 0 && (
-        <div className="small text-secondary">No comments yet.</div>
-      )}
-
-      <div className="postview-comment-list">
-        {comments.map((c) => (
-          <article key={c.id} className="postview-comment-item">
-            <div className="postview-comment-user">{c.userEmail || 'User'}</div>
-            <div>{c.text}</div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-CommentsPanel.propTypes = {
-  postId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-};
-
 function PostVideoPlayer({ src, onPlay }) {
   const videoRef = useRef(null);
   const isHls = /\.m3u8(\?|$)/i.test(String(src || ''));
@@ -975,7 +880,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
         </div>
       </footer>
 
-      {showComments && <CommentsPanel postId={post.id} />}
+      {showComments && <PostComments postId={post.id} className="postview-comments" compact autoLoad />}
       {showEditModal && (
         <EditPostModal
           post={post}
