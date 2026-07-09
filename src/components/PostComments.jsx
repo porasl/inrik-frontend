@@ -1,9 +1,80 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { API_BASE } from '../../app.config.js';
+import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { getUserProfileCached } from '../services/userProfileService';
 
 function escapeGraphQLString(value) {
   return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+}
+
+function toPublicUrl(value) {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const normalized = String(value).replaceAll('\\', '/');
+  const relative = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `${PUBLIC_BASE}${relative}`;
+}
+
+function initialsFromEmail(email) {
+  const local = String(email || 'User').split('@')[0] || 'User';
+  return local
+    .split(/[._\-\s]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U';
+}
+
+function CommentAvatar({ email }) {
+  const [avatar, setAvatar] = useState('');
+  const [hasError, setHasError] = useState(false);
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+
+  useEffect(() => {
+    let cancelled = false;
+    setAvatar('');
+    setHasError(false);
+
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    getUserProfileCached(normalizedEmail)
+      .then((profile) => {
+        if (cancelled) return;
+        const profileAvatar = toPublicUrl(profile?.profileImageUrl || '');
+        if (profileAvatar) setAvatar(profileAvatar);
+      })
+      .catch(() => {
+        // Initials fallback stays visible.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedEmail]);
+
+  return (
+    <div
+      className="rounded-circle overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center border bg-secondary"
+      style={{ width: 28, height: 28 }}
+      title={email || 'User'}
+    >
+      {avatar && !hasError ? (
+        <img
+          src={avatar}
+          alt={email || 'User'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <span className="text-white fw-bold" style={{ fontSize: 11 }}>{initialsFromEmail(email)}</span>
+      )}
+    </div>
+  );
 }
 
 function ReplyEditor({ onSubmit, onCancel, autoFocus = false }) {
@@ -61,79 +132,85 @@ function CommentBlock({
 
   return (
     <div className={`small bg-light border rounded-3 p-2 ${depth ? 'ms-4' : ''}`}>
-      <div className="d-flex align-items-start justify-content-between gap-2">
-        <div className="text-muted">{comment.userEmail || 'User'}</div>
-        <div className="d-flex gap-2 flex-wrap justify-content-end">
-          <button
-            type="button"
-            className="btn btn-link btn-sm p-0 text-decoration-none"
-            onClick={() => {
-              setReplyingToId(comment.id);
-            }}
-          >
-            Reply
-          </button>
-          {isOwner && (
-            <>
+      <div className="d-flex align-items-start gap-2">
+        <CommentAvatar email={comment.userEmail} />
+        <div className="flex-grow-1 min-w-0">
+          <div className="d-flex align-items-start justify-content-between gap-2">
+            <div className="text-muted text-truncate">{comment.userEmail || 'User'}</div>
+            <div className="d-flex gap-2 flex-wrap justify-content-end">
               <button
                 type="button"
                 className="btn btn-link btn-sm p-0 text-decoration-none"
                 onClick={() => {
-                  setEditingCommentId(comment.id);
-                  setEditingText(comment.text || '');
+                  setReplyingToId(comment.id);
                 }}
               >
-                Edit
+                Reply
               </button>
-              <button
-                type="button"
-                className="btn btn-link btn-sm p-0 text-decoration-none text-danger"
-                onClick={() => deleteComment(comment.id)}
-              >
-                Delete
-              </button>
-            </>
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 text-decoration-none"
+                    onClick={() => {
+                      setEditingCommentId(comment.id);
+                      setEditingText(comment.text || '');
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 text-decoration-none text-danger"
+                    onClick={() => deleteComment(comment.id)}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          {editingCommentId === comment.id ? (
+            <div className="mt-2 d-grid gap-2">
+              <input
+                className="form-control form-control-sm"
+                value={editingText}
+                onChange={(event) => setEditingText(event.target.value)}
+              />
+              <div className="d-flex gap-2">
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => updateComment(comment.id)}>
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => {
+                    setEditingCommentId('');
+                    setEditingText('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-1">{comment.text}</div>
+          )}
+
+          {replyingToId === comment.id && (
+            <ReplyEditor
+              autoFocus
+              onSubmit={async (value) => {
+                const ok = await replyToComment(comment.id, value);
+                if (ok) setReplyingToId('');
+                return ok;
+              }}
+              onCancel={() => setReplyingToId('')}
+            >
+            </ReplyEditor>
           )}
         </div>
       </div>
-      {editingCommentId === comment.id ? (
-        <div className="mt-2 d-grid gap-2">
-          <input
-            className="form-control form-control-sm"
-            value={editingText}
-            onChange={(event) => setEditingText(event.target.value)}
-          />
-          <div className="d-flex gap-2">
-            <button type="button" className="btn btn-sm btn-primary" onClick={() => updateComment(comment.id)}>
-              Save
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary"
-              onClick={() => {
-                setEditingCommentId('');
-                setEditingText('');
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-1">{comment.text}</div>
-      )}
-
-      {replyingToId === comment.id && (
-        <ReplyEditor
-          autoFocus
-          onSubmit={async (value) => {
-            const ok = await replyToComment(comment.id, value);
-            if (ok) setReplyingToId('');
-            return ok;
-          }}
-          onCancel={() => setReplyingToId('')}
-        />
-      )}
 
       {replies.length > 0 && (
         <div className="d-grid gap-2 mt-2">
