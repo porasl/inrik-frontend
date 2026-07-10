@@ -1327,6 +1327,7 @@ function App() {
 
       <div className="app-body-wrapper">
         <Sidebar
+          activeSection={activeSection}
           onHome={goHome}
           onVideos={goVideos}
           onPosts={goPosts}

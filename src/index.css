@@ -310,6 +310,16 @@ html {
   font-size: 24px !important;
 }
 
+.leftbar .nav-link.is-active {
+  background: #eef4ff;
+  box-shadow: inset 3px 0 0 #0d6efd;
+}
+
+.leftbar .nav-link.is-active span,
+.leftbar .nav-link.is-active .bi {
+  color: #0d6efd !important;
+}
+
 .leftbar-section-title {
   padding: 4px 12px;
   margin: 6px 0 2px;

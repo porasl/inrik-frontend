@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
-export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, onPhotos, onSlice, onNotes }) {
+export default function Sidebar({ activeSection = 'home', onVideos, onPosts, onBox, onGroups, onAudio, onPhotos, onSlice, onNotes }) {
   const [collapsedSections, setCollapsedSections] = useState({
     views: false,
     groups: false,
@@ -60,6 +60,12 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
     onNotes?.();
   };
 
+  const navLinkClass = (sectionKey) => (
+    `nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light${activeSection === sectionKey ? ' is-active' : ''}`
+  );
+
+  const ariaCurrent = (sectionKey) => (activeSection === sectionKey ? 'page' : undefined);
+
   return (
     <div className="leftbar">
       <ul className="nav flex-column w-100 px-2">
@@ -81,56 +87,56 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
         {!collapsedSections.views && (
           <>
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handlePosts}>
+              <a className={navLinkClass('posts')}
+                href="#" onClick={handlePosts} aria-current={ariaCurrent('posts')}>
                 <i className="bi bi-card-text fs-5 text-secondary"></i>
                 <span className="fw-medium">Post</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleVideos}>
+              <a className={navLinkClass('videos')}
+                href="#" onClick={handleVideos} aria-current={ariaCurrent('videos')}>
                 <i className="bi bi-play-btn fs-5 text-secondary"></i>
                 <span className="fw-medium">Video</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleAudio}>
+              <a className={navLinkClass('audio')}
+                href="#" onClick={handleAudio} aria-current={ariaCurrent('audio')}>
                 <i className="bi bi-music-note-beamed fs-5 text-secondary"></i>
                 <span className="fw-medium">Audio</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handlePhotos}>
+              <a className={navLinkClass('photos')}
+                href="#" onClick={handlePhotos} aria-current={ariaCurrent('photos')}>
                 <i className="bi bi-image fs-5 text-secondary"></i>
                 <span className="fw-medium">Images</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleSlice}>
+              <a className={navLinkClass('slice')}
+                href="#" onClick={handleSlice} aria-current={ariaCurrent('slice')}>
                 <i className="bi bi-film fs-5 text-secondary"></i>
                 <span className="fw-medium">Slice</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleNotes}>
+              <a className={navLinkClass('notes')}
+                href="#" onClick={handleNotes} aria-current={ariaCurrent('notes')}>
                 <i className="bi bi-pencil fs-5 text-secondary"></i>
                 <span className="fw-medium">Notes</span>
               </a>
             </li>
 
             <li className="nav-item w-100 mb-0">
-              <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-                href="#" onClick={handleBox}>
+              <a className={navLinkClass('box')}
+                href="#" onClick={handleBox} aria-current={ariaCurrent('box')}>
                 <i className="bi bi-window-stack fs-5 text-secondary"></i>
                 <span className="fw-medium">Private</span>
               </a>
@@ -154,8 +160,8 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
 
         {!collapsedSections.groups && (
           <li className="nav-item w-100 mb-0">
-            <a className="nav-link d-flex align-items-center gap-2 px-3 py-1 rounded-3 text-dark hover-bg-light"
-              href="#" onClick={handleGroups}>
+            <a className={navLinkClass('groups')}
+              href="#" onClick={handleGroups} aria-current={ariaCurrent('groups')}>
               <i className="bi bi-people-fill fs-5 text-secondary"></i>
               <span className="fw-medium">Groups</span>
             </a>
@@ -191,6 +197,7 @@ export default function Sidebar({ onVideos, onPosts, onBox, onGroups, onAudio, o
 }
 
 Sidebar.propTypes = {
+  activeSection: PropTypes.string,
   onVideos: PropTypes.func,
   onPosts: PropTypes.func,
   onBox: PropTypes.func,
