@@ -63,6 +63,36 @@ function getEmbedMarkup(imageUrl, postId) {
   return `<img src="${imageUrl}" alt="${safeAlt}" style="max-width:100%;height:auto;" />`;
 }
 
+function formatPublishedDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function initialsFromName(value) {
+  return String(value || 'User')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U';
+}
+
+function photoGridMinWidth(photoCount, activeTab) {
+  if (activeTab !== 'public') return 220;
+  if (photoCount >= 30) return 132;
+  if (photoCount >= 18) return 150;
+  if (photoCount >= 10) return 170;
+  if (photoCount >= 6) return 190;
+  return 220;
+}
+
 function PhotoEmbedModal({ photo, onClose }) {
   const imageUrl = photo?.url || '';
   const embedMarkup = getEmbedMarkup(imageUrl, photo?.post?.id);
@@ -386,14 +416,17 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
 }
 
 /* ─── Photo Grid Card ─── */
-function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmbed, zoom }) {
+function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmbed, zoom, compact = false }) {
   const [loaded, setLoaded] = useState(false);
   const [binocularEnabled, setBinocularEnabled] = useState(false);
   const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
   const [showLens, setShowLens] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const imageRef = useRef(null);
   const authorName = [photo.post.userFirstName, photo.post.userLastName].filter(Boolean).join(' ')
     || photo.post.email || '';
+  const publishedDate = formatPublishedDate(photo.post.createdAt || photo.post.publishedAt || photo.post.created_at);
+  const avatarUrl = toPublicUrl(photo.post.userProfileImageUrl || photo.post.profileImageUrl || photo.post.profile_image_url || '');
 
   return (
     <div
@@ -401,7 +434,7 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
       onClick={() => onOpen(photo)}
       style={{
         cursor: 'pointer', borderRadius: 8, overflow: 'hidden',
-        background: '#111', position: 'relative', aspectRatio: '1/1',
+        background: '#111', position: 'relative', aspectRatio: compact ? '4/3' : '1/1',
         transition: 'none',
       }}
       onMouseEnter={e => {
@@ -454,53 +487,73 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
         className="photo-card-hover"
         style={{
           position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '8px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: compact ? '6px' : '8px',
           transition: 'background 0.18s',
         }}
       >
-        <div className="d-flex flex-column gap-1">
-          {authorName && (
-            <span style={{
-              fontSize: '0.72rem', color: '#fff', background: 'rgba(0,0,0,0.55)',
-              padding: '2px 6px', borderRadius: 4, opacity: 0,
-              transition: 'opacity 0.18s',
-            }}
-              className="photo-author-label"
-            >
-              {authorName}
-            </span>
-          )}
-          <span className="photo-meta-label" style={{ fontSize: '0.72rem', color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 4, opacity: 0, transition: 'opacity 0.18s' }}>
-            <i className="bi bi-eye me-1" />{stats.views} <i className="bi bi-heart ms-2 me-1" />{stats.likes}
-          </span>
+        <div className="d-flex align-items-center gap-2 photo-publisher-strip">
+          <div
+            className="rounded-circle overflow-hidden flex-shrink-0 d-flex align-items-center justify-content-center border border-light"
+            style={{ width: compact ? 24 : 30, height: compact ? 24 : 30, background: '#34506f' }}
+            title={authorName || 'Publisher'}
+          >
+            {avatarUrl && !avatarFailed ? (
+              <img
+                src={avatarUrl}
+                alt={authorName || 'Publisher'}
+                onError={() => setAvatarFailed(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span className="text-white fw-bold" style={{ fontSize: compact ? 10 : 12 }}>
+                {initialsFromName(authorName || photo.post.email)}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="text-white fw-semibold text-truncate" style={{ fontSize: compact ? '0.68rem' : '0.76rem', lineHeight: 1.1 }}>
+              {authorName || 'Unknown publisher'}
+            </div>
+            {publishedDate && (
+              <div className="text-white-50 text-truncate" style={{ fontSize: compact ? '0.62rem' : '0.68rem', lineHeight: 1.1 }}>
+                {publishedDate}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="photo-actions d-flex gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            className={`btn btn-sm ${binocularEnabled ? 'btn-primary' : 'btn-light'} py-0 px-2`}
-            title={binocularEnabled ? 'Turn binocular off' : 'Inspect with binocular'}
-            aria-pressed={binocularEnabled}
-            onClick={() => {
-              setBinocularEnabled((enabled) => !enabled);
-              setShowLens(false);
-            }}
-          >
-            <i className="bi bi-binoculars-fill" />
-          </button>
-          <button
-            className={`btn btn-sm ${stats.liked ? 'btn-danger' : 'btn-light'} py-0 px-2`}
-            title={isLoggedIn ? 'Like' : 'Login to like'}
-            onClick={() => onLike(photo)}
-            disabled={!isLoggedIn}
-          >
-            <i className={`bi ${stats.liked ? 'bi-heart-fill' : 'bi-heart'}`} />
-          </button>
-          <button className="btn btn-sm btn-light py-0 px-2" title="Download" onClick={() => onDownload(photo)}>
-            <i className="bi bi-download" />
-          </button>
-          <button className="btn btn-sm btn-light py-0 px-2" title="Embed" onClick={() => onEmbed(photo)}>
-            <i className="bi bi-code-slash" />
-          </button>
+        <div className="d-flex align-items-end justify-content-between gap-2">
+          <span className="photo-meta-label" style={{ fontSize: compact ? '0.66rem' : '0.72rem', color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 4, transition: 'opacity 0.18s' }}>
+            <i className="bi bi-eye me-1" />{stats.views} <i className="bi bi-heart ms-2 me-1" />{stats.likes}
+          </span>
+
+          <div className="photo-actions d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              className={`btn btn-sm ${binocularEnabled ? 'btn-primary' : 'btn-light'} py-0 px-2`}
+              title={binocularEnabled ? 'Turn binocular off' : 'Inspect with binocular'}
+              aria-pressed={binocularEnabled}
+              onClick={() => {
+                setBinocularEnabled((enabled) => !enabled);
+                setShowLens(false);
+              }}
+            >
+              <i className="bi bi-binoculars-fill" />
+            </button>
+            <button
+              className={`btn btn-sm ${stats.liked ? 'btn-danger' : 'btn-light'} py-0 px-2`}
+              title={isLoggedIn ? 'Like' : 'Login to like'}
+              onClick={() => onLike(photo)}
+              disabled={!isLoggedIn}
+            >
+              <i className={`bi ${stats.liked ? 'bi-heart-fill' : 'bi-heart'}`} />
+            </button>
+            <button className="btn btn-sm btn-light py-0 px-2" title="Download" onClick={() => onDownload(photo)}>
+              <i className="bi bi-download" />
+            </button>
+            <button className="btn btn-sm btn-light py-0 px-2" title="Embed" onClick={() => onEmbed(photo)}>
+              <i className="bi bi-code-slash" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -611,6 +664,8 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
 
   const photosFromApi = activeTab === 'mine' ? myPhotos : publicPhotos;
   const photos = photosFromApi;
+  const gridMinWidth = photoGridMinWidth(photos.length, activeTab);
+  const compactCards = gridMinWidth < 190;
   const hasNext = activeTab === 'mine' ? myHasNext : pubHasNext;
   const isLoading = activeTab === 'mine' ? myLoading : pubLoading;
   const isRefreshing = activeTab === 'mine' ? myRefreshing : publicRefreshing;
@@ -836,8 +891,8 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '12px',
+            gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinWidth}px, 1fr))`,
+            gap: compactCards ? '8px' : '12px',
           }}
         >
           {photos.map((photo, idx) => (
@@ -855,6 +910,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
               onDownload={downloadPhoto}
               onEmbed={setEmbedPhoto}
               zoom={binocularZoom}
+              compact={compactCards}
             />
           ))}
         </div>
@@ -899,13 +955,19 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
       )}
 
       <style>{`
-        .photo-card:hover .photo-author-label { opacity: 1 !important; }
-        .photo-card:hover .photo-meta-label { opacity: 1 !important; }
+        .photo-publisher-strip {
+          max-width: 100%;
+          padding: 4px 6px;
+          border-radius: 999px;
+          background: rgba(0,0,0,0.58);
+          backdrop-filter: blur(3px);
+        }
         .photo-card:hover .photo-card-hover { background: rgba(0,0,0,0.28) !important; }
         .photo-card .photo-actions { opacity: 0; transition: opacity .18s; }
         .photo-card:hover .photo-actions { opacity: 1; }
         .photo-card .photo-actions,
-        .photo-card .photo-meta-label {
+        .photo-card .photo-meta-label,
+        .photo-card .photo-publisher-strip {
           white-space: nowrap;
         }
 
