@@ -812,25 +812,36 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
 
   return (
     <div className="container-fluid px-0">
-      {/* Header */}
+      {/* Tabs and compact controls */}
       <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <div>
-          <h4 className="mb-1 fw-bold">
-            <i className="bi bi-images me-2" />Photos
-          </h4>
-          <p className="mb-0 text-secondary small">
-            {photos.length} photo{photos.length === 1 ? '' : 's'}
-          </p>
-          {showRefreshing && (
-            <div className="mt-1">
-              <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
-                <span className="spinner-border spinner-border-sm" aria-hidden="true" />
-                Refreshing photos...
-              </span>
-            </div>
+        <ul className="nav nav-tabs mb-0">
+          {isLoggedIn && (
+            <li className="nav-item">
+              <button
+                className={`nav-link ${activeTab === 'mine' ? 'active' : ''}`}
+                onClick={() => setActiveTab('mine')}
+              >
+                <i className="bi bi-person me-1" />My Photos
+              </button>
+            </li>
           )}
-        </div>
-        <div className="d-flex align-items-center gap-2">
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === 'public' ? 'active' : ''}`}
+              onClick={() => setActiveTab('public')}
+            >
+              <i className="bi bi-globe me-1" />Public &amp; Shared
+            </button>
+          </li>
+        </ul>
+
+        <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          {showRefreshing && (
+            <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
+              <span className="spinner-border spinner-border-sm" aria-hidden="true" />
+              Refreshing
+            </span>
+          )}
           <div className="d-flex align-items-center gap-2" title="Binocular zoom strength">
             <i className="bi bi-binoculars-fill text-secondary" />
             <input
@@ -853,28 +864,6 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
           )}
         </div>
       </div>
-
-      {/* Tabs */}
-      <ul className="nav nav-tabs mb-4">
-        {isLoggedIn && (
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === 'mine' ? 'active' : ''}`}
-              onClick={() => setActiveTab('mine')}
-            >
-              <i className="bi bi-person me-1" />My Photos
-            </button>
-          </li>
-        )}
-        <li className="nav-item">
-          <button
-            className={`nav-link ${activeTab === 'public' ? 'active' : ''}`}
-            onClick={() => setActiveTab('public')}
-          >
-            <i className="bi bi-globe me-1" />Public &amp; Shared
-          </button>
-        </li>
-      </ul>
 
       {/* Grid */}
       {photos.length === 0 && !isLoading ? (
