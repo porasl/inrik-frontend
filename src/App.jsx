@@ -13,6 +13,7 @@ import BoxView from './components/BoxView';
 import PostView from './components/PostView';
 import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
+import MarketView from './components/MarketView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -1427,10 +1428,7 @@ function App() {
               <p className="mb-0 text-muted">Welcome to the AI view page.</p>
             </div>
           ) : activeSection === 'market' ? (
-            <div className="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
-              <h3 className="mb-2">Market View</h3>
-              <p className="mb-0 text-muted">Welcome to the Market view page.</p>
-            </div>
+            <MarketView />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
@@ -1502,43 +1500,65 @@ function App() {
       )}
 
       {/* Mobile bottom nav */}
-      <div className="mobile-nav d-lg-none fixed-bottom bg-white border-top d-flex justify-content-around py-2 shadow-lg" style={{ zIndex: 1030 }}>
-        <button
-          className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
-          onClick={goHome}
-        >
-          <i className="bi bi-house-door fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Home</span>
-        </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPhotos}>
-          <i className="bi bi-images fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Photos</span>
-        </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPosts}>
-          <i className="bi bi-card-text fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Posts</span>
-        </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goBox}>
-          <i className="bi bi-window-stack fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Box</span>
-        </button>
-        <button
-          className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
-          onClick={() => setShowUpload(true)}
-        >
-          <i className="bi bi-plus-circle-fill" style={{ fontSize: '2rem', marginTop: '-12px' }}></i>
-        </button>
-        <button
-          className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
-          onClick={goVideos}
-        >
-          <i className="bi bi-play-btn fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Videos</span>
-        </button>
-        <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goAudio}>
-          <i className="bi bi-music-note-beamed fs-4"></i>
-          <span style={{ fontSize: '10px' }}>Audio</span>
-        </button>
+      <div className="mobile-nav d-lg-none fixed-bottom bg-white border-top py-2 shadow-lg" style={{ zIndex: 1030 }}>
+        <div className="mobile-nav-track">
+          <button
+            className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+            onClick={goHome}
+          >
+            <i className="bi bi-house-door fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Home</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPhotos}>
+            <i className="bi bi-images fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Photos</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goPosts}>
+            <i className="bi bi-card-text fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Posts</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goBox}>
+            <i className="bi bi-window-stack fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Box</span>
+          </button>
+          <button
+            className="btn btn-link text-primary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+            onClick={() => setShowUpload(true)}
+          >
+            <i className="bi bi-plus-circle-fill" style={{ fontSize: '2rem', marginTop: '-12px' }}></i>
+          </button>
+          <button
+            className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none"
+            onClick={goVideos}
+          >
+            <i className="bi bi-play-btn fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Videos</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goAudio}>
+            <i className="bi bi-music-note-beamed fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Audio</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goNews}>
+            <i className="bi bi-newspaper fs-4"></i>
+            <span style={{ fontSize: '10px' }}>News</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goSport}>
+            <i className="bi bi-trophy fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Sport</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goAi}>
+            <i className="bi bi-cpu fs-4"></i>
+            <span style={{ fontSize: '10px' }}>AI</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goMarket}>
+            <i className="bi bi-graph-up-arrow fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Market</span>
+          </button>
+          <button className="btn btn-link text-secondary p-2 d-flex flex-column align-items-center gap-1 text-decoration-none" onClick={goArt}>
+            <i className="bi bi-palette fs-4"></i>
+            <span style={{ fontSize: '10px' }}>Art</span>
+          </button>
+        </div>
       </div>
 
       {/* Upload modal */}
