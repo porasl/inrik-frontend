@@ -46,6 +46,11 @@ export default defineConfig(() => {
             });
           }
         },
+        '/stock-proxy.php': {
+          target: 'https://bazaartoday.com',
+          changeOrigin: true,
+          secure: true,
+        },
       },
     },
   };
