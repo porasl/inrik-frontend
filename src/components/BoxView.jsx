@@ -904,16 +904,8 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     return groups;
   }, [catalog.documents]);
 
-  const rootFolders = [
-    getFolderMeta('Videos', catalog.videos.length, 'bi-film', '#4ade80', 'videos'),
-    getFolderMeta('Audios', catalog.audios.length, 'bi-music-note-beamed', '#60a5fa', 'audios'),
-    getFolderMeta('Documents', catalog.documents.length, 'bi-file-earmark-text', '#f59e0b', 'documents'),
-    getFolderMeta('Images', catalog.images.length, 'bi-images', '#f472b6', 'images'),
-    getFolderMeta('Groups', groupItems.length, 'bi-people-fill', '#8b5cf6', 'groups'),
-  ];
-
   function getCurrentItems() {
-    if (path.length === 1) return rootFolders;
+    if (path.length === 1) return [];
     const [, section, subSection] = path;
 
     if (section === 'videos') return catalog.videos;
@@ -937,7 +929,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   }
 
   const currentItems = getCurrentItems();
-  const currentFolderLabel = getCurrentFolderLabel(path);
 
   const openDrive = () => {
     setStarted(true);
@@ -1082,38 +1073,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
           </aside>
 
           <section className="boxview-browser">
-            <div className="boxview-browser-header">
-              <div>
-                <strong>{currentFolderLabel}</strong>
-                <div className="text-secondary small">{currentItems.length} item{currentItems.length === 1 ? '' : 's'}</div>
-              </div>
-              <div className="boxview-breadcrumbs">
-                {path.map((part, index) => (
-                  <button
-                    key={`${part}-${index}`}
-                    type="button"
-                    className="boxview-breadcrumb"
-                    onClick={() => {
-                      if (index === 0) {
-                        setPath(['inrik']);
-                        setPreviewItem(null);
-                        return;
-                      }
-                      if (index === 1) {
-                        setPath(['inrik', part]);
-                        setPreviewItem(null);
-                        return;
-                      }
-                      setPath(['inrik', 'documents', part]);
-                      setPreviewItem(null);
-                    }}
-                  >
-                    {part}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="boxview-browser-grid">
               {currentItems.length ? (
                 currentItems.map((item) => renderExplorerItem(
@@ -1126,8 +1085,8 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
               ) : (
                 <div className="boxview-empty-state">
                   <i className="bi bi-folder2-open"></i>
-                  <strong>No items here</strong>
-                  <span>Upload files to see them in this explorer.</span>
+                  <strong>{path.length === 1 ? 'Select a folder' : 'No items here'}</strong>
+                  <span>{path.length === 1 ? 'Choose Videos, Audios, Documents, Images, or Groups from the left.' : 'Upload files to see them in this explorer.'}</span>
                 </div>
               )}
             </div>
