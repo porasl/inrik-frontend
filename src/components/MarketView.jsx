@@ -12,6 +12,12 @@ const RANGES = [
   { label: '5Y', range: '5y', interval: '1mo', points: 60 },
   { label: 'Max', range: 'max', interval: '3mo', points: 80 },
 ];
+const CHART_LAYERS = ['price', 'sell', 'buy'];
+const CHART_LAYER_LABELS = {
+  price: 'Price',
+  sell: 'Sell',
+  buy: 'Buy',
+};
 const STOCK_PROXY_PATH = '/stock-proxy.php';
 
 function stockProxyUrl(symbol, rangeConfig) {
@@ -87,14 +93,14 @@ function parseYahooChart(json, rangeConfig) {
   }, []);
 }
 
-function StockChart({ series }) {
+function StockChart({ series, visibleLayers, setVisibleLayers }) {
   if (!series.length) {
     return <div className="market-chart-box market-chart-empty">Live market data unavailable</div>;
   }
 
   const width = 960;
   const height = 330;
-  const pad = { top: 12, right: 82, bottom: 28, left: 78 };
+  const pad = { top: 12, right: 82, bottom: 62, left: 78 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const priceTop = pad.top;
@@ -117,6 +123,16 @@ function StockChart({ series }) {
   const tickIndexes = [0, Math.floor(series.length * 0.25), Math.floor(series.length * 0.5), Math.floor(series.length * 0.75), series.length - 1]
     .filter((value, index, all) => all.indexOf(value) === index);
   const volumeTicks = [0, 0.5, 1];
+  const showPrice = visibleLayers.price;
+  const showBuy = visibleLayers.buy;
+  const showSell = visibleLayers.sell;
+  const toggleLayer = (layer) => {
+    setVisibleLayers((current) => {
+      const enabledCount = CHART_LAYERS.filter((item) => current[item]).length;
+      if (current[layer] && enabledCount === 1) return current;
+      return { ...current, [layer]: !current[layer] };
+    });
+  };
 
   return (
     <div className="market-chart-box">
@@ -127,33 +143,37 @@ function StockChart({ series }) {
           return <line key={tick} x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#edf2f7" strokeDasharray="5 5" />;
         })}
         <line x1={pad.left} x2={width - pad.right} y1={volumeTop} y2={volumeTop} stroke="#d1d5db" strokeDasharray="4 4" />
-        <path d={areaPath} fill="rgba(147,197,253,0.26)" />
+        {showPrice && <path d={areaPath} fill="rgba(147,197,253,0.26)" />}
         {series.map((point, index) => {
           const x = xFor(index);
           const buyHeight = (point.buy / maxTrade) * volumeH;
           const sellHeight = (point.sell / maxTrade) * volumeH;
           return (
             <g key={`${point.label}-${index}`}>
-              <rect x={x - barWidth - 1} y={volumeBottom - buyHeight} width={barWidth} height={buyHeight} rx="2" fill="rgba(37,99,235,0.58)">
-                <title>{`${point.label}\nBuy: ${compactShares(point.buy)}\nPrice: ${money(point.price)}`}</title>
-              </rect>
-              <rect x={x + 1} y={volumeBottom - sellHeight} width={barWidth} height={sellHeight} rx="2" fill="rgba(220,38,38,0.58)">
-                <title>{`${point.label}\nSell: ${compactShares(point.sell)}\nPrice: ${money(point.price)}`}</title>
-              </rect>
+              {showBuy && (
+                <rect x={x - barWidth - 1} y={volumeBottom - buyHeight} width={barWidth} height={buyHeight} rx="2" fill="rgba(37,99,235,0.58)">
+                  <title>{`${point.label}\nBuy: ${compactShares(point.buy)}\nPrice: ${money(point.price)}`}</title>
+                </rect>
+              )}
+              {showSell && (
+                <rect x={x + 1} y={volumeBottom - sellHeight} width={barWidth} height={sellHeight} rx="2" fill="rgba(220,38,38,0.58)">
+                  <title>{`${point.label}\nSell: ${compactShares(point.sell)}\nPrice: ${money(point.price)}`}</title>
+                </rect>
+              )}
             </g>
           );
         })}
-        <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-        {series.map((point, index) => (
+        {showPrice && <path d={linePath} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}
+        {showPrice && series.map((point, index) => (
           <circle key={`point-${point.label}-${index}`} cx={xFor(index)} cy={yForPrice(point.price)} r="9" fill="transparent">
             <title>{`${point.label}\nPrice: ${money(point.price)}\nBuy: ${compactShares(point.buy)}\nSell: ${compactShares(point.sell)}\nVolume: ${compactShares(point.volume)}`}</title>
           </circle>
         ))}
         {tickIndexes.map((index) => (
-          <text key={index} x={xFor(index)} y={height - 8} textAnchor="middle" fill="#4b5563" fontSize="13">{series[index]?.label}</text>
+          <text key={index} x={xFor(index)} y={height - 42} textAnchor="middle" fill="#4b5563" fontSize="13">{series[index]?.label}</text>
         ))}
-        <text x={pad.left - 12} y={yForPrice(maxPrice) + 4} fill="#111827" fontSize="12" textAnchor="end">{money(maxPrice)}</text>
-        <text x={pad.left - 12} y={yForPrice(minPrice) + 4} fill="#111827" fontSize="12" textAnchor="end">{money(minPrice)}</text>
+        {showPrice && <text x={pad.left - 12} y={yForPrice(maxPrice) + 4} fill="#111827" fontSize="12" textAnchor="end">{money(maxPrice)}</text>}
+        {showPrice && <text x={pad.left - 12} y={yForPrice(minPrice) + 4} fill="#111827" fontSize="12" textAnchor="end">{money(minPrice)}</text>}
         {volumeTicks.map((tick) => {
           const value = maxTrade * tick;
           const y = volumeBottom - tick * volumeH;
@@ -164,6 +184,20 @@ function StockChart({ series }) {
           );
         })}
       </svg>
+      <div className="market-chart-filters in-graph" aria-label="Chart layers">
+        {CHART_LAYERS.map((layer) => (
+          <button
+            key={layer}
+            type="button"
+            aria-pressed={visibleLayers[layer]}
+            className={`market-layer-btn ${visibleLayers[layer] ? 'active' : ''} ${layer}`}
+            onClick={() => toggleLayer(layer)}
+          >
+            <span className="market-layer-dot" />
+            {CHART_LAYER_LABELS[layer]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -174,6 +208,7 @@ export default function MarketView() {
   const rangeConfig = RANGES[rangeIndex];
   const [series, setSeries] = useState([]);
   const [tickerQuotes, setTickerQuotes] = useState({});
+  const [visibleLayers, setVisibleLayers] = useState({ price: true, sell: true, buy: true });
   const stats = useMemo(() => statsFor(series, rangeConfig.label), [series, rangeConfig.label]);
 
   useEffect(() => {
@@ -281,7 +316,7 @@ export default function MarketView() {
           <div><b>Net</b><span className={netPositive ? 'positive' : 'negative'}>{netPositive ? '+' : ''}{compactShares(stats.net)}</span></div>
         </div>
 
-        <StockChart series={series} />
+        <StockChart series={series} visibleLayers={visibleLayers} setVisibleLayers={setVisibleLayers} />
       </div>
     </section>
   );

@@ -3489,8 +3489,35 @@ html {
   gap: 6px;
 }
 
+.market-chart-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #dbe4ef;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.market-chart-filters.in-graph {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  justify-content: center;
+  padding: 2px;
+  border-color: #d8e4f2;
+  background: rgba(248, 250, 252, 0.94);
+}
+
 .market-symbol-btn,
-.market-range-btn {
+.market-range-btn,
+.market-layer-btn {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #f8fafc;
@@ -3500,11 +3527,64 @@ html {
   padding: 5px 9px;
 }
 
+.market-layer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+  justify-content: center;
+  border-color: transparent;
+  background: transparent;
+  color: #475569;
+}
+
+.market-layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
 .market-symbol-btn.active,
-.market-range-btn.active {
+.market-range-btn.active,
+.market-layer-btn.active {
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;
+}
+
+.market-layer-btn.buy.active {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.market-layer-btn.sell.active {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.market-layer-btn.price.active {
+  border-color: #bae6fd;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.market-layer-btn.price .market-layer-dot {
+  background: #2563eb;
+}
+
+.market-layer-btn.sell .market-layer-dot {
+  background: #dc2626;
+}
+
+.market-layer-btn.buy .market-layer-dot {
+  background: #2563eb;
+}
+
+.market-layer-btn:not(.active) .market-layer-dot {
+  opacity: 0.45;
 }
 
 .market-topline {
@@ -3618,6 +3698,7 @@ html {
 }
 
 .market-chart-box {
+  position: relative;
   height: 330px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -3640,6 +3721,14 @@ html {
   .market-topline {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .market-chart-filters {
+    justify-content: flex-start;
+  }
+
+  .market-chart-filters.in-graph {
+    justify-content: center;
   }
 
   .market-stats {
