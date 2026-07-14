@@ -771,7 +771,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     };
   }, [isLoggedIn]);
   const [started, setStarted] = useState(true);
-  const [path, setPath] = useState(['inrik']);
+  const [path, setPath] = useState(['inrik', 'videos']);
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
   const [allPosts, setAllPosts] = useState([]);
@@ -842,14 +842,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     };
   }, [isLoggedIn]);
 
-  // On mobile, auto-open the videos folder
-  useEffect(() => {
-    if (isMobile && started && path.length === 1) {
-      setPath(['inrik', 'videos']);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile, started]);
-
   useEffect(() => {
     if (!started) return;
     if (path.length === 1) {
@@ -905,7 +897,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   }, [catalog.documents]);
 
   function getCurrentItems() {
-    if (path.length === 1) return [];
+    if (path.length === 1) return catalog.videos;
     const [, section, subSection] = path;
 
     if (section === 'videos') return catalog.videos;
@@ -930,12 +922,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
 
   const currentItems = getCurrentItems();
 
-  const openDrive = () => {
-    setStarted(true);
-    setPath(['inrik']);
-    setPreviewItem(null);
-  };
-
   const openFolder = (folder) => {
     setStarted(true);
     if (folder === 'documents') {
@@ -953,19 +939,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   };
 
   const goBack = () => {
-    if (path.length <= 1) {
-      if (started) {
-        setStarted(false);
-        setPreviewItem(null);
-      }
-      return;
-    }
-
-    if (path.length === 2) {
-      setPath(['inrik']);
-      setPreviewItem(null);
-      return;
-    }
+    if (path.length <= 2) return;
 
     setPath(['inrik', 'documents']);
     setPreviewItem(null);
@@ -1036,7 +1010,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
             <small>{path.join(' / ')}</small>
           </div>
           <div className="boxview-title-actions">
-            {path.length >= 2 && (
+            {path.length > 2 && (
               <button type="button" onClick={goBack} className="boxview-mini-btn" aria-label="Back">
                 <i className="bi bi-arrow-left"></i>
               </button>
@@ -1046,10 +1020,6 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
 
         <div className="boxview-window-body">
           <aside className="boxview-tree">
-            <button type="button" className={`boxview-tree-item ${path.length === 1 ? 'active' : ''}`} onClick={openDrive}>
-              <i className="bi bi-hdd-network"></i>
-              <span>INRIK</span>
-            </button>
             <button type="button" className={`boxview-tree-item ${path[1] === 'videos' ? 'active' : ''}`} onClick={() => openFolder('videos')}>
               <i className="bi bi-film"></i>
               <span>Videos</span>
