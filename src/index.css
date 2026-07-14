@@ -1988,6 +1988,15 @@ html {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
 }
 
+.boxview-comments-content {
+  width: 100%;
+  max-width: none !important;
+  max-height: min(78vh, 760px);
+  overflow: auto;
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
 .boxview-action-btn {
   flex: 1 1 0;
   border: 1px solid #d7e3f8;

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import Hls from 'hls.js';
-import { PUBLIC_BASE } from '../../app.config.js';
-import { getAllPostsCached } from '../services/postsService';
+import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { getAllPostsCached, invalidatePostsCache } from '../services/postsService';
 import { listGroups, subscribeGroupUpdates } from '../services/groupsService';
+import PostComments from './PostComments';
 
 const CAPTION_TRACK_SRC = 'data:text/vtt,WEBVTT%0A%0A';
 
@@ -659,7 +660,7 @@ MediaPreview.propTypes = {
   onOpenGroups: PropTypes.func,
 };
 
-function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = false) {
+function renderExplorerItem(item, selectItem, onDelete, onEmbed, onEdit, onComment, canManage = false) {
   if (item.kind === 'folder') {
     return (
       <button key={item.label} type="button" className="boxview-folder-card boxview-folder-card--inline" onClick={() => selectItem(item)}>
@@ -672,6 +673,7 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = fal
 
   const videoThumb = resolveVideoThumbnail(item);
   const isVideo = item.kind === 'video';
+  const postId = item?.post?.id || item?.postId || '';
 
   return (
     <div key={item.id} className={`boxview-file-card ${isVideo ? 'boxview-file-card--video' : ''}`}>
@@ -697,12 +699,14 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = fal
         </div>
       </button>
 
-      {isVideo && (
+      {postId && (
         <div className="boxview-file-footer">
-          <div className="boxview-file-stats">
-            <span><i className="bi bi-eye me-1"></i>{item.post?.views ?? item.views ?? 0}</span>
-            <span><i className="bi bi-heart me-1"></i>{item.post?.likes ?? item.likes ?? 0}</span>
-          </div>
+          {isVideo ? (
+            <div className="boxview-file-stats">
+              <span><i className="bi bi-eye me-1"></i>{item.post?.views ?? item.views ?? 0}</span>
+              <span><i className="bi bi-heart me-1"></i>{item.post?.likes ?? item.likes ?? 0}</span>
+            </div>
+          ) : <span className="boxview-file-stats" />}
 
           <details className="boxview-file-menu">
             <summary className="boxview-file-menu-toggle" aria-label="More options">
@@ -713,7 +717,17 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, canDelete = fal
                 <i className="bi bi-code-slash"></i>
                 <span>Embed</span>
               </button>
-              {canDelete && (
+              <button type="button" className="boxview-file-menu-item" onClick={() => onComment?.(item)}>
+                <i className="bi bi-chat-left-text"></i>
+                <span>Comment</span>
+              </button>
+              {canManage && (
+                <button type="button" className="boxview-file-menu-item" onClick={() => onEdit?.(item)}>
+                  <i className="bi bi-pencil-square"></i>
+                  <span>Edit</span>
+                </button>
+              )}
+              {canManage && (
                 <button type="button" className="boxview-file-menu-item boxview-file-menu-item--danger" onClick={() => onDelete?.(item)}>
                   <i className="bi bi-trash"></i>
                   <span>Delete</span>
@@ -774,6 +788,7 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
   const [path, setPath] = useState(['inrik', 'videos']);
   const [previewItem, setPreviewItem] = useState(null);
   const [embedItem, setEmbedItem] = useState(null);
+  const [commentsItem, setCommentsItem] = useState(null);
   const [allPosts, setAllPosts] = useState([]);
   const [groups, setGroups] = useState([]);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
@@ -979,12 +994,78 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
     }
 
     if (!matchesOwner(item.post, identity)) {
-      alert('You can only delete your own videos.');
+      alert('You can only delete your own content.');
       return;
     }
 
-    if (!globalThis.confirm('Delete this video permanently?')) return;
     await onDelete?.(postId);
+    setAllPosts((current) => current.filter((post) => post.id !== postId));
+    setPreviewItem((current) => (current?.post?.id === postId ? null : current));
+  };
+
+  const handleEdit = async (item) => {
+    const post = item?.post;
+    const postId = post?.id || item?.postId;
+    if (!postId) return;
+
+    if (!isLoggedIn) {
+      alert('You must be logged in to edit.');
+      return;
+    }
+
+    if (!matchesOwner(post, identity)) {
+      alert('You can only edit your own content.');
+      return;
+    }
+
+    const nextDescription = globalThis.prompt('Edit description', String(post?.description || post?.title || item?.name || ''));
+    if (nextDescription == null) return;
+
+    const token = localStorage.getItem('token') || '';
+    if (!token) {
+      alert('Please log in again before editing.');
+      return;
+    }
+
+    try {
+      const trimmed = nextDescription.trim();
+      const response = await fetch(`${API_BASE}/api/posts/update`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: postId,
+          title: trimmed,
+          description: trimmed,
+          author: post.author || post.email || '',
+          email: post.email || post.author || '',
+          ispublic: post.ispublic ?? true,
+          ismemory: post.ismemory ?? false,
+          isevent: post.isevent ?? false,
+          isslice: post.isslice ?? false,
+          groupId: post.groupId || '',
+          videoUrls: post.videoUrls || [],
+          imageUrls: post.imageUrls || post.photoUrls || [],
+          audioUrls: post.audioUrls || [],
+          documentUrls: post.documentUrls || post.documents || [],
+        }),
+      });
+
+      if (!response.ok) throw new Error(await response.text());
+
+      invalidatePostsCache();
+      const patchPost = (candidate) => (
+        candidate?.id === postId ? { ...candidate, title: trimmed, description: trimmed } : candidate
+      );
+      setAllPosts((current) => current.map(patchPost));
+      setPreviewItem((current) => (
+        current?.post?.id === postId ? { ...current, name: trimmed || current.name, post: patchPost(current.post) } : current
+      ));
+    } catch (error) {
+      alert(`Could not update content: ${error.message || error}`);
+    }
   };
 
   const renderExplorerBody = () => {
@@ -1050,6 +1131,8 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
                   selectItem,
                   handleDelete,
                   setEmbedItem,
+                  handleEdit,
+                  setCommentsItem,
                   isLoggedIn && item.post && matchesOwner(item.post, identity)
                 ))
               ) : (
@@ -1111,6 +1194,23 @@ export default function BoxView({ posts = [], user = null, isLoggedIn = false, o
       {renderExplorerBody()}
 
       {embedItem && <EmbedModal item={embedItem} onClose={() => setEmbedItem(null)} />}
+
+      {commentsItem?.post?.id && (
+        <div className="boxview-embed-overlay">
+          <dialog className="boxview-embed-dialog" open aria-label="Content comments">
+            <div className="modal-content-custom bg-white p-4 shadow-lg rounded boxview-comments-content">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <h5 className="mb-0">Comments</h5>
+                  <div className="small text-muted text-truncate">{commentsItem.name || commentsItem.post.description || 'Private content'}</div>
+                </div>
+                <button type="button" className="btn-close" aria-label="Close" onClick={() => setCommentsItem(null)}></button>
+              </div>
+              <PostComments postId={commentsItem.post.id} compact autoLoad />
+            </div>
+          </dialog>
+        </div>
+      )}
 
       {isMobile && mobileCurrentVideo && (
         <div className="boxview-mobile-overlay">
