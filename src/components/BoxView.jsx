@@ -183,6 +183,7 @@ function resolveMediaEntries(posts) {
     documents: [],
   };
   const seenVideoUrls = new Set();
+  const seenAudioUrls = new Set();
 
   posts.forEach((post) => {
     const title = normalizeText(post?.title || post?.description || 'Untitled');
@@ -255,9 +256,30 @@ function resolveMediaEntries(posts) {
 
     addVideoEntry();
 
-    addUrls('audios', post?.audioUrls, 'audio');
-    addUrls('audios', post?.hlsAudioUrls, 'audio');
-    addUrls('audios', post?.audioUrl, 'audio');
+    const addAudioEntry = () => {
+      const rawAudios = getUniqueResolvedMediaValues(
+        post?.hlsAudioUrls,
+        post?.audioUrls,
+        post?.audioUrl,
+      );
+
+      rawAudios.forEach((rawAudio) => {
+        const url = toPublicUrl(rawAudio);
+        if (!url) return;
+        const key = normalizeText(url).toLowerCase().split('#')[0].split('?')[0];
+        if (!key || seenAudioUrls.has(key)) return;
+        seenAudioUrls.add(key);
+        addEntry('audios', {
+          kind: 'audio',
+          name: getBaseName(rawAudio, title || 'audio'),
+          url,
+          rawUrl: rawAudio,
+          ext: getBaseName(rawAudio).split('.').pop().toLowerCase(),
+        });
+      });
+    };
+
+    addAudioEntry();
 
     addUrls('images', post?.imageUrls, 'image');
     addUrls('images', post?.photoUrls, 'image');
@@ -379,7 +401,7 @@ EmbedModal.propTypes = {
 };
 
 function MediaPreview({ item, onOpenGroups }) {
-  const videoRef = useRef(null);
+  const mediaRef = useRef(null);
   const hlsRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -396,8 +418,8 @@ function MediaPreview({ item, onOpenGroups }) {
   }, [item]);
 
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || item?.kind !== 'video' || !playableUrl) return;
+    const el = mediaRef.current;
+    if (!el || !['video', 'audio'].includes(item?.kind) || !playableUrl) return;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -424,8 +446,8 @@ function MediaPreview({ item, onOpenGroups }) {
   }, [item, playableUrl]);
 
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || item?.kind !== 'video') return;
+    const el = mediaRef.current;
+    if (!el || !['video', 'audio'].includes(item?.kind)) return;
 
     const onLoaded = () => {
       setDuration(Number.isFinite(el.duration) ? el.duration : 0);
@@ -512,7 +534,7 @@ function MediaPreview({ item, onOpenGroups }) {
 
   if (item.kind === 'video') {
     const togglePlay = () => {
-      const el = videoRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       if (el.paused) {
         el.play().catch(() => {});
@@ -522,14 +544,14 @@ function MediaPreview({ item, onOpenGroups }) {
     };
 
     const toggleMute = () => {
-      const el = videoRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       el.muted = !el.muted;
       setIsMuted(el.muted);
     };
 
     const onSeek = (e) => {
-      const el = videoRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       const next = Number(e.target.value || 0);
       el.currentTime = next;
@@ -537,7 +559,7 @@ function MediaPreview({ item, onOpenGroups }) {
     };
 
     const onRate = (e) => {
-      const el = videoRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       const nextRate = Number(e.target.value || 1);
       el.playbackRate = nextRate;
@@ -545,7 +567,7 @@ function MediaPreview({ item, onOpenGroups }) {
     };
 
     const onFullscreen = async () => {
-      const el = videoRef.current;
+      const el = mediaRef.current;
       if (!el) return;
       try {
         if (document.fullscreenElement) {
@@ -568,7 +590,7 @@ function MediaPreview({ item, onOpenGroups }) {
 
     return (
       <div className="boxview-preview-media">
-        <video ref={videoRef} controls={false} autoPlay playsInline className="boxview-preview-video" poster={item.post?.videoImagePath ? toPublicUrl(item.post.videoImagePath) : ''}>
+        <video ref={mediaRef} controls={false} autoPlay playsInline className="boxview-preview-video" poster={item.post?.videoImagePath ? toPublicUrl(item.post.videoImagePath) : ''}>
           <track kind="captions" label="English captions" srcLang="en" src={CAPTION_TRACK_SRC} />
         </video>
         <fieldset className="boxview-preview-controls" aria-label="Video controls">
@@ -616,7 +638,7 @@ function MediaPreview({ item, onOpenGroups }) {
           <i className="bi bi-music-note-beamed"></i>
           <strong>{item.name}</strong>
           <span>{item.owner}</span>
-          <audio controls autoPlay src={item.url}>
+          <audio ref={mediaRef} controls autoPlay>
             <track kind="captions" label="English captions" srcLang="en" src={CAPTION_TRACK_SRC} />
           </audio>
         </div>
