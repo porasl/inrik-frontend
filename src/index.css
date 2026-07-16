@@ -1794,7 +1794,8 @@ html {
   text-align: left;
   justify-content: flex-start;
   min-height: 78px;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .boxview-file-icon {
