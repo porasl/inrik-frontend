@@ -1894,6 +1894,7 @@ html {
 
 .boxview-file-menu {
   position: relative;
+  z-index: 30;
 }
 
 .boxview-file-menu-toggle {
@@ -1927,7 +1928,7 @@ html {
   padding: 6px;
   display: grid;
   gap: 4px;
-  z-index: 20;
+  z-index: 40;
 }
 
 .boxview-file-menu-item {
