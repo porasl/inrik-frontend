@@ -695,10 +695,11 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, onEdit, onComme
 
   const videoThumb = resolveVideoThumbnail(item);
   const isVideo = item.kind === 'video';
+  const isImage = item.kind === 'image';
   const postId = item?.post?.id || item?.postId || '';
 
   return (
-    <div key={item.id} className={`boxview-file-card ${isVideo ? 'boxview-file-card--video' : ''}`}>
+    <div key={item.id} className={`boxview-file-card ${isVideo ? 'boxview-file-card--video' : ''} ${isImage ? 'boxview-file-card--image' : ''}`}>
       <button type="button" className="boxview-file-card-main" onClick={() => selectItem(item)}>
         {isVideo ? (
           <div className="boxview-file-thumb">
@@ -710,12 +711,16 @@ function renderExplorerItem(item, selectItem, onDelete, onEmbed, onEdit, onComme
               </div>
             )}
           </div>
+        ) : isImage ? (
+          <div className="boxview-file-thumb boxview-file-image-thumb">
+            <img src={item.url} alt={item.name || 'Private image'} className="boxview-file-thumb-img" loading="lazy" />
+          </div>
         ) : (
           <div className="boxview-file-icon">
             <i className={`bi ${getItemIcon(item)}`}></i>
           </div>
         )}
-        <div className="boxview-file-text">
+        <div className={`boxview-file-text ${isImage ? 'boxview-file-text--image' : ''}`}>
           <strong>{item.name || item.label}</strong>
           <span>{item.owner || 'INRIK user'}</span>
         </div>
