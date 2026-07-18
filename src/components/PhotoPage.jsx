@@ -487,7 +487,7 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
         className="photo-card-hover"
         style={{
           position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)',
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: compact ? '6px' : '8px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 0,
           transition: 'background 0.18s',
         }}
       >
@@ -511,9 +511,6 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
             )}
           </div>
           <div className="min-w-0">
-            <div className="text-white fw-semibold text-truncate" style={{ fontSize: compact ? '0.68rem' : '0.76rem', lineHeight: 1.1 }}>
-              {authorName || 'Unknown publisher'}
-            </div>
             {publishedDate && (
               <div className="text-white-50 text-truncate" style={{ fontSize: compact ? '0.62rem' : '0.68rem', lineHeight: 1.1 }}>
                 {publishedDate}
@@ -522,7 +519,7 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
           </div>
         </div>
 
-        <div className="d-flex align-items-end justify-content-between gap-2">
+        <div className="d-flex align-items-end justify-content-between gap-2" style={{ padding: compact ? '6px' : '8px' }}>
           <span className="photo-meta-label" style={{ fontSize: compact ? '0.66rem' : '0.72rem', color: '#fff', background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 4, transition: 'opacity 0.18s' }}>
             <i className="bi bi-eye me-1" />{stats.views} <i className="bi bi-heart ms-2 me-1" />{stats.likes}
           </span>
@@ -945,10 +942,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
       <style>{`
         .photo-publisher-strip {
           max-width: 100%;
-          padding: 4px 6px;
-          border-radius: 999px;
-          background: rgba(0,0,0,0.58);
-          backdrop-filter: blur(3px);
+          padding: 0;
         }
         .photo-card:hover .photo-card-hover { background: rgba(0,0,0,0.28) !important; }
         .photo-card .photo-actions { opacity: 0; transition: opacity .18s; }
