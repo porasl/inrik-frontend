@@ -245,12 +245,14 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                       <button
                         type="button"
                         className="mobile-header-menu-item"
+                        aria-label="Upload"
+                        title="Upload"
                         onClick={() => {
                           setShowUpload(true);
                           closeMobileMenu();
                         }}
                       >
-                        <i className="bi bi-cloud-upload me-2"></i> Upload
+                        <i className="bi bi-cloud-upload"></i>
                       </button>
                       <button
                         type="button"
@@ -369,9 +371,10 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                   type="button"
                   className="btn btn-sm btn-primary"
                   title="Upload"
+                  aria-label="Upload"
                   onClick={() => setShowUpload(true)}
                 >
-                  <i className="bi bi-plus-circle me-1"></i>Upload
+                  <i className="bi bi-plus-circle"></i>
                 </button>
 
                 <button
