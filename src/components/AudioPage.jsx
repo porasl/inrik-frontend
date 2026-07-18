@@ -97,8 +97,10 @@ export default function AudioPage({
             type="button"
             className="btn btn-primary btn-sm"
             onClick={onUploadAudio}
+            aria-label="Upload audio"
+            title="Upload audio"
           >
-            <i className="bi bi-upload me-1"></i> Upload Audio
+            <i className="bi bi-upload"></i>
           </button>
         )}
       </div>
