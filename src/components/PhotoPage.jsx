@@ -857,9 +857,8 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
             <span className="small text-secondary" style={{ minWidth: 28 }}>{binocularZoom}x</span>
           </div>
           {isLoggedIn && (
-            <button className="btn btn-primary btn-sm d-flex align-items-center gap-1" onClick={onUpload}>
+            <button className="btn btn-primary btn-sm d-flex align-items-center" onClick={onUpload} aria-label="Upload photo" title="Upload photo">
               <i className="bi bi-cloud-upload" />
-              Upload Photo
             </button>
           )}
         </div>
