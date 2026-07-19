@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Hls from 'hls.js';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getUserProfileCached } from '../services/userProfileService';
+import PostComments from './PostComments';
+import { EditPostModal, canCurrentUserEditPost } from './PostView';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -304,12 +306,14 @@ function CommentsSection({ postId }) {
 /* ═══════════════════════════════════════════
    MAIN VIDEO WATCH PAGE
 ═══════════════════════════════════════════ */
-export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
+export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDelete, onUpdated }) {
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
     const [liked, setLiked] = useState(!!post.isLikedByCurrentUser);
     const [likeCount, setLikeCount] = useState(post.likes || 0);
     const [views, setViews] = useState(post.views || 0);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const canEditPost = canCurrentUserEditPost(post);
 
     // Sync state when navigating between different videos
     useEffect(() => {
@@ -401,6 +405,11 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
         }
     };
 
+    const handleDeletePost = async () => {
+        const deleted = await onDelete?.(post.id);
+        if (deleted) onHome?.();
+    };
+
     return (
         <div className="video-watch-root">
 
@@ -457,6 +466,28 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                         <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 px-3" style={{ borderRadius: 20 }}>
                             <i className="bi bi-share"></i> <span className="d-none d-md-inline">Share</span>
                         </button>
+                        {canEditPost && (
+                            <>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary d-flex align-items-center gap-2 px-3"
+                                    style={{ borderRadius: 20 }}
+                                    onClick={() => setShowEditModal(true)}
+                                >
+                                    <i className="bi bi-pencil-square"></i>
+                                    <span className="d-none d-md-inline">Edit</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger d-flex align-items-center gap-2 px-3"
+                                    style={{ borderRadius: 20 }}
+                                    onClick={handleDeletePost}
+                                >
+                                    <i className="bi bi-trash"></i>
+                                    <span className="d-none d-md-inline">Delete</span>
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -468,7 +499,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                 )}
 
                 {/* Comments */}
-                <CommentsSection postId={post.id} />
+                <PostComments postId={post.id} className="mt-4" canModerate={canEditPost} autoLoad />
             </div>
 
             {/* ── RIGHT: Related videos sidebar ── */}
@@ -513,6 +544,17 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome }) {
                     })}
                 </div>
             </div>
+
+            {showEditModal && (
+                <EditPostModal
+                    post={post}
+                    onClose={() => setShowEditModal(false)}
+                    onSaved={async () => {
+                        setShowEditModal(false);
+                        await onUpdated?.();
+                    }}
+                />
+            )}
         </div>
     );
 }

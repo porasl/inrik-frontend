@@ -117,6 +117,7 @@ function CommentBlock({
   comment,
   depth,
   currentUser,
+  canModerate = false,
   replyingToId,
   setReplyingToId,
   editingCommentId,
@@ -128,6 +129,7 @@ function CommentBlock({
   tree,
 }) {
   const isOwner = String(comment.userEmail || '').trim().toLowerCase() === currentUser;
+  const canDelete = isOwner || canModerate;
   const replies = tree[comment.id] || [];
 
   return (
@@ -159,14 +161,16 @@ function CommentBlock({
                   >
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-link btn-sm p-0 text-decoration-none text-danger"
-                    onClick={() => deleteComment(comment.id)}
-                  >
-                    Delete
-                  </button>
                 </>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm p-0 text-decoration-none text-danger"
+                  onClick={() => deleteComment(comment.id)}
+                >
+                  Delete
+                </button>
               )}
             </div>
           </div>
@@ -220,6 +224,7 @@ function CommentBlock({
             comment={reply}
             depth={depth + 1}
             currentUser={currentUser}
+            canModerate={canModerate}
             replyingToId={replyingToId}
             setReplyingToId={setReplyingToId}
             editingCommentId={editingCommentId}
@@ -237,7 +242,7 @@ function CommentBlock({
   );
 }
 
-export default function PostComments({ postId, className = '', compact = false, autoLoad = true }) {
+export default function PostComments({ postId, className = '', compact = false, autoLoad = true, canModerate = false }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -432,6 +437,7 @@ export default function PostComments({ postId, className = '', compact = false, 
             comment={comment}
             depth={0}
             currentUser={currentUser}
+            canModerate={canModerate}
             replyingToId={replyingToId}
             setReplyingToId={setReplyingToId}
             editingCommentId={editingCommentId}
@@ -453,4 +459,5 @@ PostComments.propTypes = {
   className: PropTypes.string,
   compact: PropTypes.bool,
   autoLoad: PropTypes.bool,
+  canModerate: PropTypes.bool,
 };

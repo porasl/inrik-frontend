@@ -128,6 +128,12 @@ function PhotoEmbedModal({ photo, onClose }) {
 }
 
 const BINOCULAR_LENS_SIZE = 140;
+const IMAGE_ANIMATION_MODES = [
+  { key: 'none', icon: 'bi-pause-fill', title: 'Image animation off' },
+  { key: 'kenburns', icon: 'bi-arrows-fullscreen', title: 'Animate image: cinematic zoom' },
+  { key: 'float', icon: 'bi-wind', title: 'Animate image: float' },
+  { key: 'pan', icon: 'bi-arrow-left-right', title: 'Animate image: pan' },
+];
 
 function BinocularLens({ imageUrl, position, zoom, size = BINOCULAR_LENS_SIZE }) {
   const bgX = position.rectW
@@ -167,6 +173,10 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
   const [showLens, setShowLens] = useState(false);
   const [binocularEnabled, setBinocularEnabled] = useState(true);
+  const [animationModeIndex, setAnimationModeIndex] = useState(0);
+  const [aiAnimationUrl, setAiAnimationUrl] = useState('');
+  const [aiAnimationLoading, setAiAnimationLoading] = useState(false);
+  const [aiAnimationError, setAiAnimationError] = useState('');
   const [touchDx, setTouchDx] = useState(0);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const imgRef = useRef(null);
@@ -231,6 +241,14 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
 
   // Close on Escape
   useEffect(() => {
+    setAiAnimationUrl('');
+    setAiAnimationError('');
+    setAiAnimationLoading(false);
+    setAnimationModeIndex(0);
+    setShowLens(false);
+  }, [photo.url]);
+
+  useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft' && hasPrev) onPrev();
@@ -242,6 +260,46 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
 
   const authorName = [photo.post.userFirstName, photo.post.userLastName].filter(Boolean).join(' ')
     || photo.post.email || 'Unknown';
+  const animationMode = IMAGE_ANIMATION_MODES[animationModeIndex] || IMAGE_ANIMATION_MODES[0];
+  const animationEnabled = animationMode.key !== 'none' && !aiAnimationUrl;
+
+  const requestAiAnimation = async () => {
+    if (aiAnimationLoading) return;
+
+    setAiAnimationLoading(true);
+    setAiAnimationError('');
+    setAiAnimationUrl('');
+    setShowLens(false);
+    setBinocularEnabled(false);
+    setAnimationModeIndex(0);
+
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const response = await fetch(`${API_BASE}/api/image-animation/animate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          imageUrl: photo.url,
+          seconds: 4,
+          prompt: 'Animate natural motion in visible people or animals while preserving the original image.',
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.message || `Animation request failed (${response.status})`);
+      }
+      const nextUrl = data?.videoUrl || data?.animationUrl || data?.url;
+      if (!nextUrl) throw new Error('Animation service did not return a video URL.');
+      setAiAnimationUrl(toPublicUrl(nextUrl));
+    } catch (error) {
+      setAiAnimationError(error?.message || 'Could not animate this image.');
+    } finally {
+      setAiAnimationLoading(false);
+    }
+  };
 
   return (
     <div
@@ -321,6 +379,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, maxHeight: '80vh', maxWidth: '95vw' }}>
         {/* Image + lens wrapper */}
         <div
+          className={`photo-viewer-image-wrap ${animationEnabled ? `photo-viewer-image-wrap--${animationMode.key}` : ''}`}
           style={{
             position: 'relative',
             maxHeight: '80vh',
@@ -328,7 +387,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
             display: 'inline-block',
             cursor: binocularEnabled ? 'none' : 'default',
             transform: `translateX(${touchDx}px)`,
-          transition: isTouchDragging ? 'none' : 'transform 220ms ease-out',
+            transition: isTouchDragging ? 'none' : 'transform 220ms ease-out',
             flexShrink: 0,
           }}
           onMouseMove={handleMouseMove}
@@ -337,21 +396,43 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <img
-            key={photo.url}
-            ref={imgRef}
-            src={photo.url}
-            alt={photo.post.description || 'Photo'}
-            style={{
-              maxHeight: '72vh',
-              maxWidth: '78vw',
-              objectFit: 'contain',
-              display: 'block',
-              borderRadius: 8,
+          {aiAnimationUrl ? (
+            <video
+              key={aiAnimationUrl}
+              src={aiAnimationUrl}
+              className="photo-viewer-image"
+              controls
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{
+                maxHeight: '72vh',
+                maxWidth: '78vw',
+                objectFit: 'contain',
+                display: 'block',
+                borderRadius: 8,
+                background: '#000',
+              }}
+            />
+          ) : (
+            <img
+              key={photo.url}
+              ref={imgRef}
+              src={photo.url}
+              alt={photo.post.description || 'Photo'}
+              className={`photo-viewer-image ${animationEnabled ? `photo-viewer-image--${animationMode.key}` : ''}`}
+              style={{
+                maxHeight: '72vh',
+                maxWidth: '78vw',
+                objectFit: 'contain',
+                display: 'block',
+                borderRadius: 8,
 
-            }}
-            draggable={false}
-          />
+              }}
+              draggable={false}
+            />
+          )}
 
           {/* Binocular lens */}
           {binocularEnabled && showLens && (
@@ -382,6 +463,32 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
             <span style={{ fontSize: '0.85rem', marginTop: 2 }}>{stats?.likes ?? 0}</span>
           </button>
 
+          {/* Animate */}
+          <button
+            className="btn p-0 border-0 bg-transparent text-white d-flex flex-column align-items-center"
+            title={animationMode.title}
+            disabled={!!aiAnimationUrl}
+            onClick={() => {
+              setAnimationModeIndex((index) => (index + 1) % IMAGE_ANIMATION_MODES.length);
+              setShowLens(false);
+            }}
+          >
+            <i className={`bi ${animationMode.icon}`} style={{ fontSize: '1.6rem' }} />
+            <span style={{ fontSize: '0.72rem', marginTop: 2 }}>{animationEnabled ? animationMode.key : 'Still'}</span>
+          </button>
+
+          {/* AI Animate */}
+          <button
+            className="btn p-0 border-0 bg-transparent text-white d-flex flex-column align-items-center"
+            title="Animate people or animals with local AI"
+            onClick={requestAiAnimation}
+            disabled={aiAnimationLoading}
+            style={{ opacity: aiAnimationLoading ? 0.65 : 1 }}
+          >
+            <i className={`bi ${aiAnimationLoading ? 'bi-hourglass-split' : 'bi-stars'}`} style={{ fontSize: '1.6rem' }} />
+            <span style={{ fontSize: '0.72rem', marginTop: 2 }}>{aiAnimationLoading ? 'AI...' : 'AI'}</span>
+          </button>
+
           {/* Download */}
           <button
             className="btn p-0 border-0 bg-transparent text-white d-flex flex-column align-items-center"
@@ -408,6 +515,9 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           <p style={{ margin: '0 0 2px', color: '#fff' }}>{photo.post.description}</p>
         )}
         <span style={{ fontSize: '0.78rem' }}>by {authorName}</span>
+        {aiAnimationError && (
+          <div className="text-warning mt-2" style={{ fontSize: '0.78rem' }}>{aiAnimationError}</div>
+        )}
       </div>
 
 
@@ -953,8 +1063,53 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
           white-space: nowrap;
         }
 
+        .photo-viewer-image-wrap {
+          overflow: hidden;
+          border-radius: 8px;
+        }
+
+        .photo-viewer-image {
+          transform-origin: center;
+          will-change: transform, filter;
+        }
+
+        .photo-viewer-image--kenburns {
+          animation: photoKenBurns 9s ease-in-out infinite alternate;
+        }
+
+        .photo-viewer-image--float {
+          animation: photoFloat 4.8s ease-in-out infinite;
+        }
+
+        .photo-viewer-image--pan {
+          animation: photoPan 7s ease-in-out infinite alternate;
+        }
+
+        @keyframes photoKenBurns {
+          0% { transform: scale(1) translate3d(-1.5%, 1%, 0); filter: saturate(1); }
+          100% { transform: scale(1.12) translate3d(1.5%, -1%, 0); filter: saturate(1.08); }
+        }
+
+        @keyframes photoFloat {
+          0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+          50% { transform: translate3d(0, -10px, 0) scale(1.025); }
+        }
+
+        @keyframes photoPan {
+          0% { transform: scale(1.08) translate3d(-2.4%, 0, 0); }
+          100% { transform: scale(1.08) translate3d(2.4%, 0, 0); }
+        }
+
         @media (max-width: 768px) {
           .photo-card .photo-actions { opacity: 1; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .photo-viewer-image--kenburns,
+          .photo-viewer-image--float,
+          .photo-viewer-image--pan {
+            animation: none;
+          }
         }
       `}</style>
     </div>

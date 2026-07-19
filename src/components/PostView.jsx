@@ -248,7 +248,7 @@ function getCurrentViewerIdentity() {
   return { email, userId };
 }
 
-function canCurrentUserEditPost(post) {
+export function canCurrentUserEditPost(post) {
   const viewer = getCurrentViewerIdentity();
   // Must be logged in to edit/delete
   if (!viewer.email && !viewer.userId) return false;
@@ -290,7 +290,7 @@ function getFileKind(file) {
   return 'documents';
 }
 
-function EditPostModal({ post, onClose = () => {}, onSaved = async () => {} }) {
+export function EditPostModal({ post, onClose = () => {}, onSaved = async () => {} }) {
   const [title, setTitle] = useState(String(post?.title || '').trim());
   const [description, setDescription] = useState(resolvePostDescription(post));
   const [attachments, setAttachments] = useState({
@@ -880,7 +880,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
         </div>
       </footer>
 
-      {showComments && <PostComments postId={post.id} className="postview-comments" compact autoLoad />}
+      {showComments && <PostComments postId={post.id} className="postview-comments" compact autoLoad canModerate={canEdit} />}
       {showEditModal && (
         <EditPostModal
           post={post}

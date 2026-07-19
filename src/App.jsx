@@ -1293,10 +1293,18 @@ function App() {
       if (result.errors) throw new Error(result.errors[0].message);
       invalidatePostsCache();
       setPosts(prev => prev.filter(p => p.id !== postId));
+      setWatchingPost(prev => (prev?.id === postId ? null : prev));
+      return true;
     } catch (err) {
       console.error("Delete failed:", err);
       alert("Failed to delete video: " + err.message);
+      return false;
     }
+  };
+
+  const handlePostUpdated = async () => {
+    invalidatePostsCache();
+    await fetchPosts(0, false, true);
   };
 
   /* ─────────
@@ -1436,6 +1444,8 @@ function App() {
               allPosts={posts}
               onWatch={(p) => setWatchingPost(p)}
               onHome={goHome}
+              onDelete={handleDeletePost}
+              onUpdated={handlePostUpdated}
             />
           ) : (
             /* ── HOME FEED ── */
