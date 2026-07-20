@@ -127,6 +127,172 @@ function PhotoEmbedModal({ photo, onClose }) {
   );
 }
 
+function ImageStudioModal({ onClose }) {
+  const inputRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [inputUrl, setInputUrl] = useState('');
+  const [resultUrl, setResultUrl] = useState('');
+  const [operation, setOperation] = useState('colorize');
+  const [scale, setScale] = useState('2');
+  const [restoreFaces, setRestoreFaces] = useState(false);
+  const [colorModel, setColorModel] = useState('artistic');
+  const [neutralizeAgedTint, setNeutralizeAgedTint] = useState(true);
+  const [repairScratches, setRepairScratches] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+
+  const selectFile = (selected) => {
+    if (!selected || !selected.type?.startsWith('image/')) {
+      setError('Please choose a valid image file.');
+      return;
+    }
+    setError('');
+    setFile(selected);
+    setInputUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return URL.createObjectURL(selected);
+    });
+    setResultUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return '';
+    });
+  };
+
+  const processImage = async () => {
+    if (!file) {
+      setError('Drop or choose an image first.');
+      return;
+    }
+    setProcessing(true);
+    setError('');
+    const body = new FormData();
+    body.append('file', file);
+    body.append('operation', operation);
+    body.append('scale', scale);
+    body.append('restore_faces', String(restoreFaces));
+    body.append('color_model', colorModel);
+    body.append('neutralize_aged_tint', String(neutralizeAgedTint));
+    body.append('repair_scratches', String(repairScratches));
+    try {
+      const response = await fetch('/image-tools/api/images/process', { method: 'POST', body });
+      if (!response.ok) {
+        const details = await response.json().catch(() => null);
+        throw new Error(details?.detail || `Image processing failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      setResultUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return URL.createObjectURL(blob);
+      });
+    } catch (requestError) {
+      setError(requestError.message || 'Could not process the image.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(4,12,24,.72)', display: 'grid', placeItems: 'center', padding: '1rem' }}>
+      <div className="bg-white rounded-4 shadow-lg p-3 p-md-4" onClick={(event) => event.stopPropagation()} style={{ width: 'min(960px, 100%)', maxHeight: '94vh', overflowY: 'auto' }}>
+        <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <h4 className="mb-1 fw-bold"><i className="bi bi-stars me-2 text-primary" />AI Image Studio</h4>
+            <p className="text-secondary mb-0 small">Add plausible color, improve resolution and detail, or do both.</p>
+          </div>
+          <button className="btn-close" onClick={onClose} aria-label="Close image studio" />
+        </div>
+
+        <div
+          className="rounded-4 border border-2 border-primary-subtle bg-light text-center p-4 mb-3"
+          style={{ borderStyle: 'dashed !important', cursor: 'pointer' }}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]); }}
+          role="button"
+          tabIndex="0"
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click(); }}
+        >
+          <i className="bi bi-cloud-arrow-up text-primary" style={{ fontSize: '2.4rem' }} />
+          <div className="fw-semibold">Drop an image here or click to browse</div>
+          <div className="small text-secondary">JPEG, PNG, WebP, AVIF and other browser-supported images</div>
+          <input ref={inputRef} type="file" accept="image/*" hidden onChange={(event) => selectFile(event.target.files?.[0])} />
+        </div>
+
+        {inputUrl && (
+          <div className="row g-3 mb-3">
+            <div className="col-md-6">
+              <div className="small text-secondary fw-semibold mb-1">Original</div>
+              <img src={inputUrl} alt="Original upload" className="w-100 rounded-3 bg-dark" style={{ height: 320, objectFit: 'contain' }} />
+            </div>
+            <div className="col-md-6">
+              <div className="small text-secondary fw-semibold mb-1">Result</div>
+              {resultUrl ? (
+                <img src={resultUrl} alt="Processed result" className="w-100 rounded-3 bg-dark" style={{ height: 320, objectFit: 'contain' }} />
+              ) : (
+                <div className="rounded-3 bg-light border d-grid text-secondary" style={{ height: 320, placeItems: 'center' }}>Your result will appear here</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="d-flex flex-wrap align-items-end gap-3">
+          <div>
+            <label className="form-label small fw-semibold mb-1">Action</label>
+            <select className="form-select" value={operation} onChange={(event) => setOperation(event.target.value)}>
+              <option value="colorize">Colorize</option>
+              <option value="enhance">Enhance resolution</option>
+              <option value="both">Enhance first + Colorize</option>
+            </select>
+          </div>
+          {operation !== 'colorize' && (
+            <div>
+              <label className="form-label small fw-semibold mb-1">Enhancement scale</label>
+              <select className="form-select" value={scale} onChange={(event) => setScale(event.target.value)}>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+              </select>
+            </div>
+          )}
+          {operation !== 'enhance' && (
+            <div>
+              <label className="form-label small fw-semibold mb-1">Color style</label>
+              <select className="form-select" value={colorModel} onChange={(event) => setColorModel(event.target.value)}>
+                <option value="artistic">Natural — fewer artifacts</option>
+                <option value="modelscope">Vivid — stronger colors</option>
+              </select>
+            </div>
+          )}
+          {operation !== 'enhance' && (
+            <div className="form-check align-self-center mt-3">
+              <input className="form-check-input" id="neutralize-aged-tint" type="checkbox" checked={neutralizeAgedTint} onChange={(event) => setNeutralizeAgedTint(event.target.checked)} />
+              <label className="form-check-label" htmlFor="neutralize-aged-tint">
+                Remove aged tint first <span className="text-secondary small">(recommended)</span>
+              </label>
+            </div>
+          )}
+          <div className="form-check align-self-center mt-3">
+            <input className="form-check-input" id="repair-scratches" type="checkbox" checked={repairScratches} onChange={(event) => setRepairScratches(event.target.checked)} />
+            <label className="form-check-label" htmlFor="repair-scratches">
+              Repair scratches + sharpen <span className="text-secondary small">(conservative)</span>
+            </label>
+          </div>
+          <div className="form-check align-self-center mt-3">
+            <input className="form-check-input" id="restore-faces" type="checkbox" checked={restoreFaces} onChange={(event) => setRestoreFaces(event.target.checked)} />
+            <label className="form-check-label" htmlFor="restore-faces">
+              Restore faces <span className="text-secondary small">(may alter identity)</span>
+            </label>
+          </div>
+          <button className="btn btn-primary px-4" disabled={!file || processing} onClick={processImage}>
+            {processing ? <><span className="spinner-border spinner-border-sm me-2" />Processing…</> : <><i className="bi bi-stars me-2" />Process image</>}
+          </button>
+          {resultUrl && <a className="btn btn-outline-secondary" href={resultUrl} download="processed-image.png"><i className="bi bi-download me-2" />Download</a>}
+        </div>
+        {error && <div className="alert alert-danger mt-3 mb-0 py-2">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
 const BINOCULAR_LENS_SIZE = 140;
 const IMAGE_ANIMATION_MODES = [
   { key: 'none', icon: 'bi-pause-fill', title: 'Image animation off' },
@@ -682,6 +848,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(null);
   const [embedPhoto, setEmbedPhoto] = useState(null);
+  const [showImageStudio, setShowImageStudio] = useState(false);
   const [binocularZoom, setBinocularZoom] = useState(2.5);
 
   const [postStats, setPostStats] = useState({});
@@ -943,6 +1110,9 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
         </ul>
 
         <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+          <button className="btn btn-outline-primary btn-sm d-flex align-items-center" onClick={() => setShowImageStudio(true)} title="Colorize or enhance an image">
+            <i className="bi bi-stars me-1" />Image Studio
+          </button>
           {showRefreshing && (
             <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
               <span className="spinner-border spinner-border-sm" aria-hidden="true" />
@@ -1048,6 +1218,7 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
       {embedPhoto && (
         <PhotoEmbedModal photo={embedPhoto} onClose={() => setEmbedPhoto(null)} />
       )}
+      {showImageStudio && <ImageStudioModal onClose={() => setShowImageStudio(false)} />}
 
       <style>{`
         .photo-publisher-strip {

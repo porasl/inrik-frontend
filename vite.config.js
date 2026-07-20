@@ -6,6 +6,8 @@ export default defineConfig(() => {
   const protocol = LOCAL_CONFIG.APP_PROTOCOL || 'http';
   const host = LOCAL_CONFIG.APPLICATION_HOST || '';
   const apiOrigin = LOCAL_CONFIG.API_ORIGIN || (host && LOCAL_CONFIG.API_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.API_PORT}` : '');
+  const imageServiceOrigin = LOCAL_CONFIG.IMAGE_SERVICE_ORIGIN
+    || (host && LOCAL_CONFIG.IMAGE_SERVICE_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.IMAGE_SERVICE_PORT}` : '');
 
   if (!apiOrigin) {
     throw new Error('Missing VITE_API_ORIGIN or VITE_APPLICATION_HOST/VITE_API_PORT configuration.');
@@ -18,6 +20,12 @@ export default defineConfig(() => {
       host: true,
       strictPort: true,
       proxy: {
+        '/image-tools': {
+          target: imageServiceOrigin,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/image-tools/, ''),
+        },
         '/graphql': {
           target: apiOrigin,
           changeOrigin: true,
