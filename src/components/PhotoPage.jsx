@@ -199,7 +199,6 @@ function ImageStudioModal({ onClose }) {
   }, []);
 
   const loadSavedMotions = useCallback(async () => {
-    if (!localStorage.getItem('token')) return;
     try {
       const response = await fetch('/content-tools/contentservices/api/motions', { headers: authHeaders() });
       if (response.ok) setSavedMotions(await response.json());
@@ -222,7 +221,7 @@ function ImageStudioModal({ onClose }) {
     return fallback;
   };
 
-  const saveMovement = async () => {
+  const saveMovement = async ({ propagate = false } = {}) => {
     if (!drivingVideo) {
       setError('Choose a short driving video first.');
       return;
@@ -234,9 +233,6 @@ function ImageStudioModal({ onClose }) {
     setError('');
     try {
       const accessToken = await ensureAccessToken();
-      if (!accessToken) {
-        throw new Error('Sign in before saving a movement. Your MP4 has not been uploaded.');
-      }
       const extractionBody = new FormData();
       extractionBody.append('driving_video', drivingVideo);
       const extractionResponse = await fetch('/image-tools/api/motions/extract', { method: 'POST', body: extractionBody });
@@ -250,24 +246,31 @@ function ImageStudioModal({ onClose }) {
       storageBody.append('durationSeconds', '0');
       storageBody.append('template', template, 'motion-template.pkl');
       const storageResponse = await fetch('/content-tools/contentservices/api/motions', {
-        method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: storageBody,
+        method: 'POST', headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, body: storageBody,
       });
       if (!storageResponse.ok) {
         if (storageResponse.status === 401) {
-          throw new Error('Your sign-in session expired. Sign out, sign in again, and retry saving the movement.');
+          throw new Error('Movement storage authentication failed. Refresh the page and try again.');
         }
         const details = await storageResponse.json().catch(() => null);
         throw new Error(apiError(details, `Could not save movement (${storageResponse.status})`));
       }
       const saved = await storageResponse.json();
-      await loadSavedMotions();
+      // Show the newly persisted movement immediately. The background list
+      // refresh remains useful, but a slow/unavailable second request should
+      // never make a successful save look missing from the dropdown.
+      setSavedMotions((previous) => [saved, ...previous.filter((motion) => String(motion.id) !== String(saved.id))]);
       setMotionSource('saved');
       setSelectedMotionId(String(saved.id));
+      await loadSavedMotions();
       setMovementName('');
       setDrivingVideo(null);
       setScanSummary(`Saved “${saved.name}” to My Movements.`);
+      return { saved, template };
     } catch (saveError) {
       setError(saveError.message || 'Could not save movement.');
+      if (propagate) throw saveError;
+      return null;
     } finally {
       setSavingMovement(false);
     }
@@ -321,6 +324,12 @@ function ImageStudioModal({ onClose }) {
     body.append('auto_repair', String(autoRepair));
     body.append('auto_upscale', String(autoUpscale));
     try {
+      // An uploaded driving video is automatically extracted and persisted as
+      // part of the first animation run. Reuse the extracted Blob immediately
+      // so the user never has to upload the same template again.
+      const autoSavedMotion = isAnimationOperation && drivingVideo
+        ? await saveMovement({ propagate: true })
+        : null;
       let requestBody = body;
       let endpoint = isAnimationOperation
         ? '/image-tools/api/images/animate'
@@ -354,12 +363,13 @@ function ImageStudioModal({ onClose }) {
         }
         endpoint = '/image-tools/api/images/animate';
       }
-      if (isAnimationOperation && motionSource === 'saved') {
+      if (autoSavedMotion?.template) {
+        requestBody.append('motion_template', autoSavedMotion.template, 'saved-motion.pkl');
+      } else if (isAnimationOperation && motionSource === 'saved') {
         const selectedMotion = savedMotions.find((motion) => String(motion.id) === String(selectedMotionId));
         if (!selectedMotion) throw new Error('Select a movement from My Movements.');
         const accessToken = await ensureAccessToken();
-        if (!accessToken) throw new Error('Sign in again to load My Movements.');
-        const templateResponse = await fetch(selectedMotion.fileUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const templateResponse = await fetch(selectedMotion.fileUrl, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
         if (!templateResponse.ok) throw new Error(`Could not load saved movement (${templateResponse.status})`);
         const template = await templateResponse.blob();
         requestBody.append('motion_template', template, 'saved-motion.pkl');
@@ -662,11 +672,11 @@ function ImageStudioModal({ onClose }) {
               <div className="d-flex flex-wrap gap-2 align-items-center">
                 <input className="form-control" style={{ maxWidth: 360 }} value={movementName} maxLength="120" placeholder="Movement name" onChange={(event) => setMovementName(event.target.value)} />
                 <input className="form-control" style={{ maxWidth: 420 }} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,.mp4,.mov,.webm,.avi" onChange={(event) => setDrivingVideo(event.target.files?.[0] || null)} />
-                <button type="button" className="btn btn-outline-primary" disabled={!drivingVideo || savingMovement} onClick={saveMovement}>
+                <button type="button" className="btn btn-outline-primary" disabled={!drivingVideo || savingMovement} onClick={() => saveMovement()}>
                   {savingMovement ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : 'Save to My Movements'}
                 </button>
               </div>
-              <div className="small text-secondary mt-1">Use a short front-facing MP4, MOV, WebM or AVI showing the desired head and facial motion.</div>
+              <div className="small text-secondary mt-1">Use a short front-facing MP4, MOV, WebM or AVI. It is saved automatically when you create the animation; the Save button is optional.</div>
             </div>
             <div>
               <label className="form-label fw-semibold mb-1">2. Select the animation model</label>
@@ -754,7 +764,7 @@ function ImageStudioModal({ onClose }) {
               Restore faces <span className="text-secondary small">(may alter identity)</span>
             </label>
           </div>}
-          <button className="btn btn-primary px-4" disabled={!file || processing || (isTalkingOperation && (!speechText.trim() || (motionSource === 'saved' && !selectedMotionId)))} onClick={processImage}>
+          <button className="btn btn-primary px-4" disabled={!file || processing || (isTalkingOperation && (!speechText.trim() || (motionSource === 'saved' && !selectedMotionId && !drivingVideo)))} onClick={processImage}>
             {processing ? <><span className="spinner-border spinner-border-sm me-2" />{operation === 'both_talking' ? 'Enhancing, colorizing & speaking…' : (isAnimationOperation ? 'Animating…' : 'Processing…')}</> : <><i className={`bi ${isAnimationOperation ? 'bi-film' : 'bi-stars'} me-2`} />{operation === 'both_talking' ? 'Create talking portrait' : (isAnimationOperation ? (operation === 'both_animate' ? 'Restore & animate' : 'Animate image') : 'Process image')}</>}
           </button>
           {resultUrl && <button type="button" className="btn btn-outline-secondary" onClick={downloadResult}><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</button>}
