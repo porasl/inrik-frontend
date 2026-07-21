@@ -404,18 +404,19 @@ function ImageStudioModal({ onClose }) {
   };
 
   const downloadResult = () => {
-    if (!resultBlob) return;
+    if (!resultUrl) return;
     const extension = isAnimationOperation ? effectiveAnimationFormat : 'png';
-    const downloadUrl = URL.createObjectURL(resultBlob);
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    // Reuse the preview URL, which remains alive until a new result replaces
+    // it. Revoking a second temporary URL on a timer can interrupt Safari
+    // while it is still committing a large narration MP4 to disk.
+    link.href = resultUrl;
     link.download = isAnimationOperation ? `animated-portrait.${extension}` : 'processed-image.png';
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
     link.remove();
-    // Safari may still be reading the Blob after the synthetic click returns.
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
+    setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download started; keep this studio open until the browser finishes saving.`);
   };
 
   const moveResultLens = (event) => {
