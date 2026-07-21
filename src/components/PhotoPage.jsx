@@ -132,14 +132,17 @@ function ImageStudioModal({ onClose }) {
   const [file, setFile] = useState(null);
   const [inputUrl, setInputUrl] = useState('');
   const [resultUrl, setResultUrl] = useState('');
+  const [resultBlob, setResultBlob] = useState(null);
   const [resultMediaType, setResultMediaType] = useState('image/png');
   const [operation, setOperation] = useState('colorize');
   const [animationPreset, setAnimationPreset] = useState('gentle_alive');
   const [animationFormat, setAnimationFormat] = useState('gif');
   const [animationDuration, setAnimationDuration] = useState(4);
-  const [motionSource, setMotionSource] = useState('built_in');
+  const [speechText, setSpeechText] = useState('');
+  const [speechVoice, setSpeechVoice] = useState('female');
+  const [motionSource, setMotionSource] = useState(() => localStorage.getItem('imageStudio.motionSource') || 'built_in');
   const [savedMotions, setSavedMotions] = useState([]);
-  const [selectedMotionId, setSelectedMotionId] = useState('');
+  const [selectedMotionId, setSelectedMotionId] = useState(() => localStorage.getItem('imageStudio.motionId') || '');
   const [movementName, setMovementName] = useState('');
   const [drivingVideo, setDrivingVideo] = useState(null);
   const [savingMovement, setSavingMovement] = useState(false);
@@ -164,7 +167,9 @@ function ImageStudioModal({ onClose }) {
   const [editorRendering, setEditorRendering] = useState(false);
   const resultImageRef = useRef(null);
   const editorCanvasRef = useRef(null);
-  const isAnimationOperation = operation === 'animate' || operation === 'both_animate';
+  const isTalkingOperation = operation === 'talking' || operation === 'both_talking';
+  const isAnimationOperation = operation === 'animate' || operation === 'both_animate' || isTalkingOperation;
+  const effectiveAnimationFormat = isTalkingOperation ? 'mp4' : animationFormat;
 
   const authHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -204,6 +209,18 @@ function ImageStudioModal({ onClose }) {
   }, [authHeaders]);
 
   useEffect(() => { loadSavedMotions(); }, [loadSavedMotions]);
+  useEffect(() => { localStorage.setItem('imageStudio.motionSource', motionSource); }, [motionSource]);
+  useEffect(() => {
+    if (selectedMotionId) localStorage.setItem('imageStudio.motionId', selectedMotionId);
+  }, [selectedMotionId]);
+
+  const apiError = (details, fallback) => {
+    if (!details) return fallback;
+    if (typeof details.detail === 'string') return details.detail;
+    if (Array.isArray(details.detail)) return details.detail.map((item) => item.msg || JSON.stringify(item)).join('; ');
+    if (typeof details.message === 'string') return details.message;
+    return fallback;
+  };
 
   const saveMovement = async () => {
     if (!drivingVideo) {
@@ -225,7 +242,7 @@ function ImageStudioModal({ onClose }) {
       const extractionResponse = await fetch('/image-tools/api/motions/extract', { method: 'POST', body: extractionBody });
       if (!extractionResponse.ok) {
         const details = await extractionResponse.json().catch(() => null);
-        throw new Error(details?.detail || `Movement extraction failed (${extractionResponse.status})`);
+        throw new Error(apiError(details, `Movement extraction failed (${extractionResponse.status})`));
       }
       const template = await extractionResponse.blob();
       const storageBody = new FormData();
@@ -240,7 +257,7 @@ function ImageStudioModal({ onClose }) {
           throw new Error('Your sign-in session expired. Sign out, sign in again, and retry saving the movement.');
         }
         const details = await storageResponse.json().catch(() => null);
-        throw new Error(details?.detail || `Could not save movement (${storageResponse.status})`);
+        throw new Error(apiError(details, `Could not save movement (${storageResponse.status})`));
       }
       const saved = await storageResponse.json();
       await loadSavedMotions();
@@ -271,6 +288,7 @@ function ImageStudioModal({ onClose }) {
       if (previous) URL.revokeObjectURL(previous);
       return '';
     });
+    setResultBlob(null);
     setResultMediaType('image/png');
   };
 
@@ -284,10 +302,14 @@ function ImageStudioModal({ onClose }) {
     const body = new FormData();
     body.append('file', file);
     if (isAnimationOperation) {
-      body.append('preset', animationPreset);
-      body.append('output_format', animationFormat);
+      body.append('preset', isTalkingOperation ? 'talking' : animationPreset);
+      body.append('output_format', effectiveAnimationFormat);
       body.append('duration', String(animationDuration));
       body.append('fps', '10');
+      if (isTalkingOperation) {
+        body.append('speech_text', speechText.trim());
+        body.append('speech_voice', speechVoice);
+      }
     } else {
       body.append('operation', operation);
     }
@@ -303,7 +325,7 @@ function ImageStudioModal({ onClose }) {
       let endpoint = isAnimationOperation
         ? '/image-tools/api/images/animate'
         : '/image-tools/api/images/process';
-      if (operation === 'both_animate') {
+      if (operation === 'both_animate' || operation === 'both_talking') {
         const restorationBody = new FormData();
         restorationBody.append('file', file);
         restorationBody.append('operation', 'both');
@@ -317,15 +339,19 @@ function ImageStudioModal({ onClose }) {
         const restorationResponse = await fetch('/image-tools/api/images/process', { method: 'POST', body: restorationBody });
         if (!restorationResponse.ok) {
           const details = await restorationResponse.json().catch(() => null);
-          throw new Error(details?.detail || `Enhancement and colorization failed (${restorationResponse.status})`);
+          throw new Error(apiError(details, `Enhancement and colorization failed (${restorationResponse.status})`));
         }
         const restoredImage = await restorationResponse.blob();
         requestBody = new FormData();
         requestBody.append('file', restoredImage, 'enhanced-colorized-image.png');
-        requestBody.append('preset', animationPreset);
-        requestBody.append('output_format', animationFormat);
+        requestBody.append('preset', isTalkingOperation ? 'talking' : animationPreset);
+        requestBody.append('output_format', effectiveAnimationFormat);
         requestBody.append('duration', String(animationDuration));
         requestBody.append('fps', '10');
+        if (isTalkingOperation) {
+          requestBody.append('speech_text', speechText.trim());
+          requestBody.append('speech_voice', speechVoice);
+        }
         endpoint = '/image-tools/api/images/animate';
       }
       if (isAnimationOperation && motionSource === 'saved') {
@@ -341,12 +367,13 @@ function ImageStudioModal({ onClose }) {
       const response = await fetch(endpoint, { method: 'POST', body: requestBody });
       if (!response.ok) {
         const details = await response.json().catch(() => null);
-        throw new Error(details?.detail || `Image ${isAnimationOperation ? 'animation' : 'processing'} failed (${response.status})`);
+        throw new Error(apiError(details, `Image ${isAnimationOperation ? 'animation' : 'processing'} failed (${response.status})`));
       }
       const blob = await response.blob();
-      setResultMediaType(blob.type || (animationFormat === 'gif' ? 'image/gif' : 'video/mp4'));
+      setResultBlob(blob);
+      setResultMediaType(blob.type || (effectiveAnimationFormat === 'gif' ? 'image/gif' : 'video/mp4'));
       if (isAnimationOperation) {
-        setScanSummary(`${operation === 'both_animate' ? 'Enhanced, colorized and animated' : 'Animation ready'}: ${animationPreset.replaceAll('_', ' ')}, ${animationDuration}s, ${animationFormat.toUpperCase()}.`);
+        setScanSummary(isTalkingOperation ? `${operation === 'both_talking' ? 'Enhanced, colorized and animated talking portrait' : 'Talking portrait'} ready with embedded speech audio.` : `${operation === 'both_animate' ? 'Enhanced, colorized and animated' : 'Animation ready'}: ${animationPreset.replaceAll('_', ' ')}, ${animationDuration}s, ${effectiveAnimationFormat.toUpperCase()}.`);
       } else {
       const scratchesDetected = response.headers.get('X-Image-Scratches-Detected') === 'true';
       const scratchRepairApplied = response.headers.get('X-Image-Scratch-Repair-Applied') === 'true';
@@ -364,6 +391,21 @@ function ImageStudioModal({ onClose }) {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const downloadResult = () => {
+    if (!resultBlob) return;
+    const extension = isAnimationOperation ? effectiveAnimationFormat : 'png';
+    const downloadUrl = URL.createObjectURL(resultBlob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = isAnimationOperation ? `animated-portrait.${extension}` : 'processed-image.png';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Safari may still be reading the Blob after the synthetic click returns.
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
   };
 
   const moveResultLens = (event) => {
@@ -562,18 +604,20 @@ function ImageStudioModal({ onClose }) {
               <option value="both">Enhance first + Colorize</option>
               <option value="animate">Animate portrait</option>
               <option value="both_animate">Enhance + Colorize + Animate</option>
+              <option value="talking">Talking portrait — read text</option>
+              <option value="both_talking">Enhance + Colorize + Read text</option>
             </select>
           </div>
           {isAnimationOperation && (
             <>
-              <div>
+              {!isTalkingOperation && <div>
                 <label className="form-label small fw-semibold mb-1">Movement source</label>
                 <select className="form-select" value={motionSource} onChange={(event) => setMotionSource(event.target.value)}>
                   <option value="built_in">Built-in movement</option>
                   <option value="saved">My Movements</option>
                 </select>
-              </div>
-              {motionSource === 'built_in' ? <div>
+              </div>}
+              {!isTalkingOperation && (motionSource === 'built_in' ? <div>
                 <label className="form-label small fw-semibold mb-1">Built-in movement</label>
                 <select className="form-select" value={animationPreset} onChange={(event) => setAnimationPreset(event.target.value)}>
                   <option value="gentle_alive">Gentle continuous life — combined</option>
@@ -593,15 +637,15 @@ function ImageStudioModal({ onClose }) {
                   <option value="">Select movement…</option>
                   {savedMotions.map((motion) => <option key={motion.id} value={motion.id}>{motion.name}</option>)}
                 </select>
-              </div>}
-              <div>
+              </div>)}
+              {!isTalkingOperation && <div>
                 <label className="form-label small fw-semibold mb-1">Save as</label>
                 <select className="form-select" value={animationFormat} onChange={(event) => setAnimationFormat(event.target.value)}>
                   <option value="gif">Animated GIF</option>
                   <option value="mp4">MP4 video</option>
                 </select>
-              </div>
-              <div>
+              </div>}
+              {!isTalkingOperation && <div>
                 <label className="form-label small fw-semibold mb-1">Duration</label>
                 <select className="form-select" value={animationDuration} onChange={(event) => setAnimationDuration(Number(event.target.value))}>
                   <option value="1.5">1.5 seconds</option>
@@ -609,9 +653,55 @@ function ImageStudioModal({ onClose }) {
                   <option value="3">3 seconds</option>
                   <option value="4">4 seconds</option>
                 </select>
-              </div>
+              </div>}
             </>
           )}
+          {isTalkingOperation && <div className="w-100 border rounded-3 p-3 d-grid gap-3">
+            <div>
+              <label className="form-label fw-semibold mb-1">1. Upload and save an animation movement</label>
+              <div className="d-flex flex-wrap gap-2 align-items-center">
+                <input className="form-control" style={{ maxWidth: 360 }} value={movementName} maxLength="120" placeholder="Movement name" onChange={(event) => setMovementName(event.target.value)} />
+                <input className="form-control" style={{ maxWidth: 420 }} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,.mp4,.mov,.webm,.avi" onChange={(event) => setDrivingVideo(event.target.files?.[0] || null)} />
+                <button type="button" className="btn btn-outline-primary" disabled={!drivingVideo || savingMovement} onClick={saveMovement}>
+                  {savingMovement ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : 'Save to My Movements'}
+                </button>
+              </div>
+              <div className="small text-secondary mt-1">Use a short front-facing MP4, MOV, WebM or AVI showing the desired head and facial motion.</div>
+            </div>
+            <div>
+              <label className="form-label fw-semibold mb-1">2. Select the animation model</label>
+              <div className="d-flex flex-wrap gap-2">
+                <select className="form-select" style={{ maxWidth: 240 }} value={motionSource} onChange={(event) => setMotionSource(event.target.value)}>
+                  <option value="built_in">Built-in talking movement</option>
+                  <option value="saved">My saved movement</option>
+                </select>
+                {motionSource === 'saved' && <select className="form-select" style={{ maxWidth: 360 }} value={selectedMotionId} onChange={(event) => setSelectedMotionId(event.target.value)}>
+                  <option value="">Select movement…</option>
+                  {savedMotions.map((motion) => <option key={motion.id} value={motion.id}>{motion.name}</option>)}
+                </select>}
+              </div>
+              <div className="small text-secondary mt-1">Your selection is remembered for the next visit.</div>
+            </div>
+            <div>
+              <label className="form-label fw-semibold mb-1">3. Enter the text to read</label>
+              <textarea className="form-control" rows="6" maxLength="10000" value={speechText} placeholder="Enter what the person should read…" onChange={(event) => setSpeechText(event.target.value)} />
+              <div className="d-flex justify-content-between mt-1">
+                <span className="small text-secondary">Video length follows the complete spoken text.</span>
+                <span className="small text-secondary">{speechText.length}/10,000</span>
+              </div>
+              <select className="form-select mt-2" style={{ maxWidth: 240 }} value={speechVoice} onChange={(event) => setSpeechVoice(event.target.value)}>
+                <option value="female">Female voice</option>
+                <option value="male">Male voice</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-label fw-semibold mb-1">4. Select output format</label>
+              <select className="form-select" style={{ maxWidth: 240 }} value="mp4" disabled>
+                <option value="mp4">MP4 video with audio</option>
+              </select>
+              <div className="small text-secondary mt-1">MP4 is required because GIF cannot contain speech audio.</div>
+            </div>
+          </div>}
           {operation !== 'colorize' && operation !== 'animate' && (
             <div>
               <label className="form-label small fw-semibold mb-1">Enhancement scale</label>
@@ -664,12 +754,12 @@ function ImageStudioModal({ onClose }) {
               Restore faces <span className="text-secondary small">(may alter identity)</span>
             </label>
           </div>}
-          <button className="btn btn-primary px-4" disabled={!file || processing} onClick={processImage}>
-            {processing ? <><span className="spinner-border spinner-border-sm me-2" />{isAnimationOperation ? 'Animating…' : 'Processing…'}</> : <><i className={`bi ${isAnimationOperation ? 'bi-film' : 'bi-stars'} me-2`} />{isAnimationOperation ? (operation === 'both_animate' ? 'Restore & animate' : 'Animate image') : 'Process image'}</>}
+          <button className="btn btn-primary px-4" disabled={!file || processing || (isTalkingOperation && (!speechText.trim() || (motionSource === 'saved' && !selectedMotionId)))} onClick={processImage}>
+            {processing ? <><span className="spinner-border spinner-border-sm me-2" />{operation === 'both_talking' ? 'Enhancing, colorizing & speaking…' : (isAnimationOperation ? 'Animating…' : 'Processing…')}</> : <><i className={`bi ${isAnimationOperation ? 'bi-film' : 'bi-stars'} me-2`} />{operation === 'both_talking' ? 'Create talking portrait' : (isAnimationOperation ? (operation === 'both_animate' ? 'Restore & animate' : 'Animate image') : 'Process image')}</>}
           </button>
-          {resultUrl && <a className="btn btn-outline-secondary" href={resultUrl} download={isAnimationOperation ? `animated-portrait.${animationFormat}` : 'processed-image.png'}><i className="bi bi-download me-2" />Download {isAnimationOperation ? animationFormat.toUpperCase() : ''}</a>}
+          {resultUrl && <button type="button" className="btn btn-outline-secondary" onClick={downloadResult}><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</button>}
         </div>
-        {isAnimationOperation && (
+        {isAnimationOperation && !isTalkingOperation && (
           <details className="border rounded-3 p-3 mt-3">
             <summary className="fw-semibold" style={{ cursor: 'pointer' }}><i className="bi bi-camera-video me-2" />Capture and save a movement</summary>
             <p className="small text-secondary mt-2 mb-2">Upload a short, front-facing video demonstrating the complete movement. It is converted to a reusable private motion template.</p>
