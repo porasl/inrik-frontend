@@ -176,9 +176,6 @@ function ImageStudioModal({ onClose }) {
   const isTalkingOperation = operation === 'talking' || operation === 'both_talking';
   const isAnimationOperation = operation === 'animate' || operation === 'both_animate' || isTalkingOperation;
   const effectiveAnimationFormat = isTalkingOperation ? 'mp4' : animationFormat;
-  const directResultDownloadUrl = resultDownloadUrl
-    ? `${globalThis.location.protocol}//${globalThis.location.hostname}:8083${resultDownloadUrl.replace(/^\/content-tools/, '')}`
-    : '';
 
   const authHeaders = useCallback(() => {
     const token = localStorage.getItem('token');
@@ -456,6 +453,33 @@ function ImageStudioModal({ onClose }) {
       setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download started: ${filename}.`);
     } catch (downloadError) {
       setError(downloadError.message || 'Could not start the download.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const downloadExport = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!resultDownloadUrl || downloading) return;
+    setDownloading(true);
+    setError('');
+    try {
+      const response = await fetch(resultDownloadUrl, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const blob = await response.blob();
+      if (!blob.size) throw new Error('The downloaded MP4 is empty.');
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = resultMediaType === 'video/mp4' ? 'animated-portrait.mp4' : 'animated-portrait.gif';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 300000);
+      setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download completed (${(blob.size / 1024 / 1024).toFixed(1)} MB).`);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Could not download the animation.');
     } finally {
       setDownloading(false);
     }
@@ -860,18 +884,17 @@ function ImageStudioModal({ onClose }) {
           <button className="btn btn-primary px-4" disabled={!file || processing || (isTalkingOperation && (!speechText.trim() || (motionSource === 'saved' && !selectedMotionId && !drivingVideo)))} onClick={processImage}>
             {processing ? <><span className="spinner-border spinner-border-sm me-2" />{operation === 'both_talking' ? 'Enhancing, colorizing & speaking…' : (isAnimationOperation ? 'Animating…' : 'Processing…')}</> : <><i className={`bi ${isAnimationOperation ? 'bi-film' : 'bi-stars'} me-2`} />{operation === 'both_talking' ? 'Create talking portrait' : (isAnimationOperation ? (operation === 'both_animate' ? 'Restore & animate' : 'Animate image') : 'Process image')}</>}
           </button>
-          {resultUrl && directResultDownloadUrl && (
-            <a
+          {resultUrl && resultDownloadUrl && (
+            <button
+              type="button"
               className="btn btn-outline-secondary"
-              href={directResultDownloadUrl}
-              download={resultMediaType === 'video/mp4' ? 'animated-portrait.mp4' : 'animated-portrait.gif'}
-              target="_blank"
-              rel="noopener noreferrer"
+              disabled={downloading}
+              onClick={downloadExport}
             >
-              <i className="bi bi-download me-2" />Download {resultMediaType === 'video/mp4' ? 'MP4' : 'GIF'}
-            </a>
+              {downloading ? <><span className="spinner-border spinner-border-sm me-2" />Downloading…</> : <><i className="bi bi-download me-2" />Download {resultMediaType === 'video/mp4' ? 'MP4' : 'GIF'}</>}
+            </button>
           )}
-          {resultUrl && !directResultDownloadUrl && <button type="button" className="btn btn-outline-secondary" disabled={downloading} onClick={downloadResult}>{downloading ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : <><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</>}</button>}
+          {resultUrl && !resultDownloadUrl && <button type="button" className="btn btn-outline-secondary" disabled={downloading} onClick={downloadResult}>{downloading ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : <><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</>}</button>}
         </div>
         {isAnimationOperation && !isTalkingOperation && (
           <details className="border rounded-3 p-3 mt-3">
