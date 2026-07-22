@@ -133,13 +133,18 @@ function ImageStudioModal({ onClose }) {
   const [inputUrl, setInputUrl] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [resultBlob, setResultBlob] = useState(null);
+  const [resultDownloadUrl, setResultDownloadUrl] = useState('');
   const [resultMediaType, setResultMediaType] = useState('image/png');
   const [operation, setOperation] = useState('colorize');
   const [animationPreset, setAnimationPreset] = useState('gentle_alive');
   const [animationFormat, setAnimationFormat] = useState('gif');
   const [animationDuration, setAnimationDuration] = useState(4);
   const [speechText, setSpeechText] = useState('');
-  const [speechVoice, setSpeechVoice] = useState('female');
+  const [speechVoice, setSpeechVoice] = useState('samantha');
+  const [speechRate, setSpeechRate] = useState(145);
+  const [speechStyle, setSpeechStyle] = useState('gentle');
+  const [lipSyncModel, setLipSyncModel] = useState('audio_reactive');
+  const [speakingMotion, setSpeakingMotion] = useState('gentle_body');
   const [motionSource, setMotionSource] = useState(() => localStorage.getItem('imageStudio.motionSource') || 'built_in');
   const [savedMotions, setSavedMotions] = useState([]);
   const [selectedMotionId, setSelectedMotionId] = useState(() => localStorage.getItem('imageStudio.motionId') || '');
@@ -155,6 +160,7 @@ function ImageStudioModal({ onClose }) {
   const [autoUpscale, setAutoUpscale] = useState(true);
   const [scanSummary, setScanSummary] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const [resultBinocularEnabled, setResultBinocularEnabled] = useState(false);
   const [resultZoom, setResultZoom] = useState(2.5);
@@ -235,7 +241,7 @@ function ImageStudioModal({ onClose }) {
       const accessToken = await ensureAccessToken();
       const extractionBody = new FormData();
       extractionBody.append('driving_video', drivingVideo);
-      const extractionResponse = await fetch('/image-tools/api/motions/extract', { method: 'POST', body: extractionBody });
+      const extractionResponse = await fetch('/content-tools/contentservices/api/image-studio/motions/extract', { method: 'POST', body: extractionBody });
       if (!extractionResponse.ok) {
         const details = await extractionResponse.json().catch(() => null);
         throw new Error(apiError(details, `Movement extraction failed (${extractionResponse.status})`));
@@ -302,6 +308,7 @@ function ImageStudioModal({ onClose }) {
     }
     setProcessing(true);
     setError('');
+    setResultDownloadUrl('');
     const body = new FormData();
     body.append('file', file);
     if (isAnimationOperation) {
@@ -312,6 +319,10 @@ function ImageStudioModal({ onClose }) {
       if (isTalkingOperation) {
         body.append('speech_text', speechText.trim());
         body.append('speech_voice', speechVoice);
+        body.append('speech_rate', String(speechRate));
+        body.append('speech_style', speechStyle);
+        body.append('lip_sync_model', lipSyncModel);
+        body.append('speaking_motion', speakingMotion);
       }
     } else {
       body.append('operation', operation);
@@ -332,8 +343,8 @@ function ImageStudioModal({ onClose }) {
         : null;
       let requestBody = body;
       let endpoint = isAnimationOperation
-        ? '/image-tools/api/images/animate'
-        : '/image-tools/api/images/process';
+        ? '/content-tools/contentservices/api/image-studio/images/animate'
+        : '/content-tools/contentservices/api/image-studio/images/process';
       if (operation === 'both_animate' || operation === 'both_talking') {
         const restorationBody = new FormData();
         restorationBody.append('file', file);
@@ -345,7 +356,7 @@ function ImageStudioModal({ onClose }) {
         restorationBody.append('repair_scratches', String(repairScratches));
         restorationBody.append('auto_repair', String(autoRepair));
         restorationBody.append('auto_upscale', String(autoUpscale));
-        const restorationResponse = await fetch('/image-tools/api/images/process', { method: 'POST', body: restorationBody });
+        const restorationResponse = await fetch('/content-tools/contentservices/api/image-studio/images/process', { method: 'POST', body: restorationBody });
         if (!restorationResponse.ok) {
           const details = await restorationResponse.json().catch(() => null);
           throw new Error(apiError(details, `Enhancement and colorization failed (${restorationResponse.status})`));
@@ -360,8 +371,12 @@ function ImageStudioModal({ onClose }) {
         if (isTalkingOperation) {
           requestBody.append('speech_text', speechText.trim());
           requestBody.append('speech_voice', speechVoice);
+          requestBody.append('speech_rate', String(speechRate));
+          requestBody.append('speech_style', speechStyle);
+          requestBody.append('lip_sync_model', lipSyncModel);
+          requestBody.append('speaking_motion', speakingMotion);
         }
-        endpoint = '/image-tools/api/images/animate';
+        endpoint = '/content-tools/contentservices/api/image-studio/images/animate';
       }
       if (autoSavedMotion?.template) {
         requestBody.append('motion_template', autoSavedMotion.template, 'saved-motion.pkl');
@@ -381,6 +396,7 @@ function ImageStudioModal({ onClose }) {
       }
       const blob = await response.blob();
       setResultBlob(blob);
+      setResultDownloadUrl(response.headers.get('X-Image-Studio-Download') || '');
       setResultMediaType(blob.type || (effectiveAnimationFormat === 'gif' ? 'image/gif' : 'video/mp4'));
       if (isAnimationOperation) {
         setScanSummary(isTalkingOperation ? `${operation === 'both_talking' ? 'Enhanced, colorized and animated talking portrait' : 'Talking portrait'} ready with embedded speech audio.` : `${operation === 'both_animate' ? 'Enhanced, colorized and animated' : 'Animation ready'}: ${animationPreset.replaceAll('_', ' ')}, ${animationDuration}s, ${effectiveAnimationFormat.toUpperCase()}.`);
@@ -404,19 +420,42 @@ function ImageStudioModal({ onClose }) {
   };
 
   const downloadResult = () => {
-    if (!resultUrl) return;
-    const extension = isAnimationOperation ? effectiveAnimationFormat : 'png';
-    const link = document.createElement('a');
-    // Reuse the preview URL, which remains alive until a new result replaces
-    // it. Revoking a second temporary URL on a timer can interrupt Safari
-    // while it is still committing a large narration MP4 to disk.
-    link.href = resultUrl;
-    link.download = isAnimationOperation ? `animated-portrait.${extension}` : 'processed-image.png';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download started; keep this studio open until the browser finishes saving.`);
+    if (!resultBlob || downloading) return;
+    const normalizedType = (resultBlob.type || '').split(';', 1)[0].toLowerCase();
+    const extension = normalizedType === 'video/mp4'
+      ? 'mp4'
+      : (normalizedType === 'image/gif' ? 'gif' : 'png');
+    const filename = extension === 'png' ? 'processed-image.png' : `animated-portrait.${extension}`;
+    setDownloading(true);
+    try {
+      if (resultDownloadUrl) {
+        const link = document.createElement('a');
+        link.href = resultDownloadUrl;
+        link.download = filename;
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download started from ContentServices: ${filename}.`);
+        return;
+      }
+      const downloadUrl = URL.createObjectURL(resultBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Some browsers consume Blob URLs asynchronously after the synthetic
+      // click. Keep it alive long enough for large MP4 files to finish.
+      globalThis.setTimeout(() => URL.revokeObjectURL(downloadUrl), 300000);
+      setScanSummary((previous) => `${previous ? `${previous} ` : ''}Download started: ${filename}.`);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Could not start the download.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const moveResultLens = (event) => {
@@ -525,21 +564,30 @@ function ImageStudioModal({ onClose }) {
           <button className="btn-close" onClick={onClose} aria-label="Close image studio" />
         </div>
 
-        <div
-          className="rounded-4 border border-2 border-primary-subtle bg-light text-center p-4 mb-3"
-          style={{ borderStyle: 'dashed !important', cursor: 'pointer' }}
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]); }}
-          role="button"
-          tabIndex="0"
-          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click(); }}
-        >
-          <i className="bi bi-cloud-arrow-up text-primary" style={{ fontSize: '2.4rem' }} />
-          <div className="fw-semibold">Drop an image here or click to browse</div>
-          <div className="small text-secondary">JPEG, PNG, WebP, AVIF and other browser-supported images</div>
-          <input ref={inputRef} type="file" accept="image/*" hidden onChange={(event) => selectFile(event.target.files?.[0])} />
-        </div>
+        <input ref={inputRef} type="file" accept="image/*" hidden onChange={(event) => selectFile(event.target.files?.[0])} />
+        {!file ? (
+          <div
+            className="rounded-4 border border-2 border-primary-subtle bg-light text-center p-4 mb-3"
+            style={{ borderStyle: 'dashed !important', cursor: 'pointer' }}
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]); }}
+            role="button"
+            tabIndex="0"
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click(); }}
+          >
+            <i className="bi bi-cloud-arrow-up text-primary" style={{ fontSize: '2.4rem' }} />
+            <div className="fw-semibold">Drop an image here or click to browse</div>
+            <div className="small text-secondary">JPEG, PNG, WebP, AVIF and other browser-supported images</div>
+          </div>
+        ) : (
+          <div className="d-flex align-items-center justify-content-between gap-3 rounded-3 border bg-light px-3 py-2 mb-3">
+            <div className="text-truncate small"><i className="bi bi-check-circle-fill text-success me-2" /><span className="fw-semibold">Image selected:</span> {file.name}</div>
+            <button type="button" className="btn btn-sm btn-outline-primary flex-shrink-0" onClick={() => inputRef.current?.click()}>
+              <i className="bi bi-arrow-repeat me-1" />Change image
+            </button>
+          </div>
+        )}
 
         {inputUrl && (
           <div className="row g-3 mb-3">
@@ -680,7 +728,7 @@ function ImageStudioModal({ onClose }) {
               <div className="small text-secondary mt-1">Use a short front-facing MP4, MOV, WebM or AVI. It is saved automatically when you create the animation; the Save button is optional.</div>
             </div>
             <div>
-              <label className="form-label fw-semibold mb-1">2. Select the animation model</label>
+              <label className="form-label fw-semibold mb-1">2. Select the movement model</label>
               <div className="d-flex flex-wrap gap-2">
                 <select className="form-select" style={{ maxWidth: 240 }} value={motionSource} onChange={(event) => setMotionSource(event.target.value)}>
                   <option value="built_in">Built-in talking movement</option>
@@ -693,20 +741,61 @@ function ImageStudioModal({ onClose }) {
               </div>
               <div className="small text-secondary mt-1">Your selection is remembered for the next visit.</div>
             </div>
+            <div className="d-flex flex-wrap gap-3">
+              <div>
+                <label className="form-label fw-semibold mb-1">3. Lip synchronization model</label>
+                <select className="form-select" style={{ minWidth: 280 }} value={lipSyncModel} onChange={(event) => setLipSyncModel(event.target.value)}>
+                  <option value="audio_reactive">Audio-reactive lips — synchronized</option>
+                  <option value="motion_loop">Uploaded/repeated motion — legacy</option>
+                </select>
+                <div className="small text-secondary mt-1">Audio-reactive follows the speech waveform. Legacy preserves the original repeated movement.</div>
+              </div>
+              <div>
+                <label className="form-label fw-semibold mb-1">Head and body movement</label>
+                <select className="form-select" style={{ minWidth: 220 }} value={speakingMotion} onChange={(event) => setSpeakingMotion(event.target.value)}>
+                  <option value="still">Still — mouth only</option>
+                  <option value="gentle_body">Gentle body motion</option>
+                  <option value="head_nod">Head nod</option>
+                  <option value="head_sway">Head turn / sway</option>
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="form-label fw-semibold mb-1">3. Enter the text to read</label>
+              <label className="form-label fw-semibold mb-1">4. Enter the text to read</label>
               <textarea className="form-control" rows="6" maxLength="10000" value={speechText} placeholder="Enter what the person should read…" onChange={(event) => setSpeechText(event.target.value)} />
               <div className="d-flex justify-content-between mt-1">
                 <span className="small text-secondary">Video length follows the complete spoken text.</span>
                 <span className="small text-secondary">{speechText.length}/10,000</span>
               </div>
-              <select className="form-select mt-2" style={{ maxWidth: 240 }} value={speechVoice} onChange={(event) => setSpeechVoice(event.target.value)}>
-                <option value="female">Female voice</option>
-                <option value="male">Male voice</option>
-              </select>
+              <div className="d-flex flex-wrap gap-3 mt-2 align-items-end">
+                <div>
+                  <label className="form-label small fw-semibold mb-1">Reader voice</label>
+                  <select className="form-select" style={{ minWidth: 210 }} value={speechVoice} onChange={(event) => setSpeechVoice(event.target.value)}>
+                    <option value="samantha">Samantha — US</option>
+                    <option value="karen">Karen — Australian</option>
+                    <option value="moira">Moira — Irish</option>
+                    <option value="tessa">Tessa — South African</option>
+                    <option value="alex">Alex — US</option>
+                    <option value="daniel">Daniel — British</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label small fw-semibold mb-1">Delivery</label>
+                  <select className="form-select" value={speechStyle} onChange={(event) => setSpeechStyle(event.target.value)}>
+                    <option value="gentle">Gentle, with pauses</option>
+                    <option value="neutral">Neutral</option>
+                  </select>
+                </div>
+                <div style={{ minWidth: 260 }}>
+                  <label className="form-label small fw-semibold mb-1">Reading speed: {speechRate} words/min</label>
+                  <input className="form-range" type="range" min="90" max="240" step="5" value={speechRate} onChange={(event) => setSpeechRate(Number(event.target.value))} />
+                  <div className="d-flex justify-content-between small text-secondary"><span>Slower</span><span>Faster</span></div>
+                </div>
+              </div>
+              <div className="small text-secondary mt-2">Commas create short pauses; periods and paragraph breaks create longer pauses. Shorter sentences sound more natural.</div>
             </div>
             <div>
-              <label className="form-label fw-semibold mb-1">4. Select output format</label>
+              <label className="form-label fw-semibold mb-1">5. Select output format</label>
               <select className="form-select" style={{ maxWidth: 240 }} value="mp4" disabled>
                 <option value="mp4">MP4 video with audio</option>
               </select>
@@ -768,7 +857,16 @@ function ImageStudioModal({ onClose }) {
           <button className="btn btn-primary px-4" disabled={!file || processing || (isTalkingOperation && (!speechText.trim() || (motionSource === 'saved' && !selectedMotionId && !drivingVideo)))} onClick={processImage}>
             {processing ? <><span className="spinner-border spinner-border-sm me-2" />{operation === 'both_talking' ? 'Enhancing, colorizing & speaking…' : (isAnimationOperation ? 'Animating…' : 'Processing…')}</> : <><i className={`bi ${isAnimationOperation ? 'bi-film' : 'bi-stars'} me-2`} />{operation === 'both_talking' ? 'Create talking portrait' : (isAnimationOperation ? (operation === 'both_animate' ? 'Restore & animate' : 'Animate image') : 'Process image')}</>}
           </button>
-          {resultUrl && <button type="button" className="btn btn-outline-secondary" onClick={downloadResult}><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</button>}
+          {resultUrl && resultDownloadUrl && (
+            <a
+              className="btn btn-outline-secondary"
+              href={resultDownloadUrl}
+              download={resultMediaType === 'video/mp4' ? 'animated-portrait.mp4' : 'animated-portrait.gif'}
+            >
+              <i className="bi bi-download me-2" />Download {resultMediaType === 'video/mp4' ? 'MP4' : 'GIF'}
+            </a>
+          )}
+          {resultUrl && !resultDownloadUrl && <button type="button" className="btn btn-outline-secondary" disabled={downloading} onClick={downloadResult}>{downloading ? <><span className="spinner-border spinner-border-sm me-2" />Saving…</> : <><i className="bi bi-download me-2" />Download {isAnimationOperation ? effectiveAnimationFormat.toUpperCase() : ''}</>}</button>}
         </div>
         {isAnimationOperation && !isTalkingOperation && (
           <details className="border rounded-3 p-3 mt-3">

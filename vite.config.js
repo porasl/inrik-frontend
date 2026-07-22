@@ -6,8 +6,6 @@ export default defineConfig(() => {
   const protocol = LOCAL_CONFIG.APP_PROTOCOL || 'http';
   const host = LOCAL_CONFIG.APPLICATION_HOST || '';
   const apiOrigin = LOCAL_CONFIG.API_ORIGIN || (host && LOCAL_CONFIG.API_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.API_PORT}` : '');
-  const imageServiceOrigin = LOCAL_CONFIG.IMAGE_SERVICE_ORIGIN
-    || (host && LOCAL_CONFIG.IMAGE_SERVICE_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.IMAGE_SERVICE_PORT}` : '');
   const contentServiceOrigin = LOCAL_CONFIG.CONTENT_SERVICE_ORIGIN
     || (host && LOCAL_CONFIG.CONTENT_SERVICE_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.CONTENT_SERVICE_PORT}` : '');
 
@@ -22,12 +20,6 @@ export default defineConfig(() => {
       host: true,
       strictPort: true,
       proxy: {
-        '/image-tools': {
-          target: imageServiceOrigin,
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/image-tools/, ''),
-        },
         '/content-tools': {
           target: contentServiceOrigin,
           changeOrigin: true,
