@@ -4,7 +4,7 @@ import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket, onAdvertisement }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -304,7 +304,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Advertisement</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement</button>
               </div>
 
               <div className="header-auth-area d-flex align-items-center gap-2">
@@ -359,7 +359,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Advertisement</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement</button>
 
                 <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
                   <i className="bi bi-people-fill"></i>
@@ -643,4 +643,5 @@ Navbar.propTypes = {
   onArt: PropTypes.func,
   onAi: PropTypes.func,
   onMarket: PropTypes.func,
+  onAdvertisement: PropTypes.func,
 };

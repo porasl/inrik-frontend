@@ -14,6 +14,7 @@ import PostView from './components/PostView';
 import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
+import AdvertisingStudio from './components/AdvertisingStudio';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -434,6 +435,7 @@ function App() {
   const goAi = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('ai'); };
 
   const goMarket = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('market'); };
+  const goAdvertisement = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement'); };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -1332,6 +1334,7 @@ function App() {
         onArt={goArt}
         onAi={goAi}
         onMarket={goMarket}
+        onAdvertisement={goAdvertisement}
       />
 
       <div className="app-body-wrapper">
@@ -1361,6 +1364,7 @@ function App() {
             && activeSection !== 'art'
             && activeSection !== 'ai'
             && activeSection !== 'market'
+            && activeSection !== 'advertisement'
             && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
@@ -1437,6 +1441,8 @@ function App() {
             </div>
           ) : activeSection === 'market' ? (
             <MarketView />
+          ) : activeSection === 'advertisement' ? (
+            <AdvertisingStudio />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage
