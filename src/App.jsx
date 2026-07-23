@@ -378,6 +378,7 @@ function App() {
       && activeSection !== 'art'
       && activeSection !== 'ai'
       && activeSection !== 'market'
+      && activeSection !== 'advertisement'
       && !showSlicePage
       && !watchingPost;
     if (!shouldAutoLoad) return;
