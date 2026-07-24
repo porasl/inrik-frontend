@@ -15,6 +15,7 @@ import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
 import AdvertisingStudio from './components/AdvertisingStudio';
+import PersonalizedAdvertisement from './components/PersonalizedAdvertisement';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -1507,6 +1508,8 @@ function App() {
       </div>
 
       {/* Incoming connection requests popup */}
+      <PersonalizedAdvertisement isLoggedIn={isLoggedIn} />
+
       {isLoggedIn && incomingRequests.length > 0 && (
         <ConnectionRequestsModal
           requests={incomingRequests}

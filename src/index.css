@@ -4051,8 +4051,29 @@ html {
 .advertising-studio__notes span { padding: 6px 9px; border-radius: 999px; background: #f0f4fa; color: #526077; font-size: .68rem; font-weight: 700; }
 @keyframes advertisingAdIn { from { opacity: 0; transform: scale(.94) translateY(6px); } to { opacity: 1; transform: none; } }
 
+.advertising-targeting { display: grid; gap: 9px; margin: 14px 0; padding: 14px; border: 1px solid #dce5f4; border-radius: 14px; background: #f7f9fd; }
+.advertising-targeting > strong, .advertising-targeting > small { display: block; }
+.advertising-targeting > small { color: #7a8598; font-size: .72rem; }
+.advertising-targeting label { display: grid; gap: 5px; color: #536075; font-size: .74rem; font-weight: 800; }
+.advertising-campaigns, .advertising-admin { margin-top: 20px; padding: 20px; border: 1px solid #e1e6ef; border-radius: 20px; background: #fff; box-shadow: 0 12px 32px rgba(41,55,78,.07); }
+.advertising-admin { border-color: #c9d8fb; background: linear-gradient(145deg, #fff, #f6f8ff); }
+.advertising-admin__summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.advertising-admin__summary > div { display: grid; gap: 2px; padding: 16px; border-radius: 14px; background: #eef3ff; }
+.advertising-admin__summary strong { font-size: 1.25rem; }
+.advertising-admin__summary span { color: #69758a; font-size: .75rem; }
+.advertising-admin__tables { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.advertising-admin__tables > div { padding: 15px; border: 1px solid #e1e6ef; border-radius: 14px; background: #fff; }
+.advertising-admin__tables p { display: flex; justify-content: space-between; margin: 0; padding: 7px 0; border-bottom: 1px solid #edf0f5; font-size: .8rem; }
+.personalized-ad { position: fixed; z-index: 1090; width: min(300px, 82vw); padding: 20px; border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: rgba(255,255,255,var(--ad-opacity)); color: #172033; box-shadow: 0 22px 60px rgba(5,15,31,.28); backdrop-filter: blur(15px); animation: advertisingAdIn .35s ease both; }
+.personalized-ad--lower-third { left: 50% !important; right: auto !important; top: auto !important; bottom: 7% !important; width: min(620px, 86vw); transform: translateX(-50%); }
+.personalized-ad > span { display: block; margin-bottom: 8px; color: #426bd0; font-size: .58rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.personalized-ad > strong { display: block; padding-right: 22px; font-size: 1.08rem; }
+.personalized-ad p { margin: 7px 0 13px; color: #536075; font-size: .8rem; }
+.personalized-ad a { display: inline-block; padding: 8px 13px; border-radius: 9px; background: #1b2a44; color: #fff; font-size: .74rem; font-weight: 800; text-decoration: none; }
+.personalized-ad__close { position: absolute; top: 8px; right: 9px; width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgba(20,29,45,.1); font-size: 1.15rem; line-height: 1; }
+
 @media (max-width: 1180px) { .advertising-studio__workspace { grid-template-columns: 260px 1fr; } .advertising-studio__preview-panel { grid-column: 1 / -1; } }
-@media (max-width: 720px) { .advertising-studio { padding: 12px; } .advertising-studio__header { padding: 20px; flex-direction: column; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
+@media (max-width: 720px) { .advertising-studio { padding: 12px; } .advertising-studio__header { padding: 20px; flex-direction: column; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row, .advertising-admin__summary, .advertising-admin__tables { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
 
 @media (max-width: 900px) {
   .market-overview {
