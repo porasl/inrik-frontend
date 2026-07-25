@@ -25,8 +25,32 @@ export function createAdvertisement(payload) {
   return request('', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export function updateAdvertisement(id, payload) {
+  return request(`/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export function cancelAdvertisement(id) {
+  return request(`/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+}
+
+export function getStoreCreditWallet() {
+  return request('/wallet');
+}
+
+export function getStripeStatus() {
+  return request('/stripe/status');
+}
+
+export function createStripeCheckout(amount) {
+  return request('/stripe/checkout', { method: 'POST', body: JSON.stringify({ amount }) });
+}
+
 export function listMyAdvertisements() {
   return request('/mine');
+}
+
+export function getAdvertisementViews(id) {
+  return request(`/${encodeURIComponent(id)}/views`);
 }
 
 export function updateAdvertisementStatus(id, status) {

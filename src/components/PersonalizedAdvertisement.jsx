@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { serveAdvertisement } from '../services/advertisementsService';
 
 const SAFE_POSITIONS = [
-  { top: '12%', left: '8%' }, { top: '12%', right: '8%' },
-  { top: '38%', left: '10%' }, { top: '36%', right: '10%' },
-  { bottom: '12%', left: '12%' }, { bottom: '12%', right: '12%' },
+  { name: 'top-left', style: { top: '12%', left: '8%' } },
+  { name: 'top-right', style: { top: '12%', right: '8%' } },
+  { name: 'middle-left', style: { top: '38%', left: '10%' } },
+  { name: 'middle-right', style: { top: '36%', right: '10%' } },
+  { name: 'bottom-left', style: { bottom: '12%', left: '12%' } },
+  { name: 'bottom-right', style: { bottom: '12%', right: '12%' } },
 ];
 
-function profileContext() {
+function profileContext(placement) {
   return {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
     language: navigator.language || '',
@@ -15,13 +18,20 @@ function profileContext() {
     profile: {
       name: [localStorage.getItem('userFirstName'), localStorage.getItem('userLastName')].filter(Boolean).join(' '),
     },
+    pageUrl: window.location.href,
+    referrer: document.referrer || '',
+    placement,
+    deviceType: window.matchMedia('(max-width: 720px)').matches ? 'mobile' : window.matchMedia('(max-width: 1180px)').matches ? 'tablet' : 'desktop',
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
   };
 }
 
 export default function PersonalizedAdvertisement({ isLoggedIn }) {
   const [advertisement, setAdvertisement] = useState(null);
   const [closed, setClosed] = useState(false);
-  const position = useMemo(() => SAFE_POSITIONS[Math.floor(Math.random() * SAFE_POSITIONS.length)], [advertisement?.id]);
+  const [positionIndex, setPositionIndex] = useState(0);
+  const position = SAFE_POSITIONS[positionIndex];
 
   useEffect(() => {
     let cancelled = false;
@@ -29,7 +39,9 @@ export default function PersonalizedAdvertisement({ isLoggedIn }) {
       setAdvertisement(null);
       return () => { cancelled = true; };
     }
-    serveAdvertisement(profileContext())
+    const nextPosition = Math.floor(Math.random() * SAFE_POSITIONS.length);
+    setPositionIndex(nextPosition);
+    serveAdvertisement(profileContext(SAFE_POSITIONS[nextPosition].name))
       .then((item) => {
         if (!cancelled) {
           setAdvertisement(item);
@@ -44,7 +56,7 @@ export default function PersonalizedAdvertisement({ isLoggedIn }) {
   return (
     <aside
       className={`personalized-ad personalized-ad--${advertisement.templateId || 'transparent-popup'}`}
-      style={{ ...position, '--ad-opacity': (advertisement.opacity || 82) / 100 }}
+      style={{ ...position.style, '--ad-opacity': (advertisement.opacity || 82) / 100 }}
       aria-label="Sponsored advertisement"
     >
       <button type="button" className="personalized-ad__close" aria-label="Close advertisement" onClick={() => setClosed(true)}>×</button>

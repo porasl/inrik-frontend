@@ -4006,11 +4006,14 @@ html {
 }
 
 /* ── Advertising Studio ── */
-.advertising-studio { padding: 24px; color: #162033; }
-.advertising-studio__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; padding: 26px 28px; border: 1px solid #dfe5ee; border-radius: 22px; background: linear-gradient(135deg, #fff 0%, #f3f6fb 62%, #e7efff 100%); box-shadow: 0 16px 42px rgba(36, 55, 88, .08); }
-.advertising-studio__header h2 { margin: 4px 0 6px; font-size: clamp(1.8rem, 3vw, 2.6rem); letter-spacing: -.04em; }
-.advertising-studio__header p { margin: 0; color: #69758a; }
-.advertising-studio__eyebrow { color: #3c67d7; font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.main-content:has(> .advertising-studio) { padding-top: 8px; }
+.advertising-studio { padding: 0 14px 20px; color: #162033; }
+.advertising-studio__header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 10px; padding: 11px 16px; border: 1px solid #dfe5ee; border-radius: 15px; background: linear-gradient(135deg, #fff 0%, #f3f6fb 62%, #e7efff 100%); box-shadow: 0 8px 24px rgba(36, 55, 88, .07); }
+.advertising-studio__header > div { min-width: 0; }
+.advertising-studio__header h2 { display: inline; margin: 0 10px 0 0; font-size: clamp(1.25rem, 2vw, 1.65rem); letter-spacing: -.035em; line-height: 1.1; }
+.advertising-studio__header p { display: inline; margin: 0; color: #69758a; font-size: .78rem; line-height: 1.25; }
+.advertising-studio__header .btn { flex: 0 0 auto; padding: 7px 12px; font-size: .78rem; }
+.advertising-studio__eyebrow { display: block; margin-bottom: 2px; color: #3c67d7; font-size: .61rem; font-weight: 800; letter-spacing: .12em; line-height: 1.1; text-transform: uppercase; }
 .advertising-studio__workspace { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(300px, 1fr) minmax(360px, 1.5fr); gap: 16px; }
 .advertising-studio__templates, .advertising-studio__editor, .advertising-studio__preview-panel { min-width: 0; padding: 18px; border: 1px solid #e1e6ef; border-radius: 20px; background: #fff; box-shadow: 0 12px 32px rgba(41, 55, 78, .07); }
 .advertising-studio__section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
@@ -4052,6 +4055,13 @@ html {
 @keyframes advertisingAdIn { from { opacity: 0; transform: scale(.94) translateY(6px); } to { opacity: 1; transform: none; } }
 
 .advertising-targeting { display: grid; gap: 9px; margin: 14px 0; padding: 14px; border: 1px solid #dce5f4; border-radius: 14px; background: #f7f9fd; }
+.advertising-credit { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; padding: 9px 12px; border: 1px solid #c9d8fb; border-radius: 13px; background: linear-gradient(135deg, #fff, #eef3ff); }
+.advertising-credit > div { display: grid; margin-right: auto; }
+.advertising-credit > div > strong { display: inline; font-size: 1.2rem; line-height: 1.05; }
+.advertising-credit small { color: #69758a; font-size: .68rem; line-height: 1.15; }
+.advertising-credit label { display: grid; gap: 2px; color: #536075; font-size: .68rem; font-weight: 800; }
+.advertising-credit input { width: 110px; padding: 6px 8px; border: 1px solid #d4ddec; border-radius: 8px; }
+.advertising-credit .btn { padding: 7px 11px; font-size: .75rem; }
 .advertising-targeting > strong, .advertising-targeting > small { display: block; }
 .advertising-targeting > small { color: #7a8598; font-size: .72rem; }
 .advertising-targeting label { display: grid; gap: 5px; color: #536075; font-size: .74rem; font-weight: 800; }
@@ -4071,9 +4081,24 @@ html {
 .personalized-ad p { margin: 7px 0 13px; color: #536075; font-size: .8rem; }
 .personalized-ad a { display: inline-block; padding: 8px 13px; border-radius: 9px; background: #1b2a44; color: #fff; font-size: .74rem; font-weight: 800; text-decoration: none; }
 .personalized-ad__close { position: absolute; top: 8px; right: 9px; width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgba(20,29,45,.1); font-size: 1.15rem; line-height: 1; }
+.advertising-views-backdrop { position: fixed; inset: 0; z-index: 6000; display: grid; place-items: center; padding: 20px; background: rgba(10,18,32,.58); backdrop-filter: blur(4px); }
+.advertising-views-modal { width: min(820px, 96vw); max-height: min(760px, 90vh); overflow: hidden; border: 1px solid #d9e1ed; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px rgba(6,14,29,.32); }
+.advertising-views-modal > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 16px 18px 12px; border-bottom: 1px solid #e7ebf1; background: linear-gradient(135deg, #fff, #eef3ff); }
+.advertising-views-modal h3 { margin: 2px 0; font-size: 1.22rem; }
+.advertising-views-modal header p { margin: 0; color: #6c788b; font-size: .76rem; }
+.advertising-views-modal header > button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #e5eaf2; font-size: 1.25rem; line-height: 1; }
+.advertising-views-modal__body { max-height: 580px; overflow-y: auto; padding: 12px 18px; }
+.advertising-view-event { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid #edf0f4; }
+.advertising-view-event__marker { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e8efff; color: #315ec9; font-size: .7rem; font-weight: 900; }
+.advertising-view-event > div:nth-child(2) { display: grid; min-width: 0; gap: 3px; }
+.advertising-view-event span { overflow: hidden; color: #68758a; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.advertising-view-event > b { color: #244da7; font-size: .78rem; }
+.advertising-views-empty { display: grid; place-items: center; gap: 5px; padding: 42px 20px; color: #7b8799; text-align: center; }
+.advertising-views-empty i { font-size: 1.8rem; }
+.advertising-views-modal > footer { padding: 10px 18px; border-top: 1px solid #e7ebf1; background: #f8fafc; color: #667286; font-size: .7rem; }
 
 @media (max-width: 1180px) { .advertising-studio__workspace { grid-template-columns: 260px 1fr; } .advertising-studio__preview-panel { grid-column: 1 / -1; } }
-@media (max-width: 720px) { .advertising-studio { padding: 12px; } .advertising-studio__header { padding: 20px; flex-direction: column; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row, .advertising-admin__summary, .advertising-admin__tables { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
+@media (max-width: 720px) { .main-content:has(> .advertising-studio) { padding-top: 4px; } .advertising-studio { padding: 0 2px 12px; } .advertising-studio__header, .advertising-credit { padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; } .advertising-studio__header h2, .advertising-studio__header p { display: block; } .advertising-studio__header h2 { margin: 0 0 2px; } .advertising-credit input { width: 100%; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row, .advertising-admin__summary, .advertising-admin__tables { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
 
 @media (max-width: 900px) {
   .market-overview {
