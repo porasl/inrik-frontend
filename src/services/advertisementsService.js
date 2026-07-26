@@ -17,7 +17,12 @@ async function request(path, options = {}) {
   });
   if (response.status === 204) return null;
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || data.message || data.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(data.detail || data.message || data.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.payload = data;
+    throw error;
+  }
   return data;
 }
 

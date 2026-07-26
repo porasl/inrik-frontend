@@ -1,4 +1,5 @@
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
+import { rankContent } from './userProfilingService';
 
 const GET_POSTS_QUERY_EXTENDED = `
   query($page: Int!, $size: Int!) {
@@ -6,6 +7,9 @@ const GET_POSTS_QUERY_EXTENDED = `
       items {
         id
         title: description
+        content
+        type
+        createdAt
         imageUrls
         photoUrls
         imageUrl
@@ -43,6 +47,9 @@ const GET_POSTS_QUERY = `
       items {
         id
         title: description
+        content
+        type
+        createdAt
         imageUrls
         videoImagePath
         hlsVideoUrls
@@ -227,6 +234,27 @@ async function fetchAllPostsFromGraphql(pageSize = 30, useAuth = true) {
   // Retry once without Authorization so public feed content still renders.
   if (all.length === 0 && useAuth && token) {
     return fetchAllPostsFromGraphql(pageSize, false);
+  }
+
+  if (token && all.length > 1) {
+    try {
+      const ranking = await rankContent(all.map((post) => ({
+        id: post.id,
+        title: post.title || '',
+        description: post.content || post.description || '',
+        contentType: post.type || (post.hlsVideoUrls?.length ? 'video' : 'post'),
+        categories: [post.type].filter(Boolean),
+        tags: [],
+        createdAt: Number(post.createdAt || 0),
+        views: Number(post.views || 0),
+        likes: Number(post.likes || 0),
+      })));
+      const order = new Map((ranking || []).map((item, index) => [item.contentId, index]));
+      all.sort((left, right) => (order.get(left.id) ?? Number.MAX_SAFE_INTEGER)
+        - (order.get(right.id) ?? Number.MAX_SAFE_INTEGER));
+    } catch (error) {
+      console.warn('Personalized ranking unavailable; using the standard feed.', error.message);
+    }
   }
 
   return all;

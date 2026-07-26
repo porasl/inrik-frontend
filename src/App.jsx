@@ -15,7 +15,6 @@ import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
 import AdvertisingStudio from './components/AdvertisingStudio';
-import PersonalizedAdvertisement from './components/PersonalizedAdvertisement';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -720,7 +719,10 @@ function App() {
       setPage(pageNum);
     } catch (err) {
       console.error("GraphQL fetch error:", err);
-      setFeedError('Content service is unavailable. Start the backend API on port 8082, then refresh.');
+      const details = String(err?.message || '').trim();
+      setFeedError(details
+        ? `Unable to load posts: ${details}`
+        : 'Unable to load posts. Please try again.');
       // Stop auto-load retry loops after a backend failure until next manual refresh/login.
       setHasNext(false);
     } finally {
@@ -1454,6 +1456,7 @@ function App() {
               onHome={goHome}
               onDelete={handleDeletePost}
               onUpdated={handlePostUpdated}
+              isLoggedIn={isLoggedIn}
             />
           ) : (
             /* ── HOME FEED ── */
@@ -1474,7 +1477,16 @@ function App() {
               {!isLoading && feedError && mainFeedPosts.length === 0 && (
                 <div className="alert alert-warning border d-flex align-items-start gap-2 mt-3" role="status">
                   <i className="bi bi-exclamation-triangle-fill flex-shrink-0" aria-hidden="true"></i>
-                  <div>{feedError}</div>
+                  <div className="flex-grow-1">
+                    <div>{feedError}</div>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-dark mt-2"
+                      onClick={() => fetchPosts(0, false, true)}
+                    >
+                      Retry
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1508,7 +1520,6 @@ function App() {
       </div>
 
       {/* Incoming connection requests popup */}
-      <PersonalizedAdvertisement isLoggedIn={isLoggedIn} />
 
       {isLoggedIn && incomingRequests.length > 0 && (
         <ConnectionRequestsModal

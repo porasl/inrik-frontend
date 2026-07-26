@@ -3,6 +3,26 @@ import PropTypes from 'prop-types';
 import UploadModal from './UploadModal';
 import { RegisterModal, ForgotPasswordModal, ActivateModal } from './AuthModals';
 import { PUBLIC_BASE } from '../../app.config.js';
+import {
+  comparePersonalizedFeeds,
+  deletePersonalizationBehavior,
+  getPersonalizationPreferences,
+  getPersonalizationProfile,
+  listPersonalizationUsers,
+  updatePersonalizationPreferences,
+} from '../services/userProfilingService';
+import { getAllPostsCached } from '../services/postsService';
+
+function currentRole() {
+  try {
+    const payload = JSON.parse(atob((localStorage.getItem('token') || '').split('.')[1]));
+    const roles = payload.roles || payload.authorities || payload.role || [];
+    const values = Array.isArray(roles) ? roles : [roles];
+    return values.map((value) => String(value).replace(/^ROLE_/, '').toUpperCase());
+  } catch {
+    return [];
+  }
+}
 
 export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket, onAdvertisement }) {
   const [showUpload, setShowUpload] = useState(false);
@@ -11,7 +31,19 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
   const [settingsStatus, setSettingsStatus] = useState('');
 
   const [profileForm, setProfileForm] = useState({ displayName: '', bio: '', avatarUrl: '' });
-  const [privacyForm, setPrivacyForm] = useState({ profileVisible: true, allowConnectionRequests: true });
+  const [privacyForm, setPrivacyForm] = useState({
+    profileVisible: true,
+    allowConnectionRequests: true,
+    behaviorTrackingEnabled: true,
+    semanticProfilingEnabled: true,
+    personalizedFeedEnabled: true,
+  });
+  const [personalizationProfile, setPersonalizationProfile] = useState(null);
+  const [comparisonUsers, setComparisonUsers] = useState([]);
+  const [comparisonSelection, setComparisonSelection] = useState({ firstUserId: '', secondUserId: '' });
+  const [comparisonResult, setComparisonResult] = useState(null);
+  const [comparisonTitles, setComparisonTitles] = useState({});
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const [notificationsForm, setNotificationsForm] = useState({ inApp: true, email: false, connectionRequests: true });
   const [accountForm, setAccountForm] = useState({ twoFactorEnabled: false, requirePasswordForActions: true });
   const [displayNameOverride, setDisplayNameOverride] = useState('');
@@ -45,6 +77,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
   };
 
   const profileImg = getProfileImage();
+  const isAdmin = currentRole().includes('ADMIN');
 
   useEffect(() => {
     setShowMobileMenu(false);
@@ -78,7 +111,25 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
     setPrivacyForm({
       profileVisible: parseStoredBoolean(localStorage.getItem('settings.privacy.profileVisible'), true),
       allowConnectionRequests: parseStoredBoolean(localStorage.getItem('settings.privacy.allowConnectionRequests'), true),
+      behaviorTrackingEnabled: true,
+      semanticProfilingEnabled: true,
+      personalizedFeedEnabled: true,
     });
+    if (isLoggedIn) {
+      Promise.all([getPersonalizationPreferences(), getPersonalizationProfile()])
+        .then(([preferences, profile]) => {
+          if (preferences) {
+            setPrivacyForm((current) => ({
+              ...current,
+              behaviorTrackingEnabled: preferences.behaviorTrackingEnabled !== false,
+              semanticProfilingEnabled: preferences.semanticProfilingEnabled !== false,
+              personalizedFeedEnabled: preferences.personalizedFeedEnabled !== false,
+            }));
+          }
+          setPersonalizationProfile(profile);
+        })
+        .catch((error) => setSettingsStatus(error.message));
+    }
 
     setNotificationsForm({
       inApp: parseStoredBoolean(localStorage.getItem('settings.notifications.inApp'), true),
@@ -153,10 +204,81 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
     setSettingsStatus('Profile settings saved.');
   };
 
-  const savePrivacySettings = () => {
+  const savePrivacySettings = async () => {
     localStorage.setItem('settings.privacy.profileVisible', String(privacyForm.profileVisible));
     localStorage.setItem('settings.privacy.allowConnectionRequests', String(privacyForm.allowConnectionRequests));
-    setSettingsStatus('Privacy settings saved.');
+    try {
+      if (isLoggedIn) {
+        await updatePersonalizationPreferences({
+          behaviorTrackingEnabled: privacyForm.behaviorTrackingEnabled,
+          semanticProfilingEnabled: privacyForm.semanticProfilingEnabled,
+          personalizedFeedEnabled: privacyForm.personalizedFeedEnabled,
+        });
+      }
+      setSettingsStatus('Privacy and personalization settings saved.');
+    } catch (error) {
+      setSettingsStatus(error.message);
+    }
+  };
+
+  const resetPersonalization = async () => {
+    if (!window.confirm('Delete your behavior history and calculated interest profile?')) return;
+    try {
+      await deletePersonalizationBehavior();
+      setPersonalizationProfile(null);
+      setSettingsStatus('Behavior history and calculated profile deleted.');
+    } catch (error) {
+      setSettingsStatus(error.message);
+    }
+  };
+
+  const openComparison = async () => {
+    setSettingsTab('comparison');
+    if (comparisonUsers.length > 0) return;
+    try {
+      const users = await listPersonalizationUsers();
+      const available = Array.isArray(users) ? users : [];
+      setComparisonUsers(available);
+      setComparisonSelection({
+        firstUserId: available[0]?.userId || '',
+        secondUserId: available[1]?.userId || '',
+      });
+    } catch (error) {
+      setSettingsStatus(error.message);
+    }
+  };
+
+  const compareUsers = async () => {
+    const firstUserId = comparisonSelection.firstUserId.trim();
+    const secondUserId = comparisonSelection.secondUserId.trim();
+    if (!firstUserId || !secondUserId || firstUserId === secondUserId) {
+      setSettingsStatus('Select two different users.');
+      return;
+    }
+
+    setComparisonLoading(true);
+    setComparisonResult(null);
+    setSettingsStatus('');
+    try {
+      const posts = await getAllPostsCached();
+      const candidates = posts.slice(0, 30).map((post) => ({
+        id: post.id,
+        title: post.title || '',
+        description: post.content || post.description || '',
+        contentType: post.type || (post.hlsVideoUrls?.length ? 'video' : 'post'),
+        categories: [post.type].filter(Boolean),
+        tags: [],
+        createdAt: Number(post.createdAt || 0),
+        views: Number(post.views || 0),
+        likes: Number(post.likes || 0),
+      }));
+      setComparisonTitles(Object.fromEntries(candidates.map((item) => [item.id, item.title || item.id])));
+      setComparisonResult(await comparePersonalizedFeeds(firstUserId, secondUserId, candidates));
+    } catch (error) {
+      setSettingsStatus(error.message);
+    } finally {
+      setComparisonLoading(false);
+    }
   };
 
   const saveNotificationSettings = () => {
@@ -452,7 +574,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
 
       {showSettingsModal && (
         <div className="modal-overlay" aria-modal="true" onClick={() => setShowSettingsModal(false)}>
-          <div className="modal-content-custom" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content-custom" style={{ maxWidth: settingsTab === 'comparison' ? 980 : 460 }} onClick={(e) => e.stopPropagation()}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="mb-0 fw-bold">Settings</h5>
               <button type="button" className="btn btn-sm btn-light" onClick={() => setShowSettingsModal(false)}>
@@ -489,6 +611,15 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
               >
                 Account
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className={`btn text-start ${settingsTab === 'comparison' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={openComparison}
+                >
+                  Compare personalized views
+                </button>
+              )}
             </div>
 
             <div className="border rounded-3 p-3 bg-light" style={{ minHeight: 120 }}>
@@ -540,7 +671,35 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                     />
                     <span className="form-check-label">Allow connection requests</span>
                   </label>
-                  <div className="d-flex justify-content-end">
+                  <hr className="my-2" />
+                  <strong className="small">Personalized content and advertisements</strong>
+                  <label className="form-check">
+                    <input className="form-check-input" type="checkbox"
+                      checked={privacyForm.behaviorTrackingEnabled}
+                      onChange={(e) => setPrivacyForm((prev) => ({ ...prev, behaviorTrackingEnabled: e.target.checked }))} />
+                    <span className="form-check-label">Record content and video interactions</span>
+                  </label>
+                  <label className="form-check">
+                    <input className="form-check-input" type="checkbox"
+                      checked={privacyForm.semanticProfilingEnabled}
+                      onChange={(e) => setPrivacyForm((prev) => ({ ...prev, semanticProfilingEnabled: e.target.checked }))} />
+                    <span className="form-check-label">Use local semantic interest matching</span>
+                  </label>
+                  <label className="form-check">
+                    <input className="form-check-input" type="checkbox"
+                      checked={privacyForm.personalizedFeedEnabled}
+                      onChange={(e) => setPrivacyForm((prev) => ({ ...prev, personalizedFeedEnabled: e.target.checked }))} />
+                    <span className="form-check-label">Arrange my feed using my profile</span>
+                  </label>
+                  {personalizationProfile?.interests && (
+                    <small className="text-muted">
+                      Current interests: {Object.entries(personalizationProfile.interests)
+                        .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]))
+                        .slice(0, 6).map(([name]) => name).join(', ') || 'Not enough activity yet'}
+                    </small>
+                  )}
+                  <div className="d-flex justify-content-between gap-2">
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={resetPersonalization}>Reset profile</button>
                     <button type="button" className="btn btn-sm btn-primary" onClick={savePrivacySettings}>Save Privacy</button>
                   </div>
                 </div>
@@ -577,6 +736,76 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                   <div className="d-flex justify-content-end">
                     <button type="button" className="btn btn-sm btn-primary" onClick={saveNotificationSettings}>Save Notifications</button>
                   </div>
+                </div>
+              )}
+              {settingsTab === 'comparison' && isAdmin && (
+                <div className="d-flex flex-column gap-3">
+                  <div>
+                    <strong>Personalized feed comparison</strong>
+                    <div className="small text-muted">The same content candidates are ranked independently for each user.</div>
+                  </div>
+                  <div className="row g-2">
+                    {['firstUserId', 'secondUserId'].map((field, index) => (
+                      <div className="col-md-6" key={field}>
+                        <label className="form-label small fw-semibold">User {index + 1}</label>
+                        <select
+                          className="form-select"
+                          value={comparisonSelection[field]}
+                          onChange={(event) => setComparisonSelection((current) => ({
+                            ...current,
+                            [field]: event.target.value,
+                          }))}
+                        >
+                          <option value="">Select user</option>
+                          {comparisonUsers.map((profile) => (
+                            <option key={profile.userId} value={profile.userId}>
+                              {profile.userId} · {profile.behaviorCount} events
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary align-self-start"
+                    onClick={compareUsers}
+                    disabled={comparisonLoading}
+                  >
+                    {comparisonLoading ? 'Comparing…' : 'Render both views'}
+                  </button>
+                  {comparisonResult && (
+                    <div className="row g-3">
+                      {['first', 'second'].map((side) => {
+                        const view = comparisonResult[side];
+                        return (
+                          <div className="col-md-6" key={side}>
+                            <div className="border rounded-3 bg-white p-3 h-100">
+                              <div className="fw-bold text-break">{view.profile.userId}</div>
+                              <div className="small text-muted mb-2">
+                                {view.profile.behaviorCount} recorded events · {view.profile.personalizedFeedEnabled ? 'personalization on' : 'personalization off'}
+                              </div>
+                              <div className="small mb-3">
+                                <strong>Interests:</strong>{' '}
+                                {Object.keys(view.profile.interests || {}).join(', ') || 'not enough behavior yet'}
+                              </div>
+                              <ol className="list-group list-group-numbered">
+                                {(view.rankings || []).slice(0, 10).map((ranking) => (
+                                  <li className="list-group-item d-flex justify-content-between gap-2" key={ranking.contentId}>
+                                    <div className="text-break">
+                                      <div className="fw-semibold">{comparisonTitles[ranking.contentId] || ranking.contentId}</div>
+                                      <small className="text-muted">{(ranking.reasons || []).join(' · ')}</small>
+                                    </div>
+                                    <span className="badge text-bg-primary align-self-start">{Number(ranking.score).toFixed(3)}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
               {settingsTab === 'account' && (

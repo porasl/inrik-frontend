@@ -4,13 +4,13 @@ import { LOCAL_CONFIG } from './local.config.js'
 
 export default defineConfig(() => {
   const protocol = LOCAL_CONFIG.APP_PROTOCOL || 'http';
-  const host = LOCAL_CONFIG.APPLICATION_HOST || '';
-  const apiOrigin = LOCAL_CONFIG.API_ORIGIN || (host && LOCAL_CONFIG.API_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.API_PORT}` : '');
+  const serviceHost = LOCAL_CONFIG.SERVICE_HOST || '127.0.0.1';
+  const apiOrigin = LOCAL_CONFIG.API_ORIGIN || (LOCAL_CONFIG.API_PORT ? `${protocol}://${serviceHost}:${LOCAL_CONFIG.API_PORT}` : '');
   const contentServiceOrigin = LOCAL_CONFIG.CONTENT_SERVICE_ORIGIN
-    || (host && LOCAL_CONFIG.CONTENT_SERVICE_PORT ? `${protocol}://${host}:${LOCAL_CONFIG.CONTENT_SERVICE_PORT}` : '');
+    || (LOCAL_CONFIG.CONTENT_SERVICE_PORT ? `${protocol}://${serviceHost}:${LOCAL_CONFIG.CONTENT_SERVICE_PORT}` : '');
 
   if (!apiOrigin) {
-    throw new Error('Missing VITE_API_ORIGIN or VITE_APPLICATION_HOST/VITE_API_PORT configuration.');
+    throw new Error('Missing API_ORIGIN or API_PORT configuration.');
   }
 
   return {

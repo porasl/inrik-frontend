@@ -4028,8 +4028,8 @@ html {
 .advertising-template strong, .advertising-template small { display: block; }
 .advertising-template small { margin-top: 4px; color: #7a8598; line-height: 1.35; }
 .advertising-studio__editor > label { display: grid; gap: 6px; margin-bottom: 13px; color: #536075; font-size: .76rem; font-weight: 800; }
-.advertising-studio__editor input, .advertising-studio__editor textarea { width: 100%; padding: 10px 11px; border: 1px solid #dce2eb; border-radius: 10px; background: #fbfcfe; color: #1b2537; font: inherit; font-weight: 500; resize: vertical; }
-.advertising-studio__editor input:focus, .advertising-studio__editor textarea:focus { outline: 3px solid rgba(71, 117, 223, .14); border-color: #6689de; }
+.advertising-studio__editor input, .advertising-studio__editor textarea, .advertising-studio__editor select { width: 100%; padding: 10px 11px; border: 1px solid #dce2eb; border-radius: 10px; background: #fbfcfe; color: #1b2537; font: inherit; font-weight: 500; resize: vertical; }
+.advertising-studio__editor input:focus, .advertising-studio__editor textarea:focus, .advertising-studio__editor select:focus { outline: 3px solid rgba(71, 117, 223,.14); border-color: #6689de; }
 .advertising-studio__field-row { display: grid; grid-template-columns: .8fr 1.2fr; gap: 10px; }
 .advertising-studio__field-row label { display: grid; gap: 6px; color: #536075; font-size: .76rem; font-weight: 800; }
 .advertising-studio__range span { display: flex; justify-content: space-between; }
@@ -4075,6 +4075,8 @@ html {
 .advertising-admin__tables > div { padding: 15px; border: 1px solid #e1e6ef; border-radius: 14px; background: #fff; }
 .advertising-admin__tables p { display: flex; justify-content: space-between; margin: 0; padding: 7px 0; border-bottom: 1px solid #edf0f5; font-size: .8rem; }
 .personalized-ad { position: fixed; z-index: 1090; width: min(300px, 82vw); padding: 20px; border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: rgba(255,255,255,var(--ad-opacity)); color: #172033; box-shadow: 0 22px 60px rgba(5,15,31,.28); backdrop-filter: blur(15px); animation: advertisingAdIn .35s ease both; }
+.video-watch-player { position: relative; }
+.personalized-ad--embedded { position: absolute; z-index: 5; width: min(300px, 64%); max-height: 76%; overflow: auto; }
 .personalized-ad--lower-third { left: 50% !important; right: auto !important; top: auto !important; bottom: 7% !important; width: min(620px, 86vw); transform: translateX(-50%); }
 .personalized-ad > span { display: block; margin-bottom: 8px; color: #426bd0; font-size: .58rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
 .personalized-ad > strong { display: block; padding-right: 22px; font-size: 1.08rem; }

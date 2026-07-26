@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { serveAdvertisement } from '../services/advertisementsService';
+import { observeApproximateLocation } from '../services/userProfilingService';
 
 const SAFE_POSITIONS = [
   { name: 'top-left', style: { top: '12%', left: '8%' } },
@@ -10,24 +11,58 @@ const SAFE_POSITIONS = [
   { name: 'bottom-right', style: { bottom: '12%', right: '12%' } },
 ];
 
-function profileContext(placement) {
+function getSessionId() {
+  const key = 'advertisementSessionId';
+  let value = sessionStorage.getItem(key);
+  if (!value) {
+    value = globalThis.crypto?.randomUUID?.()
+      || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem(key, value);
+  }
+  return value;
+}
+
+function profileContext(placement, content, location) {
+  let profileTags = [];
+  try {
+    profileTags = JSON.parse(localStorage.getItem('advertisementProfileTags') || '[]');
+  } catch {
+    profileTags = [];
+  }
   return {
+    countryCode: location?.countryCode || '',
+    country: location?.country || '',
+    region: location?.region || '',
+    city: location?.city || '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
     language: navigator.language || '',
-    profileTags: JSON.parse(localStorage.getItem('advertisementProfileTags') || '[]'),
+    profileTags: Array.isArray(profileTags) ? profileTags : [],
     profile: {
       name: [localStorage.getItem('userFirstName'), localStorage.getItem('userLastName')].filter(Boolean).join(' '),
     },
     pageUrl: window.location.href,
     referrer: document.referrer || '',
     placement,
+    sessionId: getSessionId(),
+    contentId: content.id,
+    contentTitle: content.title,
+    contentDescription: content.description,
+    contentCategories: content.categories,
     deviceType: window.matchMedia('(max-width: 720px)').matches ? 'mobile' : window.matchMedia('(max-width: 1180px)').matches ? 'tablet' : 'desktop',
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
   };
 }
 
-export default function PersonalizedAdvertisement({ isLoggedIn }) {
+export default function PersonalizedAdvertisement({
+  isLoggedIn,
+  placement = 'page',
+  contentId = '',
+  contentTitle = '',
+  contentDescription = '',
+  contentCategories = [],
+  embedded = false,
+}) {
   const [advertisement, setAdvertisement] = useState(null);
   const [closed, setClosed] = useState(false);
   const [positionIndex, setPositionIndex] = useState(0);
@@ -39,9 +74,22 @@ export default function PersonalizedAdvertisement({ isLoggedIn }) {
       setAdvertisement(null);
       return () => { cancelled = true; };
     }
+    setAdvertisement(null);
+    setClosed(false);
     const nextPosition = Math.floor(Math.random() * SAFE_POSITIONS.length);
     setPositionIndex(nextPosition);
-    serveAdvertisement(profileContext(SAFE_POSITIONS[nextPosition].name))
+    const placementName = `${placement}:${SAFE_POSITIONS[nextPosition].name}`;
+    observeApproximateLocation()
+      .catch((error) => {
+        console.warn('Approximate location could not be recorded:', error.message);
+        return null;
+      })
+      .then((location) => serveAdvertisement(profileContext(placementName, {
+        id: contentId,
+        title: contentTitle,
+        description: contentDescription,
+        categories: contentCategories,
+      }, location)))
       .then((item) => {
         if (!cancelled) {
           setAdvertisement(item);
@@ -50,12 +98,16 @@ export default function PersonalizedAdvertisement({ isLoggedIn }) {
       })
       .catch((error) => console.warn('Advertisement delivery failed:', error.message));
     return () => { cancelled = true; };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, placement, contentId, contentTitle, contentDescription, JSON.stringify(contentCategories)]);
 
   if (!advertisement || closed) return null;
   return (
     <aside
-      className={`personalized-ad personalized-ad--${advertisement.templateId || 'transparent-popup'}`}
+      className={[
+        'personalized-ad',
+        `personalized-ad--${advertisement.templateId || 'transparent-popup'}`,
+        embedded ? 'personalized-ad--embedded' : '',
+      ].filter(Boolean).join(' ')}
       style={{ ...position.style, '--ad-opacity': (advertisement.opacity || 82) / 100 }}
       aria-label="Sponsored advertisement"
     >

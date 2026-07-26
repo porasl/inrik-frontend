@@ -21,8 +21,10 @@ export default function AdvertisingStudio() {
     templateId: 'transparent-popup', headline: 'A brighter story starts here',
     message: 'Introduce your product with a short, clear message.', buttonLabel: 'Learn more',
     destination: 'https://', opacity: 82, randomPlacement: true, budget: '25',
-    costPerView: '0.05', maxViews: '500', targetUserIds: '', targetUserEmails: '',
-    targetLocations: '', targetProfileTags: '', activate: true, paymentMethod: 'STORE_CREDIT',
+    costPerView: '0.05', maxViews: '500', targetUserEmails: '',
+    targetLocations: '', targetProfileTags: '', targetContentKeywords: '',
+    targetContentCategories: '', deliveryMode: 'ONCE_PER_SESSION',
+    activate: true, paymentMethod: 'STORE_CREDIT',
   });
   const [editingId, setEditingId] = useState('');
   const [wallet, setWallet] = useState({ balance: 0, ledger: [] });
@@ -41,20 +43,27 @@ export default function AdvertisingStudio() {
   const field = (name, value) => setForm((current) => ({ ...current, [name]: value }));
 
   const load = async () => {
-    try {
-      const [mine, admin, credit, stripe] = await Promise.all([
-        listMyAdvertisements(),
-        isAdmin ? getAdvertisementAnalytics() : Promise.resolve(null),
-        getStoreCreditWallet(),
-        getStripeStatus(),
-      ]);
-      setCampaigns(mine || []);
-      setAnalytics(admin);
-      setWallet(credit || { balance: 0, ledger: [] });
-      setStripeStatus(stripe || { configured: false });
-    } catch (error) {
-      setStatus(error.message);
-    }
+    const requests = [
+      ['campaigns', listMyAdvertisements()],
+      ['wallet', getStoreCreditWallet()],
+      ['Stripe status', getStripeStatus()],
+    ];
+    if (isAdmin) requests.push(['administrator analytics', getAdvertisementAnalytics()]);
+
+    const results = await Promise.allSettled(requests.map(([, request]) => request));
+    const failures = [];
+    results.forEach((result, index) => {
+      const [name] = requests[index];
+      if (result.status === 'rejected') {
+        failures.push(`${name}: ${result.reason?.message || 'request failed'}`);
+        return;
+      }
+      if (name === 'campaigns') setCampaigns(result.value || []);
+      if (name === 'wallet') setWallet(result.value || { balance: 0, ledger: [] });
+      if (name === 'Stripe status') setStripeStatus(result.value || { configured: false });
+      if (name === 'administrator analytics') setAnalytics(result.value);
+    });
+    setStatus(failures.length ? `Some advertising data could not load — ${failures.join('; ')}` : '');
   };
   useEffect(() => { load(); }, []);
 
@@ -65,8 +74,10 @@ export default function AdvertisingStudio() {
         ...form,
         opacity: Number(form.opacity), budget: Number(form.budget),
         costPerView: Number(form.costPerView), maxViews: Number(form.maxViews),
-        targetUserIds: split(form.targetUserIds), targetUserEmails: split(form.targetUserEmails),
+        targetUserEmails: split(form.targetUserEmails),
         targetLocations: split(form.targetLocations), targetProfileTags: split(form.targetProfileTags),
+        targetContentKeywords: split(form.targetContentKeywords),
+        targetContentCategories: split(form.targetContentCategories),
       };
       if (editingId) await updateAdvertisement(editingId, payload);
       else await createAdvertisement(payload);
@@ -74,7 +85,18 @@ export default function AdvertisingStudio() {
       setEditingId('');
       await load();
     } catch (error) {
-      setStatus(error.message);
+      if (error.status === 402) {
+        const required = Number(form.budget || 0);
+        const available = Number(wallet.balance || 0);
+        const shortage = Math.max(0, required - available);
+        setStatus(
+          `Insufficient Store Credit. This campaign reserves ${money(required)}, `
+          + `but only ${money(available)} is available. Add ${money(shortage)} `
+          + 'or reduce the campaign budget before saving.'
+        );
+      } else {
+        setStatus(error.message);
+      }
     } finally {
       setBusy(false);
     }
@@ -106,10 +128,13 @@ export default function AdvertisingStudio() {
       buttonLabel: campaign.buttonLabel || 'Learn more', destination: campaign.destination,
       opacity: campaign.opacity || 82, randomPlacement: campaign.randomPlacement !== false,
       budget: String(campaign.budget), costPerView: String(campaign.costPerView),
-      maxViews: String(campaign.maxViews || ''), targetUserIds: (campaign.targetUserIds || []).join(', '),
+      maxViews: String(campaign.maxViews || ''),
       targetUserEmails: (campaign.targetUserEmails || []).join(', '),
       targetLocations: (campaign.targetLocations || []).join(', '),
       targetProfileTags: (campaign.targetProfileTags || []).join(', '),
+      targetContentKeywords: (campaign.targetContentKeywords || []).join(', '),
+      targetContentCategories: (campaign.targetContentCategories || []).join(', '),
+      deliveryMode: campaign.deliveryMode || 'ONCE_PER_SESSION',
       activate: campaign.status === 'ACTIVE', paymentMethod: campaign.paymentMethod || 'STORE_CREDIT',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -187,11 +212,31 @@ export default function AdvertisingStudio() {
           </div>
           <label>Maximum views<input type="number" min="1" value={form.maxViews} onChange={(event) => field('maxViews', event.target.value)} /></label>
           <div className="advertising-targeting">
+            <strong>Delivery frequency</strong>
+            <label>Display rule
+              <select value={form.deliveryMode} onChange={(event) => field('deliveryMode', event.target.value)}>
+                <option value="ONCE_PER_SESSION">Once per browser session for each unique user</option>
+                <option value="CONTEXTUAL_VIDEO">On each matching video, once per video/session</option>
+              </select>
+            </label>
+            <small>
+              {form.deliveryMode === 'ONCE_PER_SESSION'
+                ? 'The first eligible video can show this campaign. Refreshing the page will not charge another view during the same session.'
+                : 'The campaign is evaluated whenever a video opens and appears only when its title, description, or category matches.'}
+            </small>
+          </div>
+          <div className="advertising-targeting">
             <strong>Viewer targeting</strong><small>Leave all targeting fields empty to reach any signed-in user.</small>
-            <label>User emails<input placeholder="user@example.com, another@example.com" value={form.targetUserEmails} onChange={(event) => field('targetUserEmails', event.target.value)} /></label>
-            <label>User IDs<input placeholder="12, 42" value={form.targetUserIds} onChange={(event) => field('targetUserIds', event.target.value)} /></label>
+            <label>User email patterns<input placeholder="user@example.com, *@*.de, *@**.de" value={form.targetUserEmails} onChange={(event) => field('targetUserEmails', event.target.value)} /></label>
+            <small>Separate entries with commas. Use an exact email or * as a wildcard; for example, *@*.de matches email addresses ending in .de.</small>
             <label>Locations<input placeholder="San Francisco, US, America/Los_Angeles" value={form.targetLocations} onChange={(event) => field('targetLocations', event.target.value)} /></label>
             <label>Profile tags<input placeholder="technology, travel" value={form.targetProfileTags} onChange={(event) => field('targetProfileTags', event.target.value)} /></label>
+          </div>
+          <div className="advertising-targeting">
+            <strong>Context Targeting</strong>
+            <small>Used by contextual-video delivery. Matching is case-insensitive against the video title, description, categories, and tags.</small>
+            <label>Topics or description keywords<input placeholder="sport, football, cosmetics, skin care" value={form.targetContentKeywords} onChange={(event) => field('targetContentKeywords', event.target.value)} /></label>
+            <label>Content categories<input placeholder="Sport, Men, Women, Children, Cosmetics" value={form.targetContentCategories} onChange={(event) => field('targetContentCategories', event.target.value)} /></label>
           </div>
           <label className="advertising-studio__range"><span>Background opacity <b>{form.opacity}%</b></span><input type="range" min="35" max="100" value={form.opacity} onChange={(event) => field('opacity', Number(event.target.value))} /></label>
           <label className="advertising-studio__switch"><input type="checkbox" checked={form.activate} onChange={(event) => field('activate', event.target.checked)} /><span><strong>Activate after saving</strong><small>Draft campaigns are not delivered.</small></span></label>
@@ -216,7 +261,7 @@ export default function AdvertisingStudio() {
         <div className="table-responsive"><table className="table align-middle">
           <thead><tr><th>Campaign</th><th>Status</th><th>Views</th><th>Spend</th><th>Remaining</th><th>Control</th></tr></thead>
           <tbody>{campaigns.map((campaign) => <tr key={campaign.id}>
-            <td><strong>{campaign.headline}</strong><small className="d-block text-muted">{campaign.templateId}</small></td>
+            <td><strong>{campaign.headline}</strong><small className="d-block text-muted">{campaign.templateId} · {(campaign.deliveryMode || 'ONCE_PER_SESSION').replaceAll('_', ' ').toLowerCase()}</small></td>
             <td><span className={`badge text-bg-${campaign.status === 'ACTIVE' ? 'success' : campaign.status === 'EXHAUSTED' ? 'danger' : 'secondary'}`}>{campaign.status}</span></td>
             <td>{campaign.viewCount} / {campaign.maxViews || '∞'}</td><td>{money(campaign.spend)}</td><td>{money(campaign.remainingBudget)}</td>
             <td><div className="d-flex flex-wrap gap-1">

@@ -4,6 +4,8 @@ import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getUserProfileCached } from '../services/userProfileService';
 import PostComments from './PostComments';
 import { EditPostModal, canCurrentUserEditPost } from './PostView';
+import PersonalizedAdvertisement from './PersonalizedAdvertisement';
+import { behaviorSessionId, recordBehavior } from '../services/userProfilingService';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -306,9 +308,10 @@ function CommentsSection({ postId }) {
 /* ═══════════════════════════════════════════
    MAIN VIDEO WATCH PAGE
 ═══════════════════════════════════════════ */
-export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDelete, onUpdated }) {
+export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDelete, onUpdated, isLoggedIn }) {
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
+    const behaviorMilestonesRef = useRef(new Set());
     const [liked, setLiked] = useState(!!post.isLikedByCurrentUser);
     const [likeCount, setLikeCount] = useState(post.likes || 0);
     const [views, setViews] = useState(post.views || 0);
@@ -320,7 +323,49 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
         setLiked(!!post.isLikedByCurrentUser);
         setLikeCount(post.likes || 0);
         setViews(post.views || 0);
+        behaviorMilestonesRef.current = new Set();
     }, [post.id, post.likes, post.isLikedByCurrentUser, post.views]);
+
+    const behaviorPayload = (eventType, extra = {}) => ({
+        contentId: post.id,
+        sessionId: behaviorSessionId(),
+        eventType,
+        contentType: post.type || 'video',
+        title: post.title || '',
+        description: [post.description, post.content].filter(Boolean).join(' '),
+        categories: [post.type, post.category].filter(Boolean),
+        tags: Array.isArray(post.tags) ? post.tags : [],
+        locale: navigator.language || '',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        ...extra,
+    });
+
+    const emitBehavior = (eventType, extra = {}) => {
+        if (!isLoggedIn || !localStorage.getItem('token')) return;
+        recordBehavior(behaviorPayload(eventType, extra))
+            .catch((error) => console.warn('Behavior recording failed:', error.message));
+    };
+
+    const captureVideoProgress = (event) => {
+        const video = event.currentTarget;
+        if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+        const percent = Math.min(100, (video.currentTime / video.duration) * 100);
+        for (const milestone of [25, 75]) {
+            if (percent >= milestone && !behaviorMilestonesRef.current.has(milestone)) {
+                behaviorMilestonesRef.current.add(milestone);
+                emitBehavior('VIDEO_PROGRESS', {
+                    watchSeconds: video.currentTime,
+                    completionPercent: milestone,
+                });
+            }
+        }
+    };
+
+    useEffect(() => {
+        emitBehavior('CONTENT_OPEN');
+    // Recording is keyed to the opened content, not incidental render changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [post.id]);
 
     /* Build playable video url */
     const playableVideoUrl = resolvePlayableVideoUrl(post);
@@ -381,6 +426,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
         const newLiked = !liked;
         setLiked(newLiked);
         setLikeCount(c => newLiked ? c + 1 : Math.max(0, c - 1));
+        if (newLiked) emitBehavior('LIKE');
         try {
             const res = await fetch(`${API_BASE}/graphql`, {
                 method: "POST",
@@ -427,10 +473,34 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
                             className="w-100 h-100"
                             style={{ objectFit: 'contain', background: '#000' }}
                             poster={thumbSrc}
+                            onTimeUpdate={captureVideoProgress}
+                            onEnded={(event) => {
+                                if (behaviorMilestonesRef.current.has(100)) return;
+                                behaviorMilestonesRef.current.add(100);
+                                emitBehavior('VIDEO_COMPLETE', {
+                                    watchSeconds: event.currentTarget.duration,
+                                    completionPercent: 100,
+                                });
+                            }}
                         />
                     ) : (
                         <img src={thumbSrc} className="w-100 h-100" style={{ objectFit: 'contain' }} alt={post.title} />
                     )}
+                    <PersonalizedAdvertisement
+                        isLoggedIn={isLoggedIn}
+                        placement="video"
+                        contentId={post.id}
+                        contentTitle={post.title || post.description || ''}
+                        contentDescription={[post.description, post.content, post.title].filter(Boolean).join(' ')}
+                        contentCategories={[
+                            ...(Array.isArray(post.categories) ? post.categories : []),
+                            ...(Array.isArray(post.tags) ? post.tags : []),
+                            post.category,
+                            post.type,
+                            post.groupId,
+                        ].filter(Boolean)}
+                        embedded
+                    />
                 </div>
 
                 {/* Title */}
