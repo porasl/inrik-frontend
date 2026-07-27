@@ -3,6 +3,7 @@ import { PUBLIC_BASE } from '../../app.config.js';
 import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
 import useDelayedVisibility from '../hooks/useDelayedVisibility';
+import PersonalizedAdvertisement from './PersonalizedAdvertisement';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -167,6 +168,21 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
         poster={thumb}
         playsInline
         loop
+      />
+
+      <PersonalizedAdvertisement
+        isLoggedIn={Boolean(localStorage.getItem('token'))}
+        placement="slice-video"
+        contentId={post.id}
+        contentTitle={post.title || post.description || ''}
+        contentDescription={[post.description, post.content, post.title].filter(Boolean).join(' ')}
+        contentCategories={[
+          ...(Array.isArray(post.categories) ? post.categories : []),
+          ...(Array.isArray(post.tags) ? post.tags : []),
+          post.category,
+          post.type,
+        ].filter(Boolean)}
+        embedded
       />
 
       {/* Pause overlay */}

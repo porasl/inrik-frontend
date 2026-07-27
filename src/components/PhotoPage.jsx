@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getMyPhotosPage, getPublicPhotosPage, subscribePhotoCacheUpdates, subscribePhotoRefreshStatus } from '../services/photoService';
 import useDelayedVisibility from '../hooks/useDelayedVisibility';
+import PersonalizedAdvertisement from './PersonalizedAdvertisement';
 
 /* ─── Helpers ─── */
 function toPublicUrl(fsPath) {
@@ -1282,6 +1283,21 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
               draggable={false}
             />
           )}
+
+          <PersonalizedAdvertisement
+            isLoggedIn={isLoggedIn}
+            placement="image"
+            contentId={photo.post.id}
+            contentTitle={photo.post.title || photo.post.description || ''}
+            contentDescription={[photo.post.description, photo.post.content, photo.post.title].filter(Boolean).join(' ')}
+            contentCategories={[
+              ...(Array.isArray(photo.post.categories) ? photo.post.categories : []),
+              ...(Array.isArray(photo.post.tags) ? photo.post.tags : []),
+              photo.post.category,
+              photo.post.type,
+            ].filter(Boolean)}
+            embedded
+          />
 
           {/* Binocular lens */}
           {binocularEnabled && showLens && (

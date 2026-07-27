@@ -12,6 +12,12 @@ export default defineConfig(() => {
   if (!apiOrigin) {
     throw new Error('Missing API_ORIGIN or API_PORT configuration.');
   }
+  const noCacheHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store',
+  };
 
   return {
     plugins: [react()],
@@ -19,6 +25,7 @@ export default defineConfig(() => {
       port: 4000,
       host: true,
       strictPort: true,
+      headers: noCacheHeaders,
       proxy: {
         '/content-tools': {
           target: contentServiceOrigin,
@@ -60,6 +67,9 @@ export default defineConfig(() => {
           secure: true,
         },
       },
+    },
+    preview: {
+      headers: noCacheHeaders,
     },
   };
 })

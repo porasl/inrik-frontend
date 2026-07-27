@@ -69,8 +69,26 @@ export function getAdvertisementAnalytics() {
   return request('/admin/analytics');
 }
 
+export function getAdvertisementConfiguration() {
+  return request('/configuration');
+}
+
+export function updateAdvertisementConfiguration(alwaysShowForTesting) {
+  return request('/configuration', {
+    method: 'PUT',
+    body: JSON.stringify({ alwaysShowForTesting }),
+  });
+}
+
 export function serveAdvertisement(context) {
   return request('/serve', { method: 'POST', body: JSON.stringify(context) });
+}
+
+export function recordAdvertisementImpression(id, impressionKey, context) {
+  return request(`/${encodeURIComponent(id)}/impression`, {
+    method: 'POST',
+    body: JSON.stringify({ impressionKey, context }),
+  });
 }
 
 export function currentRole() {

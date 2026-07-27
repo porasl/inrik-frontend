@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   cancelAdvertisement, createAdvertisement, createStripeCheckout, currentRole, getAdvertisementAnalytics,
-  getAdvertisementViews, getStoreCreditWallet, getStripeStatus, listMyAdvertisements, updateAdvertisement, updateAdvertisementStatus,
+  getAdvertisementConfiguration, getAdvertisementViews, getStoreCreditWallet, getStripeStatus,
+  listMyAdvertisements, updateAdvertisement, updateAdvertisementConfiguration, updateAdvertisementStatus,
 } from '../services/advertisementsService';
 
 const TEMPLATES = [
@@ -33,6 +34,8 @@ export default function AdvertisingStudio() {
   const [positionIndex, setPositionIndex] = useState(1);
   const [campaigns, setCampaigns] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [runtimeConfiguration, setRuntimeConfiguration] = useState({ alwaysShowForTesting: true });
+  const [configurationBusy, setConfigurationBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [viewPopup, setViewPopup] = useState(null);
@@ -48,7 +51,10 @@ export default function AdvertisingStudio() {
       ['wallet', getStoreCreditWallet()],
       ['Stripe status', getStripeStatus()],
     ];
-    if (isAdmin) requests.push(['administrator analytics', getAdvertisementAnalytics()]);
+    if (isAdmin) {
+      requests.push(['administrator analytics', getAdvertisementAnalytics()]);
+      requests.push(['runtime configuration', getAdvertisementConfiguration()]);
+    }
 
     const results = await Promise.allSettled(requests.map(([, request]) => request));
     const failures = [];
@@ -62,6 +68,7 @@ export default function AdvertisingStudio() {
       if (name === 'wallet') setWallet(result.value || { balance: 0, ledger: [] });
       if (name === 'Stripe status') setStripeStatus(result.value || { configured: false });
       if (name === 'administrator analytics') setAnalytics(result.value);
+      if (name === 'runtime configuration') setRuntimeConfiguration(result.value);
     });
     setStatus(failures.length ? `Some advertising data could not load — ${failures.join('; ')}` : '');
   };
@@ -107,6 +114,20 @@ export default function AdvertisingStudio() {
       await updateAdvertisementStatus(id, nextStatus);
       await load();
     } catch (error) { setStatus(error.message); }
+  };
+
+  const toggleAlwaysShow = async (enabled) => {
+    setConfigurationBusy(true);
+    setStatus('');
+    try {
+      const updated = await updateAdvertisementConfiguration(enabled);
+      setRuntimeConfiguration(updated);
+      setStatus(`Advertisement test mode is now ${enabled ? 'ON' : 'OFF'}. The change is active immediately.`);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setConfigurationBusy(false);
+    }
   };
 
   const fundWithStripe = async () => {
@@ -175,6 +196,26 @@ export default function AdvertisingStudio() {
           {busy ? 'Saving…' : editingId ? 'Save changes' : form.activate ? 'Publish campaign' : 'Save draft'}
         </button>
       </header>
+
+      {isAdmin && <section className="advertising-credit">
+        <div>
+          <span className="advertising-studio__eyebrow">Global delivery configuration</span>
+          <strong>Advertisement test mode</strong>
+          <small>When ON, active funded campaigns ignore viewer, location, context, and session targeting.</small>
+        </div>
+        <label className="advertising-studio__switch">
+          <input
+            type="checkbox"
+            checked={runtimeConfiguration?.alwaysShowForTesting === true}
+            disabled={configurationBusy}
+            onChange={(event) => toggleAlwaysShow(event.target.checked)}
+          />
+          <span>
+            <strong>{runtimeConfiguration?.alwaysShowForTesting ? 'Always show: ON' : 'Normal targeting: ON'}</strong>
+            <small>Global and immediate; no service restart is needed.</small>
+          </span>
+        </label>
+      </section>}
 
       <section className="advertising-credit">
         <div><span className="advertising-studio__eyebrow">Account Store Credit</span><strong>{money(wallet.balance)}</strong>

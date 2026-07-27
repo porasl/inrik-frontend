@@ -5,6 +5,7 @@ import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
 import PostComments from './PostComments';
+import PersonalizedAdvertisement from './PersonalizedAdvertisement';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
@@ -955,9 +956,27 @@ export default function PostView({ posts = [], isLoggedIn = false, onUpload, onD
     if (dbPosts.length > 0) return dbPosts;
     return posts.filter(Boolean);
   }, [dbPosts, posts]);
+  const advertisementContext = visiblePosts[0] || {};
 
   return (
     <section className="postview-root">
+      <PersonalizedAdvertisement
+        isLoggedIn={isLoggedIn}
+        placement="posts"
+        contentId={advertisementContext.id || ''}
+        contentTitle={advertisementContext.title || advertisementContext.description || ''}
+        contentDescription={[
+          advertisementContext.description,
+          advertisementContext.content,
+          advertisementContext.title,
+        ].filter(Boolean).join(' ')}
+        contentCategories={[
+          ...toArray(advertisementContext.categories),
+          ...toArray(advertisementContext.tags),
+          advertisementContext.category,
+          advertisementContext.type,
+        ].filter(Boolean)}
+      />
       {!isLoggedIn && (
         <div className="alert alert-light border small mb-3">Log in to upload, like, comment, and manage posts.</div>
       )}

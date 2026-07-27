@@ -4074,7 +4074,7 @@ html {
 .advertising-admin__tables { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
 .advertising-admin__tables > div { padding: 15px; border: 1px solid #e1e6ef; border-radius: 14px; background: #fff; }
 .advertising-admin__tables p { display: flex; justify-content: space-between; margin: 0; padding: 7px 0; border-bottom: 1px solid #edf0f5; font-size: .8rem; }
-.personalized-ad { position: fixed; z-index: 1090; width: min(300px, 82vw); padding: 20px; border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: rgba(255,255,255,var(--ad-opacity)); color: #172033; box-shadow: 0 22px 60px rgba(5,15,31,.28); backdrop-filter: blur(15px); animation: advertisingAdIn .35s ease both; }
+.personalized-ad { position: fixed; z-index: 7000; width: min(300px, 82vw); padding: 20px; border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: rgba(255,255,255,var(--ad-opacity)); color: #172033; box-shadow: 0 22px 60px rgba(5,15,31,.28); -webkit-backdrop-filter: blur(15px); backdrop-filter: blur(15px); isolation: isolate; animation: advertisingAdIn .35s ease both; }
 .video-watch-player { position: relative; }
 .personalized-ad--embedded { position: absolute; z-index: 5; width: min(300px, 64%); max-height: 76%; overflow: auto; }
 .personalized-ad--lower-third { left: 50% !important; right: auto !important; top: auto !important; bottom: 7% !important; width: min(620px, 86vw); transform: translateX(-50%); }
@@ -4083,6 +4083,14 @@ html {
 .personalized-ad p { margin: 7px 0 13px; color: #536075; font-size: .8rem; }
 .personalized-ad a { display: inline-block; padding: 8px 13px; border-radius: 9px; background: #1b2a44; color: #fff; font-size: .74rem; font-weight: 800; text-decoration: none; }
 .personalized-ad__close { position: absolute; top: 8px; right: 9px; width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgba(20,29,45,.1); font-size: 1.15rem; line-height: 1; }
+.personalized-ad--feed-card { position: relative; inset: auto !important; z-index: 1; width: 100%; max-width: 760px; margin: 0 auto 14px; padding: 16px 46px 16px 18px; border-color: #c9d8fb; border-radius: 14px; background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(235,242,255,.98)); box-shadow: 0 8px 24px rgba(24,48,94,.12); animation: none; }
+.personalized-ad--feed-card p { max-width: 620px; }
+.personalized-ad--pre-roll { position: absolute !important; inset: 0 !important; z-index: 30; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; width: 100% !important; max-height: none !important; padding: clamp(16px, 5vw, 42px) !important; border: 0; border-radius: 0; overflow-y: auto; background: linear-gradient(135deg, rgba(9,18,34,.94), rgba(24,43,76,.92)); color: #fff; box-shadow: none; }
+.personalized-ad--pre-roll > span { color: #a9c2ff; }
+.personalized-ad--pre-roll > strong { font-size: clamp(1rem, 3vw, 1.65rem); }
+.personalized-ad--pre-roll p { max-width: 620px; color: #d9e2f2; }
+.personalized-ad--pre-roll .personalized-ad__close { color: #fff; background: rgba(255,255,255,.16); }
+.personalized-ad__continue { margin-left: 8px; padding: 8px 13px; border: 1px solid rgba(255,255,255,.5); border-radius: 9px; background: transparent; color: #fff; font-size: .74rem; font-weight: 800; }
 .advertising-views-backdrop { position: fixed; inset: 0; z-index: 6000; display: grid; place-items: center; padding: 20px; background: rgba(10,18,32,.58); backdrop-filter: blur(4px); }
 .advertising-views-modal { width: min(820px, 96vw); max-height: min(760px, 90vh); overflow: hidden; border: 1px solid #d9e1ed; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px rgba(6,14,29,.32); }
 .advertising-views-modal > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 16px 18px 12px; border-bottom: 1px solid #e7ebf1; background: linear-gradient(135deg, #fff, #eef3ff); }
@@ -4101,6 +4109,61 @@ html {
 
 @media (max-width: 1180px) { .advertising-studio__workspace { grid-template-columns: 260px 1fr; } .advertising-studio__preview-panel { grid-column: 1 / -1; } }
 @media (max-width: 720px) { .main-content:has(> .advertising-studio) { padding-top: 4px; } .advertising-studio { padding: 0 2px 12px; } .advertising-studio__header, .advertising-credit { padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; } .advertising-studio__header h2, .advertising-studio__header p { display: block; } .advertising-studio__header h2 { margin: 0 0 2px; } .advertising-credit input { width: 100%; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row, .advertising-admin__summary, .advertising-admin__tables { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
+
+@media (max-width: 1180px) {
+  .personalized-ad:not(.personalized-ad--embedded) {
+    top: auto !important;
+    right: 10px !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 10px !important;
+    width: auto;
+    max-height: min(46vh, 280px);
+    padding: 13px 15px;
+    overflow-y: auto;
+  }
+
+  .video-watch-player .personalized-ad--embedded {
+    top: auto !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    left: 10px !important;
+    width: auto;
+    max-height: calc(100% - 20px);
+    padding: 11px 14px;
+    border-radius: 12px;
+    overflow-y: auto;
+  }
+
+  .video-watch-player .personalized-ad--embedded > span {
+    margin-bottom: 3px;
+  }
+
+  .video-watch-player .personalized-ad--embedded > strong {
+    font-size: .88rem;
+  }
+
+  .video-watch-player .personalized-ad--embedded p {
+    margin: 3px 0 7px;
+    font-size: .7rem;
+  }
+
+  .video-watch-player .personalized-ad--embedded a {
+    padding: 6px 10px;
+    font-size: .68rem;
+  }
+
+  .video-watch-player .personalized-ad--pre-roll {
+    inset: 0 !important;
+    width: 100% !important;
+    max-height: none;
+    padding: 14px 42px 14px 16px !important;
+  }
+
+  .personalized-ad--feed-card {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+}
 
 @media (max-width: 900px) {
   .market-overview {

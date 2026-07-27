@@ -15,6 +15,7 @@ import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
 import AdvertisingStudio from './components/AdvertisingStudio';
+import PersonalizedAdvertisement from './components/PersonalizedAdvertisement';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -1461,6 +1462,19 @@ function App() {
           ) : (
             /* ── HOME FEED ── */
             <>
+              <PersonalizedAdvertisement
+                isLoggedIn={isLoggedIn}
+                placement="feed"
+                contentId={mainFeedPosts[0]?.id || ''}
+                contentTitle={mainFeedPosts[0]?.title || ''}
+                contentDescription={mainFeedPosts[0]?.description || mainFeedPosts[0]?.content || ''}
+                contentCategories={[
+                  ...(Array.isArray(mainFeedPosts[0]?.categories) ? mainFeedPosts[0].categories : []),
+                  ...(Array.isArray(mainFeedPosts[0]?.tags) ? mainFeedPosts[0].tags : []),
+                  mainFeedPosts[0]?.category,
+                  mainFeedPosts[0]?.type,
+                ].filter(Boolean)}
+              />
               <SliceCarousel onWatch={(p) => openSlicePage(p.id)} onDelete={handleDeletePost} />
               <div className="video-grid d-flex flex-wrap gap-3">
                 {mainFeedPosts.map(post => (
