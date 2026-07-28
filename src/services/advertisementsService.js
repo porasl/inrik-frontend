@@ -4,14 +4,14 @@ function token() {
   return localStorage.getItem('token') || '';
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, authenticationRequired = true) {
   const accessToken = token();
-  if (!accessToken) throw new Error('Please log in to use Advertising Studio.');
+  if (!accessToken && authenticationRequired) throw new Error('Please log in to use Advertising Studio.');
   const response = await fetch(`${AD_API}${path}`, {
     ...options,
     headers: {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...options.headers,
     },
   });
@@ -81,14 +81,14 @@ export function updateAdvertisementConfiguration(alwaysShowForTesting) {
 }
 
 export function serveAdvertisement(context) {
-  return request('/serve', { method: 'POST', body: JSON.stringify(context) });
+  return request('/serve', { method: 'POST', body: JSON.stringify(context) }, false);
 }
 
 export function recordAdvertisementImpression(id, impressionKey, context) {
   return request(`/${encodeURIComponent(id)}/impression`, {
     method: 'POST',
     body: JSON.stringify({ impressionKey, context }),
-  });
+  }, false);
 }
 
 export function currentRole() {

@@ -15,7 +15,7 @@ function toPublicUrl(fsPath) {
 }
 
 /* ── Single full-screen Slice player ── */
-function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
+function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const [liked, setLiked] = useState(!!post.isLikedByCurrentUser);
@@ -192,17 +192,11 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
         </div>
       )}
 
-      {/* Progress indicator */}
-      <div className="slice-page-progress">
-        <span>{index + 1} / {total}</span>
-      </div>
-
       {/* TOP gradient */}
       <div className="slice-page-top-gradient" />
 
-      {/* BOTTOM info overlay */}
-      <div className="slice-page-info" onClick={e => e.stopPropagation()}>
-        {/* Owner */}
+      {/* Profile at the upper-left of the modal */}
+      <div className="slice-page-profile" onClick={e => e.stopPropagation()}>
         <div className="slice-page-owner">
           <div className="slice-page-avatar" style={{ background: avatarBg }}>
             {resolvedAvatar && !avatarError
@@ -212,44 +206,60 @@ function SlicePlayer({ post, onNext, onPrev, isFirst, isLast, total, index }) {
           </div>
           <span className="slice-page-owner-name">{resolvedName}</span>
         </div>
-
-        {/* Title */}
-        {post.title && (
-          <p className="slice-page-title">{post.title}</p>
-        )}
       </div>
 
-      {/* RIGHT action buttons */}
-      <div className="slice-page-actions" onClick={e => e.stopPropagation()}>
-        {/* Like */}
+      {/* BOTTOM info overlay */}
+      {post.title && post.title.trim().toLowerCase() !== 'short video' && (
+        <div className="slice-page-info" onClick={e => e.stopPropagation()}>
+          <p className="slice-page-title">{post.title}</p>
+        </div>
+      )}
+
+      <button
+        className="slice-page-close slice-page-close--player"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose?.();
+        }}
+        type="button"
+        aria-label="Close Slice page"
+        title="Close"
+      >
+        <i className="bi bi-x-lg" />
+      </button>
+
+      {/* Controls distributed along both sides of the video */}
+      <div className="slice-page-side-controls slice-page-side-controls--left" onClick={e => e.stopPropagation()}>
+        <button
+          className={`slice-side-btn ${isFirst ? 'hidden' : ''}`}
+          onClick={onPrev}
+          type="button"
+          aria-label="Previous"
+          title="Previous"
+        >
+          <i className="bi bi-chevron-left" />
+        </button>
+      </div>
+
+      <div className="slice-page-side-controls slice-page-side-controls--right" onClick={e => e.stopPropagation()}>
+        <button
+          className={`slice-side-btn ${isLast ? 'hidden' : ''}`}
+          onClick={onNext}
+          type="button"
+          aria-label="Next"
+          title="Next"
+        >
+          <i className="bi bi-chevron-right" />
+        </button>
         <button className={`slice-action-btn ${liked ? 'liked' : ''}`} onClick={handleLike} title="Like">
           <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'}`} />
           <span>{likeCount}</span>
         </button>
-
-        {/* Views */}
-        <div className="slice-action-btn static" title="Views">
+        <div className="slice-action-btn static slice-action-btn--views" title="Views">
           <i className="bi bi-eye" />
           <span>{post.views || 0}</span>
         </div>
       </div>
-
-      {/* PREV / NEXT arrows */}
-      <button
-        className={`slice-page-nav slice-page-nav--prev ${isFirst ? 'hidden' : ''}`}
-        onClick={e => { e.stopPropagation(); onPrev?.(); }}
-        aria-label="Previous"
-      >
-        <i className="bi bi-chevron-left" />
-      </button>
-
-      <button
-        className={`slice-page-nav slice-page-nav--next ${isLast ? 'hidden' : ''}`}
-        onClick={e => { e.stopPropagation(); onNext?.(); }}
-        aria-label="Next"
-      >
-        <i className="bi bi-chevron-right" />
-      </button>
     </div>
   );
 }
@@ -379,7 +389,7 @@ export default function SlicePage({ startPostId = null, onClose }) {
         </button>
         <i className="bi bi-film" />
         <h3>No Slice videos yet</h3>
-        <p>Upload a short video and mark it as a Slice to see it here.</p>
+        <p>Upload a video and mark it as a Slice to see it here.</p>
       </div>
     );
   }
@@ -399,22 +409,12 @@ export default function SlicePage({ startPostId = null, onClose }) {
         </div>
       )}
 
-      <button
-        className="slice-page-close"
-        onClick={(e) => { e.stopPropagation(); onClose?.(); }}
-        type="button"
-        aria-label="Close Slice page"
-      >
-        <i className="bi bi-x-lg" />
-      </button>
-
       <SlicePlayer
         key={posts[index].id}
         post={posts[index]}
-        index={index}
-        total={posts.length}
         onNext={goNext}
         onPrev={goPrev}
+        onClose={onClose}
         isFirst={index === 0}
         isLast={index === posts.length - 1}
       />

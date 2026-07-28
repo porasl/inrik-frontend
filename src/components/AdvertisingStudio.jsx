@@ -14,15 +14,36 @@ const POSITIONS = [
   { top: '8%', left: '7%' }, { top: '10%', right: '7%' }, { top: '34%', left: '8%' },
   { top: '32%', right: '8%' }, { bottom: '9%', left: '9%' }, { bottom: '9%', right: '9%' },
 ];
+const CONTINENTS = [
+  ['africa', 'Africa'], ['asia', 'Asia'], ['europe', 'Europe'],
+  ['north_america', 'North America'], ['south_america', 'South America'],
+  ['oceania', 'Oceania'], ['antarctica', 'Antarctica'],
+];
+const COUNTRY_CODES = (
+  'AD AE AF AG AL AM AO AR AT AU AZ BA BB BD BE BF BG BH BI BJ BN BO BR BS BT BW BY BZ '
+  + 'CA CD CF CG CH CI CL CM CN CO CR CU CV CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI '
+  + 'FJ FM FR GA GB GD GE GH GM GN GQ GR GT GW GY HN HR HT HU ID IE IL IN IQ IR IS IT JM '
+  + 'JO JP KE KG KH KI KM KN KP KR KW KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MG '
+  + 'MH MK ML MM MN MR MT MU MV MW MX MY MZ NA NE NG NI NL NO NP NR NZ OM PA PE PG PH PK '
+  + 'PL PS PT PY QA RO RS RU RW SA SB SC SD SE SG SI SK SL SM SN SO SR SS ST SV SY SZ TD '
+  + 'TG TH TJ TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VN VU WS YE ZA ZM ZW'
+).split(' ');
+const countryNames = new Intl.DisplayNames([navigator.language || 'en'], { type: 'region' });
+const COUNTRIES = COUNTRY_CODES
+  .map((code) => [code, countryNames.of(code) || code])
+  .sort((left, right) => left[1].localeCompare(right[1]));
 const split = (value) => value.split(',').map((item) => item.trim()).filter(Boolean);
+const selectedValues = (event) => Array.from(event.target.selectedOptions, (option) => option.value);
 const money = (value) => Number(value || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 
 export default function AdvertisingStudio() {
   const [form, setForm] = useState({
     templateId: 'transparent-popup', headline: 'A brighter story starts here',
     message: 'Introduce your product with a short, clear message.', buttonLabel: 'Learn more',
-    destination: 'https://', opacity: 82, randomPlacement: true, budget: '25',
+    destination: 'https://', mediaType: 'NONE', mediaUrl: '',
+    opacity: 82, randomPlacement: true, budget: '25',
     costPerView: '0.05', maxViews: '500', targetUserEmails: '',
+    targetCountries: [], targetContinents: [],
     targetLocations: '', targetProfileTags: '', targetContentKeywords: '',
     targetContentCategories: '', deliveryMode: 'ONCE_PER_SESSION',
     activate: true, paymentMethod: 'STORE_CREDIT',
@@ -82,6 +103,8 @@ export default function AdvertisingStudio() {
         opacity: Number(form.opacity), budget: Number(form.budget),
         costPerView: Number(form.costPerView), maxViews: Number(form.maxViews),
         targetUserEmails: split(form.targetUserEmails),
+        targetCountries: form.targetCountries,
+        targetContinents: form.targetContinents,
         targetLocations: split(form.targetLocations), targetProfileTags: split(form.targetProfileTags),
         targetContentKeywords: split(form.targetContentKeywords),
         targetContentCategories: split(form.targetContentCategories),
@@ -147,10 +170,13 @@ export default function AdvertisingStudio() {
     setForm({
       templateId: campaign.templateId, headline: campaign.headline, message: campaign.message || '',
       buttonLabel: campaign.buttonLabel || 'Learn more', destination: campaign.destination,
+      mediaType: campaign.mediaType || 'NONE', mediaUrl: campaign.mediaUrl || '',
       opacity: campaign.opacity || 82, randomPlacement: campaign.randomPlacement !== false,
       budget: String(campaign.budget), costPerView: String(campaign.costPerView),
       maxViews: String(campaign.maxViews || ''),
       targetUserEmails: (campaign.targetUserEmails || []).join(', '),
+      targetCountries: campaign.targetCountries || [],
+      targetContinents: campaign.targetContinents || [],
       targetLocations: (campaign.targetLocations || []).join(', '),
       targetProfileTags: (campaign.targetProfileTags || []).join(', '),
       targetContentKeywords: (campaign.targetContentKeywords || []).join(', '),
@@ -246,6 +272,27 @@ export default function AdvertisingStudio() {
             <label>Button label<input value={form.buttonLabel} onChange={(event) => field('buttonLabel', event.target.value)} /></label>
             <label>Destination<input value={form.destination} onChange={(event) => field('destination', event.target.value)} /></label>
           </div>
+          <div className="advertising-targeting">
+            <strong>Popup media content</strong>
+            <label>Content type
+              <select value={form.mediaType} onChange={(event) => field('mediaType', event.target.value)}>
+                <option value="NONE">Text only</option>
+                <option value="IMAGE">Image</option>
+                <option value="VIDEO">Short video clip</option>
+              </select>
+            </label>
+            {form.mediaType !== 'NONE' && (
+              <label>{form.mediaType === 'IMAGE' ? 'Image URL' : 'Video clip URL'}
+                <input
+                  type="url"
+                  placeholder={form.mediaType === 'IMAGE' ? 'https://example.com/ad-image.jpg' : 'https://example.com/ad-clip.mp4'}
+                  value={form.mediaUrl}
+                  onChange={(event) => field('mediaUrl', event.target.value)}
+                />
+              </label>
+            )}
+            <small>Use a public HTTPS URL. Video clips play muted and loop inside the advertisement.</small>
+          </div>
           <label>Payment method<input value={`Store Credit (${money(wallet.balance)} available)`} readOnly /></label>
           <div className="advertising-studio__field-row">
             <label>Budget (USD)<input type="number" min="0.01" step="0.01" value={form.budget} onChange={(event) => field('budget', event.target.value)} /></label>
@@ -257,25 +304,38 @@ export default function AdvertisingStudio() {
             <label>Display rule
               <select value={form.deliveryMode} onChange={(event) => field('deliveryMode', event.target.value)}>
                 <option value="ONCE_PER_SESSION">Once per browser session for each unique user</option>
-                <option value="CONTEXTUAL_VIDEO">On each matching video, once per video/session</option>
+                <option value="CONTEXTUAL_VIDEO">On each matching video or image, once per item/session</option>
               </select>
             </label>
             <small>
               {form.deliveryMode === 'ONCE_PER_SESSION'
                 ? 'The first eligible video can show this campaign. Refreshing the page will not charge another view during the same session.'
-                : 'The campaign is evaluated whenever a video opens and appears only when its title, description, or category matches.'}
+                : 'The campaign is evaluated whenever a video or image opens and appears only when its title, description, or category matches.'}
             </small>
           </div>
           <div className="advertising-targeting">
-            <strong>Viewer targeting</strong><small>Leave all targeting fields empty to reach any signed-in user.</small>
+            <strong>Viewer targeting</strong><small>Leave all targeting fields empty to reach signed-in and anonymous viewers.</small>
             <label>User email patterns<input placeholder="user@example.com, *@*.de, *@**.de" value={form.targetUserEmails} onChange={(event) => field('targetUserEmails', event.target.value)} /></label>
             <small>Separate entries with commas. Use an exact email or * as a wildcard; for example, *@*.de matches email addresses ending in .de.</small>
+            <div className="advertising-studio__field-row">
+              <label>Target continents
+                <select multiple size="5" value={form.targetContinents} onChange={(event) => field('targetContinents', selectedValues(event))}>
+                  {CONTINENTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label>Target countries
+                <select multiple size="5" value={form.targetCountries} onChange={(event) => field('targetCountries', selectedValues(event))}>
+                  {COUNTRIES.map(([value, label]) => <option key={value} value={value}>{label} ({value})</option>)}
+                </select>
+              </label>
+            </div>
+            <small>Use Ctrl/Command-click to select several. An exact country campaign ranks above a matching continent campaign.</small>
             <label>Locations<input placeholder="San Francisco, US, America/Los_Angeles" value={form.targetLocations} onChange={(event) => field('targetLocations', event.target.value)} /></label>
             <label>Profile tags<input placeholder="technology, travel" value={form.targetProfileTags} onChange={(event) => field('targetProfileTags', event.target.value)} /></label>
           </div>
           <div className="advertising-targeting">
             <strong>Context Targeting</strong>
-            <small>Used by contextual-video delivery. Matching is case-insensitive against the video title, description, categories, and tags.</small>
+            <small>Used by contextual media delivery. Matching is case-insensitive against the video or image title, description, categories, and tags.</small>
             <label>Topics or description keywords<input placeholder="sport, football, cosmetics, skin care" value={form.targetContentKeywords} onChange={(event) => field('targetContentKeywords', event.target.value)} /></label>
             <label>Content categories<input placeholder="Sport, Men, Women, Children, Cosmetics" value={form.targetContentCategories} onChange={(event) => field('targetContentCategories', event.target.value)} /></label>
           </div>
@@ -289,11 +349,14 @@ export default function AdvertisingStudio() {
           <div className="advertising-studio__section-title"><span>Live preview</span><button type="button" onClick={() => setPositionIndex((positionIndex + 1) % POSITIONS.length)}><i className="bi bi-shuffle" /> Randomize</button></div>
           <div className="advertising-preview"><div className="advertising-preview__scene">
             <div className={`advertising-preview__ad advertising-preview__ad--${form.templateId}`} style={{ ...POSITIONS[positionIndex], '--ad-opacity': form.opacity / 100 }}>
-              <button type="button" className="advertising-preview__close">×</button><span className="advertising-preview__sponsor">Sponsored</span>
-              <strong>{form.headline || 'Your headline'}</strong><p>{form.message}</p><button type="button" className="advertising-preview__cta">{form.buttonLabel}</button>
+              <button type="button" className="advertising-preview__close">×</button>
+              {form.mediaType === 'IMAGE' && form.mediaUrl && <img className="advertising-preview__media" src={form.mediaUrl} alt="" />}
+              {form.mediaType === 'VIDEO' && form.mediaUrl && <video className="advertising-preview__media" src={form.mediaUrl} muted loop autoPlay playsInline />}
+              <p>{form.message}</p><button type="button" className="advertising-preview__cta">{form.buttonLabel}</button>
             </div>
           </div></div>
           <div className="advertising-studio__notes"><span>Budget {money(form.budget)}</span><span>Up to {form.maxViews || 0} views</span><span>{money(form.costPerView)} / view</span></div>
+          <small className="text-muted">Among campaigns with equal targeting relevance, a larger paid campaign budget receives delivery priority.</small>
         </div>
       </div>
 
@@ -302,7 +365,7 @@ export default function AdvertisingStudio() {
         <div className="table-responsive"><table className="table align-middle">
           <thead><tr><th>Campaign</th><th>Status</th><th>Views</th><th>Spend</th><th>Remaining</th><th>Control</th></tr></thead>
           <tbody>{campaigns.map((campaign) => <tr key={campaign.id}>
-            <td><strong>{campaign.headline}</strong><small className="d-block text-muted">{campaign.templateId} · {(campaign.deliveryMode || 'ONCE_PER_SESSION').replaceAll('_', ' ').toLowerCase()}</small></td>
+            <td><strong>{campaign.headline}</strong><small className="d-block text-muted">{campaign.templateId} · {(campaign.deliveryMode || 'ONCE_PER_SESSION').replaceAll('_', ' ').toLowerCase()} · priority {money(campaign.budget)}</small></td>
             <td><span className={`badge text-bg-${campaign.status === 'ACTIVE' ? 'success' : campaign.status === 'EXHAUSTED' ? 'danger' : 'secondary'}`}>{campaign.status}</span></td>
             <td>{campaign.viewCount} / {campaign.maxViews || '∞'}</td><td>{money(campaign.spend)}</td><td>{money(campaign.remainingBudget)}</td>
             <td><div className="d-flex flex-wrap gap-1">

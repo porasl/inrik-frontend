@@ -306,11 +306,6 @@ export default function Rightbar({
                 />
               </div>
               <div className="min-w-0">
-                <div className="d-flex align-items-center gap-2 mb-1">
-                  <span className="badge text-bg-warning text-dark">Advertisement</span>
-                  <span className="small text-muted">Sponsored</span>
-                </div>
-                <div className="fw-bold text-dark text-truncate">Visit bazaartoday.com</div>
                 <div className="small text-secondary" style={{ lineHeight: 1.35 }}>
                   Discover deals, listings, and fresh content from Bazaar Today.
                 </div>

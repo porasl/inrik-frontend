@@ -350,9 +350,9 @@ export default function SliceCarousel({ onWatch, onDelete }) {
     if (loading) {
         return (
             <div id="slice-carousel" className="mb-3">
-                <div className="d-flex gap-3 px-2 overflow-hidden" style={{ height: 322 }}>
+                <div className="d-flex gap-3 px-2 overflow-hidden" style={{ height: 215 }}>
                     {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className="flex-shrink-0 rounded-3 bg-light" style={{ width: 180, height: '100%', opacity: 0.6 }}></div>
+                        <div key={i} className="flex-shrink-0 rounded-3 bg-light" style={{ width: 120, height: '100%', opacity: 0.6 }}></div>
                     ))}
                 </div>
             </div>

@@ -12,6 +12,8 @@ const SAFE_POSITIONS = [
   { name: 'bottom-right', style: { bottom: '12%', right: '12%' } },
 ];
 const LOCATION_WAIT_MS = 1200;
+const RECENT_ADVERTISEMENTS_KEY = 'recentAdvertisementIds';
+const RECENT_ADVERTISEMENTS_LIMIT = 5;
 
 function locationWithTimeout() {
   return Promise.race([
@@ -34,24 +36,63 @@ function getSessionId() {
   return value;
 }
 
-function profileContext(placement, content, location) {
-  let profileTags = [];
+function recentAdvertisementIds() {
   try {
-    profileTags = JSON.parse(localStorage.getItem('advertisementProfileTags') || '[]');
+    const values = JSON.parse(sessionStorage.getItem(RECENT_ADVERTISEMENTS_KEY) || '[]');
+    return Array.isArray(values) ? values.filter(Boolean).slice(0, RECENT_ADVERTISEMENTS_LIMIT) : [];
   } catch {
-    profileTags = [];
+    return [];
+  }
+}
+
+function rememberAdvertisement(id) {
+  if (!id) return;
+  const values = recentAdvertisementIds().filter((value) => value !== id);
+  sessionStorage.setItem(
+    RECENT_ADVERTISEMENTS_KEY,
+    JSON.stringify([id, ...values].slice(0, RECENT_ADVERTISEMENTS_LIMIT)),
+  );
+}
+
+function browserLocation() {
+  const language = navigator.language || '';
+  let countryCode = '';
+  try {
+    countryCode = new Intl.Locale(language).region || '';
+  } catch {
+    const candidate = language.split(/[-_]/).at(-1) || '';
+    countryCode = candidate.length === 2 ? candidate.toUpperCase() : '';
+  }
+  let country = countryCode;
+  try {
+    country = new Intl.DisplayNames(['en'], { type: 'region' }).of(countryCode) || countryCode;
+  } catch {
+    country = countryCode;
+  }
+  return { countryCode, country };
+}
+
+function profileContext(placement, content, location, authenticated) {
+  const approximateLocation = location || browserLocation();
+  let profileTags = [];
+  if (authenticated) {
+    try {
+      profileTags = JSON.parse(localStorage.getItem('advertisementProfileTags') || '[]');
+    } catch {
+      profileTags = [];
+    }
   }
   return {
-    countryCode: location?.countryCode || '',
-    country: location?.country || '',
-    region: location?.region || '',
-    city: location?.city || '',
+    countryCode: approximateLocation?.countryCode || '',
+    country: approximateLocation?.country || '',
+    region: approximateLocation?.region || '',
+    city: approximateLocation?.city || '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
     language: navigator.language || '',
     profileTags: Array.isArray(profileTags) ? profileTags : [],
-    profile: {
+    profile: authenticated ? {
       name: [localStorage.getItem('userFirstName'), localStorage.getItem('userLastName')].filter(Boolean).join(' '),
-    },
+    } : {},
     pageUrl: window.location.href,
     referrer: document.referrer || '',
     placement,
@@ -63,6 +104,7 @@ function profileContext(placement, content, location) {
     deviceType: window.matchMedia('(max-width: 720px)').matches ? 'mobile' : window.matchMedia('(max-width: 1180px)').matches ? 'tablet' : 'desktop',
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
+    excludedAdvertisementIds: recentAdvertisementIds(),
   };
 }
 
@@ -77,6 +119,7 @@ export default function PersonalizedAdvertisement({
   variant = 'popup',
   onDismiss,
 }) {
+  const isMediaPlacement = ['video', 'slice-video', 'image'].includes(placement);
   const [advertisement, setAdvertisement] = useState(null);
   const [deliveryContext, setDeliveryContext] = useState(null);
   const [closed, setClosed] = useState(false);
@@ -92,10 +135,7 @@ export default function PersonalizedAdvertisement({
 
   useEffect(() => {
     let cancelled = false;
-    if (!isLoggedIn || !localStorage.getItem('token')) {
-      setAdvertisement(null);
-      return () => { cancelled = true; };
-    }
+    const authenticated = Boolean(isLoggedIn && localStorage.getItem('token'));
     setAdvertisement(null);
     setDeliveryContext(null);
     setClosed(false);
@@ -104,7 +144,7 @@ export default function PersonalizedAdvertisement({
       || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const nextPosition = Math.floor(Math.random() * SAFE_POSITIONS.length);
     setPositionIndex(nextPosition);
-    const placementName = `${placement}:${SAFE_POSITIONS[nextPosition].name}`;
+    const placementName = `${placement}:${isMediaPlacement ? 'bottom' : SAFE_POSITIONS[nextPosition].name}`;
     locationWithTimeout()
       .then((location) => {
         const context = profileContext(placementName, {
@@ -112,11 +152,12 @@ export default function PersonalizedAdvertisement({
         title: contentTitle,
         description: contentDescription,
         categories: contentCategories,
-        }, location);
+        }, location, authenticated);
         return serveAdvertisement(context).then((item) => ({ item, context }));
       })
       .then(({ item, context }) => {
         if (!cancelled) {
+          rememberAdvertisement(item?.id);
           setAdvertisement(item);
           setDeliveryContext(context);
           setClosed(false);
@@ -152,6 +193,7 @@ export default function PersonalizedAdvertisement({
   if (!advertisement || closed) return null;
   const isFeedCard = variant === 'feed-card';
   const isPreRoll = variant === 'pre-roll';
+  const hasMedia = Boolean(advertisement.mediaUrl && ['IMAGE', 'VIDEO'].includes(advertisement.mediaType));
   const popup = (
     <aside
       ref={popupRef}
@@ -159,19 +201,31 @@ export default function PersonalizedAdvertisement({
         'personalized-ad',
         `personalized-ad--${advertisement.templateId || 'transparent-popup'}`,
         embedded ? 'personalized-ad--embedded' : '',
+        isMediaPlacement ? 'personalized-ad--media-overlay' : '',
+        placement === 'slice-video' ? 'personalized-ad--slice-overlay' : '',
+        placement === 'image' ? 'personalized-ad--image-overlay' : '',
+        hasMedia ? 'personalized-ad--has-media' : '',
         isFeedCard ? 'personalized-ad--feed-card' : '',
         isPreRoll ? 'personalized-ad--pre-roll' : '',
       ].filter(Boolean).join(' ')}
-      style={{ ...position.style, '--ad-opacity': (advertisement.opacity || 82) / 100 }}
-      aria-label="Sponsored advertisement"
+      style={{ ...(isMediaPlacement ? {} : position.style), '--ad-opacity': (advertisement.opacity || 82) / 100 }}
+      aria-label="Advertisement popup"
     >
       <button type="button" className="personalized-ad__close" aria-label="Close advertisement" onClick={dismiss}>×</button>
-      <span>Sponsored</span>
-      <strong>{advertisement.headline}</strong>
-      {advertisement.message && <p>{advertisement.message}</p>}
-      <a href={advertisement.destination} target="_blank" rel="noopener noreferrer">
-        {advertisement.buttonLabel || 'Learn more'}
-      </a>
+      <div className="personalized-ad__layout">
+        {advertisement.mediaType === 'IMAGE' && advertisement.mediaUrl && (
+          <img className="personalized-ad__media" src={advertisement.mediaUrl} alt="" />
+        )}
+        {advertisement.mediaType === 'VIDEO' && advertisement.mediaUrl && (
+          <video className="personalized-ad__media" src={advertisement.mediaUrl} muted loop autoPlay playsInline preload="metadata" />
+        )}
+        <div className="personalized-ad__copy">
+          {advertisement.message && <p>{advertisement.message}</p>}
+          <a href={advertisement.destination} target="_blank" rel="noopener noreferrer">
+            {advertisement.buttonLabel || 'Learn more'}
+          </a>
+        </div>
+      </div>
       {isPreRoll && <button type="button" className="personalized-ad__continue" onClick={dismiss}>Continue to video</button>}
     </aside>
   );

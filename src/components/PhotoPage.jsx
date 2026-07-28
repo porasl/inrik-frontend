@@ -1022,7 +1022,10 @@ function BinocularLens({ imageUrl, position, zoom, size = BINOCULAR_LENS_SIZE })
 function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, isLoggedIn, onLike, onDownload, onEmbed, zoom, onZoomChange }) {
   const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
   const [showLens, setShowLens] = useState(false);
-  const [binocularEnabled, setBinocularEnabled] = useState(true);
+  const [binocularEnabled, setBinocularEnabled] = useState(false);
+  const [measurementEnabled, setMeasurementEnabled] = useState(false);
+  const [measurement, setMeasurement] = useState(null);
+  const [enlargeToModalMinimum, setEnlargeToModalMinimum] = useState(false);
   const [animationModeIndex, setAnimationModeIndex] = useState(0);
   const [aiAnimationUrl, setAiAnimationUrl] = useState('');
   const [aiAnimationLoading, setAiAnimationLoading] = useState(false);
@@ -1034,7 +1037,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   const touchStartRef = useRef(null);
 
   const handleMouseMove = useCallback((e) => {
-    if (!binocularEnabled) return;
+    if (!binocularEnabled || measurementEnabled) return;
     const rect = imgRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -1047,11 +1050,51 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
     }
     setShowLens(true);
     setLensPos({ x, y, rectW: rect.width, rectH: rect.height });
-  }, [binocularEnabled]);
+  }, [binocularEnabled, measurementEnabled]);
+
+  const measurementPoint = useCallback((event) => {
+    const image = imgRef.current;
+    const rect = image?.getBoundingClientRect();
+    if (!image || !rect) return null;
+    const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+    return {
+      x,
+      y,
+      sourceX: x * ((image.naturalWidth || rect.width) / rect.width),
+      sourceY: y * ((image.naturalHeight || rect.height) / rect.height),
+    };
+  }, []);
+
+  const startMeasurement = useCallback((event) => {
+    if (!measurementEnabled || !imgRef.current) return;
+    if (event.target.closest?.('.personalized-ad')) return;
+    const point = measurementPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setMeasurement({ start: point, end: point, dragging: true });
+  }, [measurementEnabled, measurementPoint]);
+
+  const updateMeasurement = useCallback((event) => {
+    if (!measurementEnabled) return;
+    setMeasurement((current) => {
+      if (!current?.dragging) return current;
+      const point = measurementPoint(event);
+      return point ? { ...current, end: point } : current;
+    });
+  }, [measurementEnabled, measurementPoint]);
+
+  const finishMeasurement = useCallback((event) => {
+    if (!measurementEnabled) return;
+    setMeasurement((current) => current ? { ...current, dragging: false } : current);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }, [measurementEnabled]);
 
   const handleMouseLeave = useCallback(() => setShowLens(false), []);
 
   const onTouchStart = (e) => {
+    if (measurementEnabled) return;
     const touch = e.touches?.[0];
     if (!touch) return;
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
@@ -1060,6 +1103,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   };
 
   const onTouchMove = (e) => {
+    if (measurementEnabled) return;
     const touch = e.touches?.[0];
     const start = touchStartRef.current;
     if (!touch || !start) return;
@@ -1069,6 +1113,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   };
 
   const onTouchEnd = (e) => {
+    if (measurementEnabled) return;
     const touch = e.changedTouches?.[0];
     const start = touchStartRef.current;
     touchStartRef.current = null;
@@ -1096,6 +1141,9 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
     setAiAnimationLoading(false);
     setAnimationModeIndex(0);
     setShowLens(false);
+    setBinocularEnabled(false);
+    setMeasurement(null);
+    setEnlargeToModalMinimum(false);
   }, [photo.url]);
 
   useEffect(() => {
@@ -1211,6 +1259,21 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
         >
           <i className="bi bi-binoculars-fill" />
         </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${measurementEnabled ? 'btn-warning' : 'btn-dark'}`}
+          onClick={() => {
+            setMeasurementEnabled((enabled) => !enabled);
+            setMeasurement(null);
+            setBinocularEnabled(false);
+            setShowLens(false);
+          }}
+          title={measurementEnabled ? 'Turn measurement off' : 'Measure distance in image pixels'}
+          aria-pressed={measurementEnabled}
+          aria-label="Toggle image measuring tool"
+        >
+          <i className="bi bi-rulers" />
+        </button>
         <input
           type="range"
           min={1.5}
@@ -1235,13 +1298,17 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
             maxHeight: '80vh',
             maxWidth: '80vw',
             display: 'inline-block',
-            cursor: binocularEnabled ? 'none' : 'default',
+            cursor: measurementEnabled ? 'crosshair' : binocularEnabled ? 'none' : 'default',
             transform: `translateX(${touchDx}px)`,
             transition: isTouchDragging ? 'none' : 'transform 220ms ease-out',
             flexShrink: 0,
           }}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          onPointerDown={startMeasurement}
+          onPointerMove={updateMeasurement}
+          onPointerUp={finishMeasurement}
+          onPointerCancel={finishMeasurement}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
@@ -1273,12 +1340,16 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
               alt={photo.post.description || 'Photo'}
               className={`photo-viewer-image ${animationEnabled ? `photo-viewer-image--${animationMode.key}` : ''}`}
               style={{
+                width: enlargeToModalMinimum ? 'min(600px, 78vw)' : 'auto',
                 maxHeight: '72vh',
                 maxWidth: '78vw',
                 objectFit: 'contain',
                 display: 'block',
                 borderRadius: 8,
 
+              }}
+              onLoad={(event) => {
+                setEnlargeToModalMinimum(event.currentTarget.naturalWidth < 600);
               }}
               draggable={false}
             />
@@ -1302,6 +1373,27 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           {/* Binocular lens */}
           {binocularEnabled && showLens && (
             <BinocularLens imageUrl={photo.url} position={lensPos} zoom={zoom} />
+          )}
+          {measurement?.start && measurement?.end && (
+            <svg className="photo-measurement-overlay" aria-hidden="true">
+              <line
+                x1={measurement.start.x}
+                y1={measurement.start.y}
+                x2={measurement.end.x}
+                y2={measurement.end.y}
+              />
+              <circle cx={measurement.start.x} cy={measurement.start.y} r="4" />
+              <circle cx={measurement.end.x} cy={measurement.end.y} r="4" />
+              <text
+                x={(measurement.start.x + measurement.end.x) / 2}
+                y={(measurement.start.y + measurement.end.y) / 2 - 8}
+              >
+                {Math.round(Math.hypot(
+                  measurement.end.sourceX - measurement.start.sourceX,
+                  measurement.end.sourceY - measurement.start.sourceY,
+                ))} px
+              </text>
+            </svg>
           )}
         </div>
 
