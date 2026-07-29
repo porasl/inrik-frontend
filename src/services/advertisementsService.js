@@ -30,6 +30,25 @@ export function createAdvertisement(payload) {
   return request('', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export async function uploadAdvertisementMedia(file) {
+  const accessToken = token();
+  if (!accessToken) throw new Error('Please log in to upload advertisement media.');
+  const body = new FormData();
+  body.append('file', file);
+  const response = await fetch(`${AD_API}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.detail || data.message || data.error || `Upload failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
 export function updateAdvertisement(id, payload) {
   return request(`/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
@@ -40,6 +59,17 @@ export function cancelAdvertisement(id) {
 
 export function getStoreCreditWallet() {
   return request('/wallet');
+}
+
+export function getAdminStoreCredit(email) {
+  return request(`/admin/store-credit?email=${encodeURIComponent(email)}`);
+}
+
+export function adjustAdminStoreCredit(email, amount, reason) {
+  return request('/admin/store-credit/adjust', {
+    method: 'POST',
+    body: JSON.stringify({ email, amount, reason }),
+  });
 }
 
 export function getStripeStatus() {
@@ -69,6 +99,10 @@ export function getAdvertisementAnalytics() {
   return request('/admin/analytics');
 }
 
+export function listAdminAdvertisementVideos() {
+  return request('/admin/videos');
+}
+
 export function getAdvertisementConfiguration() {
   return request('/configuration');
 }
@@ -88,6 +122,14 @@ export function recordAdvertisementImpression(id, impressionKey, context) {
   return request(`/${encodeURIComponent(id)}/impression`, {
     method: 'POST',
     body: JSON.stringify({ impressionKey, context }),
+  }, false);
+}
+
+export function recordAdvertisementClick(id, impressionKey) {
+  return request(`/${encodeURIComponent(id)}/click`, {
+    method: 'POST',
+    body: JSON.stringify({ impressionKey }),
+    keepalive: true,
   }, false);
 }
 

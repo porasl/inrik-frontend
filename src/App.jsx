@@ -15,6 +15,7 @@ import GroupView from './components/GroupView';
 import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
 import AdvertisingStudio from './components/AdvertisingStudio';
+import AdvertisementVideoView from './components/AdvertisementVideoView';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -39,6 +40,13 @@ function decodeJwtPayload(token) {
   } catch {
     return null;
   }
+}
+
+function isCurrentAdmin() {
+  const payload = decodeJwtPayload(localStorage.getItem('token'));
+  const roles = payload?.roles || payload?.authorities || payload?.role || [];
+  const values = Array.isArray(roles) ? roles : [roles];
+  return values.some((value) => String(value).replace(/^ROLE_/, '').toUpperCase() === 'ADMIN');
 }
 
 function extractUserId({ token, responseData, fallbackEmail }) {
@@ -437,6 +445,10 @@ function App() {
 
   const goMarket = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('market'); };
   const goAdvertisement = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement'); };
+  const goAdvertisementVideos = () => {
+    if (!isCurrentAdmin()) return;
+    setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement-videos');
+  };
 
   /* Helper: open slice page at a specific post */
   const openSlicePage = (postId = null) => {
@@ -1317,6 +1329,7 @@ function App() {
      RENDER
   ───────────── */
   console.log('🎨 Rendering App with logged in:', isLoggedIn, 'section:', activeSection);
+  const isAdmin = isCurrentAdmin();
   return (
     <div className={`app-container ${isLoggedIn ? 'is-logged-in' : 'is-logged-out'} ${showSlicePage ? 'is-slice-page-open' : ''}`}>
       <Navbar
@@ -1339,6 +1352,7 @@ function App() {
         onAi={goAi}
         onMarket={goMarket}
         onAdvertisement={goAdvertisement}
+        onAdvertisementVideos={goAdvertisementVideos}
       />
 
       <div className="app-body-wrapper">
@@ -1369,6 +1383,7 @@ function App() {
             && activeSection !== 'ai'
             && activeSection !== 'market'
             && activeSection !== 'advertisement'
+            && activeSection !== 'advertisement-videos'
             && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
@@ -1447,6 +1462,8 @@ function App() {
             <MarketView />
           ) : activeSection === 'advertisement' ? (
             <AdvertisingStudio />
+          ) : activeSection === 'advertisement-videos' && isAdmin ? (
+            <AdvertisementVideoView />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage

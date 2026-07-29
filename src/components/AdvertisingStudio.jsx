@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  cancelAdvertisement, createAdvertisement, createStripeCheckout, currentRole, getAdvertisementAnalytics,
-  getAdvertisementConfiguration, getAdvertisementViews, getStoreCreditWallet, getStripeStatus,
+  adjustAdminStoreCredit, cancelAdvertisement, createAdvertisement, createStripeCheckout, currentRole,
+  getAdminStoreCredit, getAdvertisementAnalytics, getAdvertisementConfiguration,
+  getAdvertisementViews, getStoreCreditWallet, getStripeStatus,
   listMyAdvertisements, updateAdvertisement, updateAdvertisementConfiguration, updateAdvertisementStatus,
+  uploadAdvertisementMedia,
 } from '../services/advertisementsService';
 
 const TEMPLATES = [
@@ -42,7 +44,7 @@ export default function AdvertisingStudio() {
     message: 'Introduce your product with a short, clear message.', buttonLabel: 'Learn more',
     destination: 'https://', mediaType: 'NONE', mediaUrl: '',
     opacity: 82, randomPlacement: true, budget: '25',
-    costPerView: '0.05', maxViews: '500', targetUserEmails: '',
+    costPerView: '0.01', costPerClick: '0.10', maxViews: '500', targetUserEmails: '',
     targetCountries: [], targetContinents: [],
     targetLocations: '', targetProfileTags: '', targetContentKeywords: '',
     targetContentCategories: '', deliveryMode: 'ONCE_PER_SESSION',
@@ -57,14 +59,20 @@ export default function AdvertisingStudio() {
   const [analytics, setAnalytics] = useState(null);
   const [runtimeConfiguration, setRuntimeConfiguration] = useState({ alwaysShowForTesting: true });
   const [configurationBusy, setConfigurationBusy] = useState(false);
+  const [creditAdmin, setCreditAdmin] = useState({
+    email: '', amount: '', reason: '', wallet: null, busy: false,
+  });
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [viewPopup, setViewPopup] = useState(null);
   const [viewDetails, setViewDetails] = useState([]);
   const [viewsLoading, setViewsLoading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [previewVideo, setPreviewVideo] = useState('');
   const isAdmin = currentRole() === 'ADMIN';
   const selectedTemplate = useMemo(() => TEMPLATES.find((item) => item.id === form.templateId), [form.templateId]);
   const field = (name, value) => setForm((current) => ({ ...current, [name]: value }));
+  const creditField = (name, value) => setCreditAdmin((current) => ({ ...current, [name]: value }));
 
   const load = async () => {
     const requests = [
@@ -101,7 +109,8 @@ export default function AdvertisingStudio() {
       const payload = {
         ...form,
         opacity: Number(form.opacity), budget: Number(form.budget),
-        costPerView: Number(form.costPerView), maxViews: Number(form.maxViews),
+        costPerView: Number(form.costPerView), costPerClick: Number(form.costPerClick),
+        maxViews: Number(form.maxViews),
         targetUserEmails: split(form.targetUserEmails),
         targetCountries: form.targetCountries,
         targetContinents: form.targetContinents,
@@ -165,6 +174,56 @@ export default function AdvertisingStudio() {
     }
   };
 
+  const findStoreCredit = async () => {
+    if (!creditAdmin.email.trim()) return setStatus('Enter an account email.');
+    creditField('busy', true); setStatus('');
+    try {
+      const targetWallet = await getAdminStoreCredit(creditAdmin.email.trim());
+      creditField('wallet', targetWallet);
+    } catch (error) {
+      creditField('wallet', null);
+      setStatus(error.message);
+    } finally {
+      creditField('busy', false);
+    }
+  };
+
+  const adjustStoreCredit = async () => {
+    const amount = Number(creditAdmin.amount);
+    if (!Number.isFinite(amount) || amount === 0) return setStatus('Enter a positive credit or negative debit amount.');
+    creditField('busy', true); setStatus('');
+    try {
+      const targetWallet = await adjustAdminStoreCredit(
+        creditAdmin.email.trim(), amount, creditAdmin.reason.trim(),
+      );
+      setCreditAdmin((current) => ({ ...current, wallet: targetWallet, amount: '', reason: '', busy: false }));
+      setStatus(`Store Credit updated for ${targetWallet.email}. New balance: ${money(targetWallet.balance)}.`);
+    } catch (error) {
+      setStatus(error.message);
+      creditField('busy', false);
+    }
+  };
+
+  const uploadMedia = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setMediaUploading(true); setStatus('');
+    try {
+      const uploaded = await uploadAdvertisementMedia(file);
+      setForm((current) => ({
+        ...current,
+        mediaType: uploaded.mediaType,
+        mediaUrl: uploaded.mediaUrl,
+      }));
+      setStatus(`${uploaded.mediaType === 'VIDEO' ? 'Video' : 'Image'} uploaded successfully.`);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+
   const editCampaign = (campaign) => {
     setEditingId(campaign.id);
     setForm({
@@ -173,6 +232,7 @@ export default function AdvertisingStudio() {
       mediaType: campaign.mediaType || 'NONE', mediaUrl: campaign.mediaUrl || '',
       opacity: campaign.opacity || 82, randomPlacement: campaign.randomPlacement !== false,
       budget: String(campaign.budget), costPerView: String(campaign.costPerView),
+      costPerClick: String(campaign.costPerClick ?? Number(campaign.costPerView || 0) * 5),
       maxViews: String(campaign.maxViews || ''),
       targetUserEmails: (campaign.targetUserEmails || []).join(', '),
       targetCountries: campaign.targetCountries || [],
@@ -243,6 +303,28 @@ export default function AdvertisingStudio() {
         </label>
       </section>}
 
+      {isAdmin && <section className="advertising-credit advertising-credit--admin">
+        <div>
+          <span className="advertising-studio__eyebrow">Administrator Store Credit</span>
+          <strong>Direct audited adjustment</strong>
+          <small>Enter a positive amount to credit or a negative amount to debit. Every change is retained in the Payment Service ledger.</small>
+        </div>
+        <label>Account email
+          <input type="email" placeholder="account@example.com" value={creditAdmin.email} onChange={(event) => creditField('email', event.target.value)} />
+        </label>
+        <button type="button" className="btn btn-outline-primary" disabled={creditAdmin.busy} onClick={findStoreCredit}>Find account</button>
+        {creditAdmin.wallet && <>
+          <div><span className="advertising-studio__eyebrow">Current balance</span><strong>{money(creditAdmin.wallet.balance)}</strong></div>
+          <label>Adjustment (USD)
+            <input type="number" step="0.01" placeholder="+25.00 or -10.00" value={creditAdmin.amount} onChange={(event) => creditField('amount', event.target.value)} />
+          </label>
+          <label>Required reason
+            <input minLength="3" maxLength="500" placeholder="Reason for this adjustment" value={creditAdmin.reason} onChange={(event) => creditField('reason', event.target.value)} />
+          </label>
+          <button type="button" className="btn btn-warning" disabled={creditAdmin.busy || creditAdmin.reason.trim().length < 3} onClick={adjustStoreCredit}>Apply adjustment</button>
+        </>}
+      </section>}
+
       <section className="advertising-credit">
         <div><span className="advertising-studio__eyebrow">Account Store Credit</span><strong>{money(wallet.balance)}</strong>
           <small>Campaigns spend Store Credit. Stripe is the only way to purchase more.</small></div>
@@ -274,6 +356,17 @@ export default function AdvertisingStudio() {
           </div>
           <div className="advertising-targeting">
             <strong>Popup media content</strong>
+            <label className="advertising-media-upload">
+              <span>{mediaUploading ? 'Uploading…' : 'Upload image or video'}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+                disabled={mediaUploading}
+                onChange={uploadMedia}
+              />
+            </label>
+            <small>Images: JPEG, PNG, WebP, or GIF up to 15 MB. Videos: MP4, WebM, or MOV up to 100 MB.</small>
+            <div className="advertising-media-divider"><span>or use a URL</span></div>
             <label>Content type
               <select value={form.mediaType} onChange={(event) => field('mediaType', event.target.value)}>
                 <option value="NONE">Text only</option>
@@ -296,8 +389,10 @@ export default function AdvertisingStudio() {
           <label>Payment method<input value={`Store Credit (${money(wallet.balance)} available)`} readOnly /></label>
           <div className="advertising-studio__field-row">
             <label>Budget (USD)<input type="number" min="0.01" step="0.01" value={form.budget} onChange={(event) => field('budget', event.target.value)} /></label>
-            <label>Cost per view<input type="number" min="0.0001" step="0.01" value={form.costPerView} onChange={(event) => field('costPerView', event.target.value)} /></label>
+            <label>Cost per view (impression)<input type="number" min="0.0001" step="0.001" value={form.costPerView} onChange={(event) => field('costPerView', event.target.value)} /></label>
+            <label>Cost per click<input type="number" min="0.0001" step="0.01" value={form.costPerClick} onChange={(event) => field('costPerClick', event.target.value)} /></label>
           </div>
+          <small className="text-muted">A visible impression receives the lower view charge. The higher click charge is added once when that impression is clicked.</small>
           <label>Maximum views<input type="number" min="1" value={form.maxViews} onChange={(event) => field('maxViews', event.target.value)} /></label>
           <div className="advertising-targeting">
             <strong>Delivery frequency</strong>
@@ -349,13 +444,30 @@ export default function AdvertisingStudio() {
           <div className="advertising-studio__section-title"><span>Live preview</span><button type="button" onClick={() => setPositionIndex((positionIndex + 1) % POSITIONS.length)}><i className="bi bi-shuffle" /> Randomize</button></div>
           <div className="advertising-preview"><div className="advertising-preview__scene">
             <div className={`advertising-preview__ad advertising-preview__ad--${form.templateId}`} style={{ ...POSITIONS[positionIndex], '--ad-opacity': form.opacity / 100 }}>
-              <button type="button" className="advertising-preview__close">×</button>
-              {form.mediaType === 'IMAGE' && form.mediaUrl && <img className="advertising-preview__media" src={form.mediaUrl} alt="" />}
-              {form.mediaType === 'VIDEO' && form.mediaUrl && <video className="advertising-preview__media" src={form.mediaUrl} muted loop autoPlay playsInline />}
-              <p>{form.message}</p><button type="button" className="advertising-preview__cta">{form.buttonLabel}</button>
+              <div className="advertising-preview__layout">
+                <p>{form.message}</p>
+                <div className="advertising-preview__media-column">
+                  <a
+                    className="advertising-preview__media-link"
+                    href={form.destination || undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => {
+                      if (form.mediaType !== 'VIDEO' || !form.mediaUrl) return;
+                      event.preventDefault();
+                      setPreviewVideo(form.mediaUrl);
+                    }}
+                  >
+                    {form.mediaType === 'IMAGE' && form.mediaUrl && <img className="advertising-preview__media" src={form.mediaUrl} alt="Advertisement" />}
+                    {form.mediaType === 'VIDEO' && form.mediaUrl && <video className="advertising-preview__media" src={form.mediaUrl} muted loop autoPlay playsInline />}
+                    {(!form.mediaUrl || !['IMAGE', 'VIDEO'].includes(form.mediaType)) && <span className="advertising-preview__media-placeholder"><img src="/resources/images/advertisement-placeholder.svg" alt="" /></span>}
+                  </a>
+                  <button type="button" className="advertising-preview__close">×</button>
+                </div>
+              </div>
             </div>
           </div></div>
-          <div className="advertising-studio__notes"><span>Budget {money(form.budget)}</span><span>Up to {form.maxViews || 0} views</span><span>{money(form.costPerView)} / view</span></div>
+          <div className="advertising-studio__notes"><span>Budget {money(form.budget)}</span><span>Up to {form.maxViews || 0} views</span><span>{money(form.costPerView)} / view</span><span>{money(form.costPerClick)} / click</span></div>
           <small className="text-muted">Among campaigns with equal targeting relevance, a larger paid campaign budget receives delivery priority.</small>
         </div>
       </div>
@@ -363,11 +475,14 @@ export default function AdvertisingStudio() {
       <section className="advertising-campaigns">
         <div className="advertising-studio__section-title"><span>My campaigns</span><small>{campaigns.length} campaigns</small></div>
         <div className="table-responsive"><table className="table align-middle">
-          <thead><tr><th>Campaign</th><th>Status</th><th>Views</th><th>Spend</th><th>Remaining</th><th>Control</th></tr></thead>
+          <thead><tr><th>Campaign</th><th>Status</th><th>Views</th><th>Clicks</th><th>Spend</th><th>Remaining</th><th>Control</th></tr></thead>
           <tbody>{campaigns.map((campaign) => <tr key={campaign.id}>
             <td><strong>{campaign.headline}</strong><small className="d-block text-muted">{campaign.templateId} · {(campaign.deliveryMode || 'ONCE_PER_SESSION').replaceAll('_', ' ').toLowerCase()} · priority {money(campaign.budget)}</small></td>
             <td><span className={`badge text-bg-${campaign.status === 'ACTIVE' ? 'success' : campaign.status === 'EXHAUSTED' ? 'danger' : 'secondary'}`}>{campaign.status}</span></td>
-            <td>{campaign.viewCount} / {campaign.maxViews || '∞'}</td><td>{money(campaign.spend)}</td><td>{money(campaign.remainingBudget)}</td>
+            <td>{campaign.viewCount} / {campaign.maxViews || '∞'}</td>
+            <td>{campaign.clickCount || 0}</td>
+            <td>{money(campaign.spend)}<small className="d-block text-muted">{money(campaign.viewSpend)} views · {money(campaign.clickSpend)} clicks</small></td>
+            <td>{money(campaign.remainingBudget)}</td>
             <td><div className="d-flex flex-wrap gap-1">
               <button className="btn btn-sm btn-outline-dark" onClick={() => showViews(campaign)}>
                 <i className="bi bi-eye me-1" />View details
@@ -384,9 +499,9 @@ export default function AdvertisingStudio() {
 
       {viewPopup && <div className="advertising-views-backdrop" role="presentation" onMouseDown={() => setViewPopup(null)}>
         <section className="advertising-views-modal" role="dialog" aria-modal="true" aria-labelledby="advertising-views-title" onMouseDown={(event) => event.stopPropagation()}>
-          <header><div><span className="advertising-studio__eyebrow">Impression history</span>
+          <header><div><span className="advertising-studio__eyebrow">View and click history</span>
             <h3 id="advertising-views-title">{viewPopup.headline}</h3>
-            <p>{viewPopup.viewCount} recorded views · {money(viewPopup.spend)} spent</p></div>
+            <p>{viewPopup.viewCount} views · {viewPopup.clickCount || 0} clicks · {money(viewPopup.spend)} spent</p></div>
             <button type="button" aria-label="Close view details" onClick={() => setViewPopup(null)}>×</button>
           </header>
           <div className="advertising-views-modal__body">
@@ -400,10 +515,20 @@ export default function AdvertisingStudio() {
                 <span>{view.timezone || 'Unknown timezone'} · {view.language || 'Unknown language'}</span>
                 <span title={view.pageUrl}>{view.pageUrl || 'Page unavailable'}</span>
               </div>
-              <b>{money(view.chargedAmount)}</b>
+              <b>
+                {money(view.totalChargedAmount ?? Number(view.chargedAmount || 0) + Number(view.clickChargedAmount || 0))}
+                <small className="d-block text-muted">{money(view.chargedAmount)} view{view.clickedAt ? ` + ${money(view.clickChargedAmount)} click` : ''}</small>
+              </b>
             </article>)}
           </div>
           <footer><i className="bi bi-shield-lock me-2" />Viewer identity, IP address, and profile data remain visible only to administrators.</footer>
+        </section>
+      </div>}
+
+      {previewVideo && <div className="advertising-video-modal" role="presentation" onMouseDown={() => setPreviewVideo('')}>
+        <section role="dialog" aria-modal="true" aria-label="Advertisement video preview" onMouseDown={(event) => event.stopPropagation()}>
+          <button type="button" aria-label="Close advertisement video" onClick={() => setPreviewVideo('')}>×</button>
+          <video src={previewVideo} controls autoPlay playsInline />
         </section>
       </div>}
 
@@ -411,15 +536,16 @@ export default function AdvertisingStudio() {
         <div className="advertising-studio__section-title"><span>Administrator analytics</span><small>MySQL ADMIN role required · Total spend {money(analytics.totalSpend)}</small></div>
         <div className="advertising-admin__summary">
           <div><strong>{analytics.campaigns?.length || 0}</strong><span>All campaigns</span></div>
-          <div><strong>{analytics.views?.length || 0}</strong><span>Paid views</span></div>
+          <div><strong>{analytics.totalViews ?? analytics.views?.length ?? 0}</strong><span>Paid views</span></div>
+          <div><strong>{analytics.totalClicks || 0}</strong><span>Clicks ({Number(analytics.clickThroughRate || 0).toFixed(2)}% CTR)</span></div>
           <div><strong>{money(analytics.totalSpend)}</strong><span>Total spending</span></div>
         </div>
         <div className="advertising-admin__tables">
           <div><h6>Views by location</h6>{Object.entries(analytics.viewsByLocation || {}).map(([name, count]) => <p key={name}><span>{name}</span><strong>{count}</strong></p>)}</div>
           <div><h6>Views by user profile</h6>{Object.entries(analytics.viewsByProfile || {}).map(([name, count]) => <p key={name}><span>{name}</span><strong>{count}</strong></p>)}</div>
         </div>
-        <div className="table-responsive"><table className="table table-sm"><thead><tr><th>Viewer</th><th>Location</th><th>Campaign</th><th>Charge</th><th>Time</th></tr></thead>
-          <tbody>{(analytics.views || []).slice(0, 100).map((view) => <tr key={view.id}><td>{view.viewerEmail}</td><td>{[view.city, view.region, view.country].filter(Boolean).join(', ') || 'Unknown'}</td><td>{view.advertisementId}</td><td>{money(view.chargedAmount)}</td><td>{new Date(view.viewedAt).toLocaleString()}</td></tr>)}</tbody>
+        <div className="table-responsive"><table className="table table-sm"><thead><tr><th>Viewer</th><th>Location</th><th>Campaign</th><th>View charge</th><th>Click charge</th><th>Viewed</th><th>Clicked</th></tr></thead>
+          <tbody>{(analytics.views || []).slice(0, 100).map((view) => <tr key={view.id}><td>{view.viewerEmail}</td><td>{[view.city, view.region, view.country].filter(Boolean).join(', ') || 'Unknown'}</td><td>{view.advertisementId}</td><td>{money(view.chargedAmount)}</td><td>{money(view.clickChargedAmount)}</td><td>{new Date(view.viewedAt).toLocaleString()}</td><td>{view.clickedAt ? new Date(view.clickedAt).toLocaleString() : '—'}</td></tr>)}</tbody>
         </table></div>
       </section>}
     </section>

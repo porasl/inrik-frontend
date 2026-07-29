@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title description">
+  <title id="title">Advertisement media template</title>
+  <desc id="description">A blue and violet sample advertisement image with the INRIK name.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#172554"/>
+      <stop offset=".52" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".78" cy=".18" r=".72">
+      <stop offset="0" stop-color="#67e8f9" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#67e8f9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" rx="24" fill="url(#background)"/>
+  <rect width="640" height="360" rx="24" fill="url(#glow)"/>
+  <circle cx="530" cy="72" r="96" fill="#fff" opacity=".08"/>
+  <circle cx="572" cy="276" r="142" fill="#fff" opacity=".06"/>
+  <path d="M0 282 170 178l110 66 122-106 238 150v72H0z" fill="#0f172a" opacity=".28"/>
+  <rect x="42" y="42" width="86" height="28" rx="14" fill="#fff" opacity=".18"/>
+  <text x="85" y="62" fill="#fff" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">INRIK</text>
+  <text x="42" y="142" fill="#fff" font-family="Arial, sans-serif" font-size="36" font-weight="700">Your image</text>
+  <text x="42" y="184" fill="#dbeafe" font-family="Arial, sans-serif" font-size="36" font-weight="700">or video here</text>
+  <text x="44" y="224" fill="#e0e7ff" font-family="Arial, sans-serif" font-size="17">Campaign media template</text>
+  <rect x="42" y="258" width="126" height="42" rx="21" fill="#fff"/>
+  <text x="105" y="285" fill="#312e81" font-family="Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">Learn more</text>
+</svg>

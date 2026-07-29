@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { PUBLIC_BASE } from '../../app.config.js';
 import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
@@ -195,18 +196,21 @@ function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
       {/* TOP gradient */}
       <div className="slice-page-top-gradient" />
 
-      {/* Profile at the upper-left of the modal */}
-      <div className="slice-page-profile" onClick={e => e.stopPropagation()}>
-        <div className="slice-page-owner">
-          <div className="slice-page-avatar" style={{ background: avatarBg }}>
-            {resolvedAvatar && !avatarError
-              ? <img src={resolvedAvatar} alt={resolvedName} onError={() => setAvatarError(true)} />
-              : <span>{initials}</span>
-            }
+      {/* Profile at the upper-left of the dark Slice page */}
+      {createPortal(
+        <div className="slice-page-profile slice-page-page-profile">
+          <div className="slice-page-owner">
+            <div className="slice-page-avatar" style={{ background: avatarBg }}>
+              {resolvedAvatar && !avatarError
+                ? <img src={resolvedAvatar} alt={resolvedName} onError={() => setAvatarError(true)} />
+                : <span>{initials}</span>
+              }
+            </div>
+            <span className="slice-page-owner-name">{resolvedName}</span>
           </div>
-          <span className="slice-page-owner-name">{resolvedName}</span>
-        </div>
-      </div>
+        </div>,
+        document.body,
+      )}
 
       {/* BOTTOM info overlay */}
       {post.title && post.title.trim().toLowerCase() !== 'short video' && (
@@ -214,19 +218,6 @@ function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
           <p className="slice-page-title">{post.title}</p>
         </div>
       )}
-
-      <button
-        className="slice-page-close slice-page-close--player"
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose?.();
-        }}
-        type="button"
-        aria-label="Close Slice page"
-        title="Close"
-      >
-        <i className="bi bi-x-lg" />
-      </button>
 
       {/* Controls distributed along both sides of the video */}
       <div className="slice-page-side-controls slice-page-side-controls--left" onClick={e => e.stopPropagation()}>
@@ -251,13 +242,15 @@ function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
         >
           <i className="bi bi-chevron-right" />
         </button>
-        <button className={`slice-action-btn ${liked ? 'liked' : ''}`} onClick={handleLike} title="Like">
-          <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'}`} />
-          <span>{likeCount}</span>
-        </button>
-        <div className="slice-action-btn static slice-action-btn--views" title="Views">
-          <i className="bi bi-eye" />
-          <span>{post.views || 0}</span>
+        <div className="slice-page-engagement">
+          <button className={`slice-action-btn ${liked ? 'liked' : ''}`} onClick={handleLike} title="Like">
+            <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'}`} />
+            <span>{likeCount}</span>
+          </button>
+          <div className="slice-action-btn static" title="Views">
+            <i className="bi bi-eye" />
+            <span>{post.views || 0}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -407,6 +400,19 @@ export default function SlicePage({ startPostId = null, onClose }) {
             Refreshing slices...
           </span>
         </div>
+      )}
+
+      {createPortal(
+        <button
+          className="slice-page-close slice-page-page-close"
+          onClick={onClose}
+          type="button"
+          aria-label="Close Slice page"
+          title="Close"
+        >
+          <i className="bi bi-x-lg" />
+        </button>,
+        document.body,
       )}
 
       <SlicePlayer

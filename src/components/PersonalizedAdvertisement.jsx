@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { recordAdvertisementImpression, serveAdvertisement } from '../services/advertisementsService';
+import {
+  recordAdvertisementClick, recordAdvertisementImpression, serveAdvertisement,
+} from '../services/advertisementsService';
 import { observeApproximateLocation } from '../services/userProfilingService';
 
 const SAFE_POSITIONS = [
@@ -124,9 +126,11 @@ export default function PersonalizedAdvertisement({
   const [deliveryContext, setDeliveryContext] = useState(null);
   const [closed, setClosed] = useState(false);
   const [positionIndex, setPositionIndex] = useState(0);
+  const [videoOpen, setVideoOpen] = useState(false);
   const popupRef = useRef(null);
   const impressionKeyRef = useRef('');
   const impressionRecordedRef = useRef(false);
+  const impressionPromiseRef = useRef(null);
   const position = SAFE_POSITIONS[positionIndex];
   const dismiss = () => {
     setClosed(true);
@@ -139,7 +143,9 @@ export default function PersonalizedAdvertisement({
     setAdvertisement(null);
     setDeliveryContext(null);
     setClosed(false);
+    setVideoOpen(false);
     impressionRecordedRef.current = false;
+    impressionPromiseRef.current = null;
     impressionKeyRef.current = globalThis.crypto?.randomUUID?.()
       || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const nextPosition = Math.floor(Math.random() * SAFE_POSITIONS.length);
@@ -180,11 +186,13 @@ export default function PersonalizedAdvertisement({
         && Number(style.opacity || 1) > 0;
       if (!visible || impressionRecordedRef.current) return;
       impressionRecordedRef.current = true;
-      recordAdvertisementImpression(
+      impressionPromiseRef.current = recordAdvertisementImpression(
         advertisement.id, impressionKeyRef.current, deliveryContext,
       ).catch((error) => {
         impressionRecordedRef.current = false;
+        impressionPromiseRef.current = null;
         console.warn('Advertisement impression could not be recorded:', error.message);
+        throw error;
       });
     }, 600);
     return () => globalThis.clearTimeout(timer);
@@ -194,6 +202,17 @@ export default function PersonalizedAdvertisement({
   const isFeedCard = variant === 'feed-card';
   const isPreRoll = variant === 'pre-roll';
   const hasMedia = Boolean(advertisement.mediaUrl && ['IMAGE', 'VIDEO'].includes(advertisement.mediaType));
+  const recordClick = () => {
+    if (!impressionPromiseRef.current) {
+      impressionRecordedRef.current = true;
+      impressionPromiseRef.current = recordAdvertisementImpression(
+        advertisement.id, impressionKeyRef.current, deliveryContext,
+      );
+    }
+    impressionPromiseRef.current
+      .then(() => recordAdvertisementClick(advertisement.id, impressionKeyRef.current))
+      .catch((error) => console.warn('Advertisement click could not be recorded:', error.message));
+  };
   const popup = (
     <aside
       ref={popupRef}
@@ -204,29 +223,68 @@ export default function PersonalizedAdvertisement({
         isMediaPlacement ? 'personalized-ad--media-overlay' : '',
         placement === 'slice-video' ? 'personalized-ad--slice-overlay' : '',
         placement === 'image' ? 'personalized-ad--image-overlay' : '',
-        hasMedia ? 'personalized-ad--has-media' : '',
+        'personalized-ad--has-media',
         isFeedCard ? 'personalized-ad--feed-card' : '',
         isPreRoll ? 'personalized-ad--pre-roll' : '',
       ].filter(Boolean).join(' ')}
       style={{ ...(isMediaPlacement ? {} : position.style), '--ad-opacity': (advertisement.opacity || 82) / 100 }}
       aria-label="Advertisement popup"
     >
-      <button type="button" className="personalized-ad__close" aria-label="Close advertisement" onClick={dismiss}>×</button>
       <div className="personalized-ad__layout">
-        {advertisement.mediaType === 'IMAGE' && advertisement.mediaUrl && (
-          <img className="personalized-ad__media" src={advertisement.mediaUrl} alt="" />
-        )}
-        {advertisement.mediaType === 'VIDEO' && advertisement.mediaUrl && (
-          <video className="personalized-ad__media" src={advertisement.mediaUrl} muted loop autoPlay playsInline preload="metadata" />
-        )}
         <div className="personalized-ad__copy">
           {advertisement.message && <p>{advertisement.message}</p>}
-          <a href={advertisement.destination} target="_blank" rel="noopener noreferrer">
-            {advertisement.buttonLabel || 'Learn more'}
+        </div>
+        <div className="personalized-ad__media-column">
+          <a
+            className="personalized-ad__media-link"
+            href={advertisement.destination || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open advertisement destination"
+            onClick={(event) => {
+              event.stopPropagation();
+              recordClick();
+              if (advertisement.mediaType === 'VIDEO' && advertisement.mediaUrl) {
+                event.preventDefault();
+                setVideoOpen(true);
+              }
+            }}
+          >
+            {advertisement.mediaType === 'IMAGE' && advertisement.mediaUrl && (
+              <img className="personalized-ad__media" src={advertisement.mediaUrl} alt="Advertisement" />
+            )}
+            {advertisement.mediaType === 'VIDEO' && advertisement.mediaUrl && (
+              <video className="personalized-ad__media" src={advertisement.mediaUrl} muted loop autoPlay playsInline preload="metadata" />
+            )}
+            {!hasMedia && (
+              <span className="personalized-ad__media-placeholder" aria-hidden="true">
+                <img src="/resources/images/advertisement-placeholder.svg" alt="" />
+              </span>
+            )}
           </a>
+          <button
+            type="button"
+            className="personalized-ad__close"
+            aria-label="Close advertisement"
+            onClick={(event) => {
+              event.stopPropagation();
+              dismiss();
+            }}
+          >
+            ×
+          </button>
         </div>
       </div>
       {isPreRoll && <button type="button" className="personalized-ad__continue" onClick={dismiss}>Continue to video</button>}
+      {videoOpen && createPortal(
+        <div className="advertising-video-modal" role="presentation" onMouseDown={() => setVideoOpen(false)}>
+          <section role="dialog" aria-modal="true" aria-label="Advertisement video" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" aria-label="Close advertisement video" onClick={() => setVideoOpen(false)}>×</button>
+            <video src={advertisement.mediaUrl} controls autoPlay playsInline />
+          </section>
+        </div>,
+        document.body,
+      )}
     </aside>
   );
   return embedded || isFeedCard ? popup : createPortal(popup, document.body);

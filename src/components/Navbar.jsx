@@ -24,7 +24,7 @@ function currentRole() {
   }
 }
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket, onAdvertisement }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket, onAdvertisement, onAdvertisementVideos }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -482,6 +482,7 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement</button>
+                {isAdmin && <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisementVideos}>Advertisement Videos</button>}
 
                 <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
                   <i className="bi bi-people-fill"></i>
@@ -873,4 +874,5 @@ Navbar.propTypes = {
   onAi: PropTypes.func,
   onMarket: PropTypes.func,
   onAdvertisement: PropTypes.func,
+  onAdvertisementVideos: PropTypes.func,
 };

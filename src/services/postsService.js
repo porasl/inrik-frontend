@@ -191,6 +191,13 @@ async function fetchAllPostsFromGraphql(pageSize = 30, useAuth = true) {
       });
 
       if (!res.ok) {
+        // The LAN address and localhost are different browser origins, so one
+        // can retain an expired token after the other has been refreshed.
+        // Public feed content must still load when that stored token is stale.
+        if (useAuth && token && (res.status === 401 || res.status === 403)) {
+          return fetchAllPostsFromGraphql(pageSize, false);
+        }
+
         let details = '';
         try {
           details = await res.text();
