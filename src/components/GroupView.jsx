@@ -2,10 +2,17 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Hls from 'hls.js';
 import {
   addGroupMember,
+  changeGroupOwner,
   deleteGroup,
   createGroup,
+  listAdminGroups,
   listGroups,
   removeGroupMember,
+  requestGroupMembership,
+  decideGroupMembership,
+  sendGroupInvitation,
+  acceptGroupInvitation,
+  setGroupMemberSuspended,
   updateGroup,
 } from '../services/groupsService';
 import { API_BASE } from '../../app.config.js';
@@ -423,9 +430,31 @@ function normalizeGroups(payload) {
   }));
 }
 
+function currentUserIsAdmin() {
+  const values = [
+    localStorage.getItem('role'),
+    localStorage.getItem('userRole'),
+  ];
+  try {
+    const token = localStorage.getItem('token') || '';
+    const encoded = token.split('.')[1];
+    if (encoded) {
+      const payload = JSON.parse(atob(encoded.replace(/-/g, '+').replace(/_/g, '/')));
+      values.push(payload.role, ...(payload.roles || []), ...(payload.authorities || []));
+    }
+  } catch {
+    // Fall back to the persisted role values.
+  }
+  return values
+    .flat()
+    .filter(Boolean)
+    .some((value) => String(value).replace(/^ROLE_/, '').toUpperCase() === 'ADMIN');
+}
+
 export default function GroupView({ authFetch = fetch }) {
   const token = localStorage.getItem('token') || '';
   const currentUserId = String(localStorage.getItem('userId') || '');
+  const isAdmin = currentUserIsAdmin();
   const [groups, setGroups] = useState([]);
   const [groupPosts, setGroupPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -446,11 +475,17 @@ export default function GroupView({ authFetch = fetch }) {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState('');
+  const [adminSearchInput, setAdminSearchInput] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
+  const [newOwnerEmail, setNewOwnerEmail] = useState('');
+  const [invitationEmail, setInvitationEmail] = useState('');
 
   const isOwner = useCallback((group) => (
     Boolean(group?.isOwner)
     || String(group?.owner?.userId || group?.ownerId || '') === currentUserId
   ), [currentUserId]);
+  const canManage = useCallback((group) => isAdmin || isOwner(group), [isAdmin, isOwner]);
+  const canEnter = useCallback((group) => isAdmin || Boolean(group?.member), [isAdmin]);
 
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === selectedGroupId) || null,
@@ -465,24 +500,47 @@ export default function GroupView({ authFetch = fetch }) {
     () => groups.find((group) => group.id === editingGroupId) || null,
     [groups, editingGroupId],
   );
-  const ownedGroups = useMemo(() => groups.filter((group) => isOwner(group)), [groups, isOwner]);
-  const memberGroups = useMemo(() => groups.filter((group) => !isOwner(group)), [groups, isOwner]);
+  const ownedGroups = useMemo(
+    () => (isAdmin ? groups : groups.filter((group) => isOwner(group))),
+    [groups, isAdmin, isOwner],
+  );
+  const memberGroups = useMemo(
+    () => (isAdmin ? [] : groups.filter((group) => !isOwner(group))),
+    [groups, isAdmin, isOwner],
+  );
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     try {
-      setGroups(normalizeGroups(await listGroups(token, authFetch)));
+      const payload = isAdmin
+        ? await listAdminGroups(token, adminSearch, 100, authFetch)
+        : await listGroups(token, authFetch);
+      setGroups(normalizeGroups(payload));
     } catch (error) {
       setLoadError(error.message || 'Groups could not be loaded.');
     } finally {
       setLoading(false);
     }
-  }, [token, authFetch]);
+  }, [token, authFetch, isAdmin, adminSearch]);
 
   useEffect(() => {
     loadGroups();
   }, [loadGroups]);
+
+  useEffect(() => {
+    const invitation = new URLSearchParams(window.location.search).get('invitation');
+    if (!invitation || !token) return;
+    acceptGroupInvitation(token, invitation, authFetch)
+      .then((group) => {
+        const normalized = normalizeGroups([group])[0];
+        setGroups((current) => [normalized, ...current.filter((item) => item.id !== normalized.id)]);
+        setSelectedGroupId(normalized.id);
+        setNotice(`You joined ${normalized.name}.`);
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch((error) => setFormError(error.message || 'Invitation could not be accepted.'));
+  }, [token, authFetch]);
 
   const loadGroupPosts = useCallback(async () => {
     if (!token) return;
@@ -586,6 +644,57 @@ export default function GroupView({ authFetch = fetch }) {
       setNotice(`${email} was added to the group.`);
     } catch (error) {
       setFormError(error.message || 'Member could not be added.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRequestMembership = async (group) => {
+    if (!token) {
+      setFormError('Please sign in to request group membership.');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
+    try {
+      applyGroupUpdate(await requestGroupMembership(token, group.id, authFetch));
+      setNotice(`Your request to join ${group.name} was sent.`);
+    } catch (error) {
+      setFormError(error.message || 'Membership request could not be sent.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMembershipDecision = async (member, accepted) => {
+    if (!selectedGroup) return;
+    const id = getId(member) || String(member.userId || member.email || '');
+    setRemovingId(id);
+    setFormError('');
+    try {
+      applyGroupUpdate(await decideGroupMembership(
+        token, selectedGroup.id, id, accepted, authFetch,
+      ));
+      setNotice(`${memberName(member)} was ${accepted ? 'accepted' : 'declined'}.`);
+    } catch (error) {
+      setFormError(error.message || 'Membership request could not be updated.');
+    } finally {
+      setRemovingId('');
+    }
+  };
+
+  const handleSendInvitation = async (event) => {
+    event.preventDefault();
+    const email = invitationEmail.trim().toLowerCase();
+    if (!selectedGroup || !email) return;
+    setSaving(true);
+    setFormError('');
+    try {
+      await sendGroupInvitation(token, selectedGroup.id, email, authFetch);
+      setInvitationEmail('');
+      setNotice(`An invitation link was emailed to ${email}.`);
+    } catch (error) {
+      setFormError(error.message || 'Invitation email could not be sent.');
     } finally {
       setSaving(false);
     }
@@ -725,6 +834,42 @@ export default function GroupView({ authFetch = fetch }) {
     }
   };
 
+  const handleChangeOwner = async (event) => {
+    event.preventDefault();
+    const email = newOwnerEmail.trim().toLowerCase();
+    if (!isAdmin || !selectedGroup || !email) return;
+    setSaving(true);
+    setFormError('');
+    try {
+      applyGroupUpdate(await changeGroupOwner(token, selectedGroup.id, email, authFetch));
+      setNewOwnerEmail('');
+      setNotice(`${email} is now the group owner.`);
+    } catch (error) {
+      setFormError(error.message || 'Group owner could not be changed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMemberSuspension = async (member) => {
+    if (!isAdmin || !selectedGroup) return;
+    const id = getId(member) || String(member.userId || member.email || '');
+    if (!id) return;
+    const suspended = !member.suspended;
+    setRemovingId(id);
+    setFormError('');
+    try {
+      applyGroupUpdate(await setGroupMemberSuspended(
+        token, selectedGroup.id, id, suspended, authFetch,
+      ));
+      setNotice(`${memberName(member)} was ${suspended ? 'suspended' : 'reactivated'}.`);
+    } catch (error) {
+      setFormError(error.message || 'Member status could not be changed.');
+    } finally {
+      setRemovingId('');
+    }
+  };
+
   const handleDeleteGroup = async (group) => {
     if (!group || !window.confirm(`Delete ${group.name}? This cannot be undone.`)) return;
 
@@ -744,6 +889,10 @@ export default function GroupView({ authFetch = fetch }) {
   };
 
   const openGroupPage = (group) => {
+    if (!canEnter(group)) {
+      handleRequestMembership(group);
+      return;
+    }
     setSelectedGroupId(group.id);
     setMemberEmail('');
     setFormError('');
@@ -793,10 +942,47 @@ export default function GroupView({ authFetch = fetch }) {
       <div className="groups-heading d-flex justify-content-between align-items-center mb-2">
         <div>
           <h4 className="mb-1">Groups</h4>
+          {isAdmin && <small className="text-muted">Administrator directory · maximum 100 results</small>}
         </div>
-        <button className="btn btn-primary" onClick={() => { setFormError(''); setShowCreateModal(true); }}>
-          <i className="bi bi-plus-lg me-2" />Create group
-        </button>
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <form
+              className="input-group input-group-sm group-admin-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setAdminSearch(adminSearchInput.trim());
+                setSelectedGroupId('');
+              }}
+            >
+              <input
+                className="form-control"
+                value={adminSearchInput}
+                onChange={(event) => setAdminSearchInput(event.target.value)}
+                placeholder="Search name, owner, member"
+                aria-label="Search all groups"
+              />
+              <button className="btn btn-outline-primary" type="submit">
+                <i className="bi bi-search" />
+              </button>
+              {(adminSearch || adminSearchInput) && (
+                <button
+                  className="btn btn-outline-secondary"
+                  type="button"
+                  onClick={() => {
+                    setAdminSearchInput('');
+                    setAdminSearch('');
+                    setSelectedGroupId('');
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </form>
+          )}
+          <button className="btn btn-primary" onClick={() => { setFormError(''); setShowCreateModal(true); }}>
+            <i className="bi bi-plus-lg me-2" />Create group
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -835,9 +1021,9 @@ export default function GroupView({ authFetch = fetch }) {
               <div className="min-w-0">
                 <h6 className="mb-0 text-truncate group-title-small">{selectedGroup.name}</h6>
                 <div className="small text-muted group-role-small">
-                  {isOwner(selectedGroup) ? 'Owner' : 'Member'}
+                  {isAdmin ? 'Administrator access' : (isOwner(selectedGroup) ? 'Owner' : 'Member')}
                   <span className="mx-2">•</span>
-                  {selectedGroup.members.length} member{selectedGroup.members.length === 1 ? '' : 's'}
+                  {selectedGroup.memberCount ?? selectedGroup.members.length} member{(selectedGroup.memberCount ?? selectedGroup.members.length) === 1 ? '' : 's'}
                 </div>
               </div>
             </div>
@@ -858,8 +1044,159 @@ export default function GroupView({ authFetch = fetch }) {
               >
                 <i className={`bi ${postsLoading ? 'bi-arrow-repeat spin' : 'bi-arrow-clockwise'}`} />
               </button>
+              {canManage(selectedGroup) && (
+                <>
+                  <button className="btn btn-sm btn-outline-primary" onClick={() => openEditGroup(selectedGroup)}>
+                    <i className="bi bi-pencil me-1" />Edit
+                  </button>
+                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteGroup(selectedGroup)}>
+                    <i className="bi bi-trash me-1" />Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
+
+          {(isAdmin || selectedGroup.member) && (
+            <section className="members-panel p-3 my-3">
+              <strong>Invite someone</strong>
+              <div className="small text-muted mb-2">
+                Active members, the owner, and administrators can email a secure invitation link.
+              </div>
+              <form className="input-group input-group-sm" onSubmit={handleSendInvitation}>
+                <input
+                  type="email"
+                  className="form-control"
+                  value={invitationEmail}
+                  onChange={(event) => setInvitationEmail(event.target.value)}
+                  placeholder="Email address"
+                  aria-label="Invitation email"
+                  required
+                />
+                <button className="btn btn-outline-primary" disabled={saving} type="submit">
+                  Email invitation
+                </button>
+              </form>
+            </section>
+          )}
+
+          {canManage(selectedGroup) && (
+            <section className="members-panel p-3 my-3">
+              <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                <div>
+                  <strong>Group access</strong>
+                  <div className="small text-muted">
+                    Owner: {selectedGroup.owner?.email || 'Not assigned'}
+                  </div>
+                </div>
+                {isAdmin && <span className="badge text-bg-primary">Administrator controls</span>}
+              </div>
+
+              <div className="row g-2 mb-3">
+                <div className="col-12 col-lg-6">
+                  <form className="input-group input-group-sm" onSubmit={handleAddMember}>
+                    <input
+                      type="email"
+                      className="form-control"
+                      value={memberEmail}
+                      onChange={(event) => setMemberEmail(event.target.value)}
+                      placeholder="Member email"
+                      aria-label="Member email"
+                      required
+                    />
+                    <button className="btn btn-outline-primary" disabled={saving} type="submit">
+                      Add member
+                    </button>
+                  </form>
+                </div>
+                {isAdmin && (
+                  <div className="col-12 col-lg-6">
+                    <form className="input-group input-group-sm" onSubmit={handleChangeOwner}>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={newOwnerEmail}
+                        onChange={(event) => setNewOwnerEmail(event.target.value)}
+                        placeholder="New owner email"
+                        aria-label="New owner email"
+                        required
+                      />
+                      <button className="btn btn-outline-warning" disabled={saving} type="submit">
+                        Change owner
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              <div className="group-member-list">
+                {(selectedGroup.members || []).map((member) => {
+                  const id = getId(member) || String(member.userId || member.email || '');
+                  const owner = String(member.email || '').toLowerCase()
+                    === String(selectedGroup.owner?.email || '').toLowerCase();
+                  return (
+                    <div key={id} className="member-row d-flex align-items-center gap-2 py-2">
+                      <div className="member-avatar" aria-hidden="true">
+                        {member.profileImageUrl
+                          ? <img src={toPublicUrl(member.profileImageUrl)} alt="" />
+                          : initials(memberName(member))}
+                      </div>
+                      <div className="min-w-0 flex-grow-1">
+                        <div className="fw-semibold text-truncate">{memberName(member)}</div>
+                        <div className="small text-muted text-truncate">
+                          {member.email}
+                          {owner && <span className="badge text-bg-warning ms-2">Owner</span>}
+                          {member.suspended && <span className="badge text-bg-danger ms-2">Suspended</span>}
+                          {member.membershipStatus === 'PENDING' && (
+                            <span className="badge text-bg-info ms-2">Pending approval</span>
+                          )}
+                        </div>
+                      </div>
+                      {member.membershipStatus === 'PENDING' && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-success"
+                            disabled={removingId === id}
+                            onClick={() => handleMembershipDecision(member, true)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            disabled={removingId === id}
+                            onClick={() => handleMembershipDecision(member, false)}
+                          >
+                            Decline
+                          </button>
+                        </>
+                      )}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${member.suspended ? 'btn-outline-success' : 'btn-outline-warning'}`}
+                          disabled={removingId === id || member.membershipStatus === 'PENDING'}
+                          onClick={() => handleMemberSuspension(member)}
+                        >
+                          {member.suspended ? 'Reactivate' : 'Suspend'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        disabled={owner || removingId === id || member.membershipStatus === 'PENDING'}
+                        title={owner ? 'Change the owner before removing this member' : 'Remove member'}
+                        onClick={() => handleRemoveMember(member)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {postsError ? (
             <div className="alert alert-danger">{postsError}</div>
@@ -910,7 +1247,7 @@ export default function GroupView({ authFetch = fetch }) {
                         {post.views || 0}
                       </button>
                     </div>
-                    {canCurrentUserEditPost(post) && (
+                    {(isAdmin || canCurrentUserEditPost(post)) && (
                       <div className="d-flex align-items-center gap-2">
                         <button
                           type="button"
@@ -973,7 +1310,7 @@ export default function GroupView({ authFetch = fetch }) {
                       <div className="min-w-0 flex-grow-1">
                         <div className="d-flex align-items-center gap-2 flex-wrap">
                           <h5 className="mb-0 text-break">{group.name}</h5>
-                          <span className="owner-chip">OWNER</span>
+                          <span className="owner-chip">{isAdmin && !isOwner(group) ? 'ADMIN ACCESS' : 'OWNER'}</span>
                         </div>
                       </div>
                     </div>
@@ -986,10 +1323,10 @@ export default function GroupView({ authFetch = fetch }) {
                         <button className="btn btn-sm btn-primary" onClick={() => openGroupPage(group)}>
                           Open
                         </button>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditGroup(group)}>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={(event) => { event.stopPropagation(); openEditGroup(group); }}>
                           Edit
                         </button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteGroup(group)}>
+                        <button className="btn btn-sm btn-outline-danger" onClick={(event) => { event.stopPropagation(); handleDeleteGroup(group); }}>
                           Delete
                         </button>
                         <button
@@ -1048,13 +1385,14 @@ export default function GroupView({ authFetch = fetch }) {
                       {memberCount} member{memberCount === 1 ? '' : 's'}
                     </span>
                     <button
-                      className="btn btn-sm btn-outline-primary"
+                      className={`btn btn-sm ${group.membershipPending ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+                      disabled={group.membershipPending || saving}
                       onClick={(event) => {
                         event.stopPropagation();
                         openGroupPage(group);
                       }}
                     >
-                      Enter
+                      {group.member ? 'Enter' : (group.membershipPending ? 'Approval pending' : 'Request to join')}
                     </button>
                   </div>
                 </article>

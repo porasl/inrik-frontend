@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  recordAdvertisementClick, recordAdvertisementImpression, serveAdvertisement,
-} from '../services/advertisementsService';
+import * as advertisementService from '../services/advertisementsService.js?v=20260729b';
 import { observeApproximateLocation } from '../services/userProfilingService';
+import { ADVERTISEMENT_POPUP_UI } from '../advertisementUiConfig';
 
 const SAFE_POSITIONS = [
   { name: 'top-left', style: { top: '12%', left: '8%' } },
@@ -29,13 +28,18 @@ function locationWithTimeout() {
 
 function getSessionId() {
   const key = 'advertisementSessionId';
-  let value = sessionStorage.getItem(key);
-  if (!value) {
-    value = globalThis.crypto?.randomUUID?.()
+  try {
+    let value = sessionStorage.getItem(key);
+    if (!value) {
+      value = globalThis.crypto?.randomUUID?.()
+        || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(key, value);
+    }
+    return value;
+  } catch {
+    return globalThis.crypto?.randomUUID?.()
       || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem(key, value);
   }
-  return value;
 }
 
 function recentAdvertisementIds() {
@@ -49,11 +53,15 @@ function recentAdvertisementIds() {
 
 function rememberAdvertisement(id) {
   if (!id) return;
-  const values = recentAdvertisementIds().filter((value) => value !== id);
-  sessionStorage.setItem(
-    RECENT_ADVERTISEMENTS_KEY,
-    JSON.stringify([id, ...values].slice(0, RECENT_ADVERTISEMENTS_LIMIT)),
-  );
+  try {
+    const values = recentAdvertisementIds().filter((value) => value !== id);
+    sessionStorage.setItem(
+      RECENT_ADVERTISEMENTS_KEY,
+      JSON.stringify([id, ...values].slice(0, RECENT_ADVERTISEMENTS_LIMIT)),
+    );
+  } catch {
+    // Continue delivery when storage is unavailable or blocked.
+  }
 }
 
 function browserLocation() {
@@ -118,15 +126,19 @@ export default function PersonalizedAdvertisement({
   contentDescription = '',
   contentCategories = [],
   embedded = false,
+  anchorRef,
+  className = '',
+  immediate = false,
   variant = 'popup',
   onDismiss,
 }) {
-  const isMediaPlacement = ['video', 'slice-video', 'image'].includes(placement);
+  const isMediaPlacement = ['video', 'slice-video', 'image', 'post-image'].includes(placement);
   const [advertisement, setAdvertisement] = useState(null);
   const [deliveryContext, setDeliveryContext] = useState(null);
   const [closed, setClosed] = useState(false);
   const [positionIndex, setPositionIndex] = useState(0);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [imageAnchor, setImageAnchor] = useState({ left: '50vw', bottom: '0px' });
   const popupRef = useRef(null);
   const impressionKeyRef = useRef('');
   const impressionRecordedRef = useRef(false);
@@ -138,8 +150,35 @@ export default function PersonalizedAdvertisement({
   };
 
   useEffect(() => {
+    if (placement !== 'image' || !anchorRef?.current) return undefined;
+    const updateAnchor = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const popupWidth = Math.min(620, Math.max(0, globalThis.innerWidth * 0.95 - 32)) * 0.5;
+      const halfWidth = popupWidth / 2;
+      const centeredLeft = rect.left + rect.width / 2;
+      setImageAnchor({
+        left: `${Math.max(halfWidth + 8, Math.min(globalThis.innerWidth - halfWidth - 8, centeredLeft))}px`,
+        bottom: `${Math.max(0, globalThis.innerHeight - rect.bottom)}px`,
+      });
+    };
+    updateAnchor();
+    globalThis.addEventListener('resize', updateAnchor);
+    globalThis.addEventListener('scroll', updateAnchor, true);
+    return () => {
+      globalThis.removeEventListener('resize', updateAnchor);
+      globalThis.removeEventListener('scroll', updateAnchor, true);
+    };
+  }, [placement, anchorRef, advertisement]);
+
+  useEffect(() => {
     let cancelled = false;
-    const authenticated = Boolean(isLoggedIn && localStorage.getItem('token'));
+    let authenticated = false;
+    try {
+      authenticated = Boolean(isLoggedIn && localStorage.getItem('token'));
+    } catch {
+      authenticated = false;
+    }
     setAdvertisement(null);
     setDeliveryContext(null);
     setClosed(false);
@@ -151,7 +190,7 @@ export default function PersonalizedAdvertisement({
     const nextPosition = Math.floor(Math.random() * SAFE_POSITIONS.length);
     setPositionIndex(nextPosition);
     const placementName = `${placement}:${isMediaPlacement ? 'bottom' : SAFE_POSITIONS[nextPosition].name}`;
-    locationWithTimeout()
+    (immediate ? Promise.resolve(null) : locationWithTimeout())
       .then((location) => {
         const context = profileContext(placementName, {
         id: contentId,
@@ -159,7 +198,7 @@ export default function PersonalizedAdvertisement({
         description: contentDescription,
         categories: contentCategories,
         }, location, authenticated);
-        return serveAdvertisement(context).then((item) => ({ item, context }));
+        return advertisementService.serveAdvertisement(context).then((item) => ({ item, context }));
       })
       .then(({ item, context }) => {
         if (!cancelled) {
@@ -171,7 +210,7 @@ export default function PersonalizedAdvertisement({
       })
       .catch((error) => console.warn('Advertisement delivery failed:', error.message));
     return () => { cancelled = true; };
-  }, [isLoggedIn, placement, contentId, contentTitle, contentDescription, JSON.stringify(contentCategories)]);
+  }, [isLoggedIn, placement, contentId, contentTitle, contentDescription, JSON.stringify(contentCategories), immediate]);
 
   useEffect(() => {
     if (!advertisement || !deliveryContext || closed || !popupRef.current || impressionRecordedRef.current) return;
@@ -186,7 +225,7 @@ export default function PersonalizedAdvertisement({
         && Number(style.opacity || 1) > 0;
       if (!visible || impressionRecordedRef.current) return;
       impressionRecordedRef.current = true;
-      impressionPromiseRef.current = recordAdvertisementImpression(
+      impressionPromiseRef.current = advertisementService.recordAdvertisementImpression(
         advertisement.id, impressionKeyRef.current, deliveryContext,
       ).catch((error) => {
         impressionRecordedRef.current = false;
@@ -205,12 +244,12 @@ export default function PersonalizedAdvertisement({
   const recordClick = () => {
     if (!impressionPromiseRef.current) {
       impressionRecordedRef.current = true;
-      impressionPromiseRef.current = recordAdvertisementImpression(
+      impressionPromiseRef.current = advertisementService.recordAdvertisementImpression(
         advertisement.id, impressionKeyRef.current, deliveryContext,
       );
     }
     impressionPromiseRef.current
-      .then(() => recordAdvertisementClick(advertisement.id, impressionKeyRef.current))
+      .then(() => advertisementService.recordAdvertisementClick(advertisement.id, impressionKeyRef.current))
       .catch((error) => console.warn('Advertisement click could not be recorded:', error.message));
   };
   const popup = (
@@ -218,16 +257,25 @@ export default function PersonalizedAdvertisement({
       ref={popupRef}
       className={[
         'personalized-ad',
+        className,
         `personalized-ad--${advertisement.templateId || 'transparent-popup'}`,
-        embedded ? 'personalized-ad--embedded' : '',
+        embedded && placement !== 'image' ? 'personalized-ad--embedded' : '',
         isMediaPlacement ? 'personalized-ad--media-overlay' : '',
-        placement === 'slice-video' ? 'personalized-ad--slice-overlay' : '',
-        placement === 'image' ? 'personalized-ad--image-overlay' : '',
+        placement === 'image' ? 'personalized-ad--viewport-anchor' : '',
         'personalized-ad--has-media',
         isFeedCard ? 'personalized-ad--feed-card' : '',
         isPreRoll ? 'personalized-ad--pre-roll' : '',
       ].filter(Boolean).join(' ')}
-      style={{ ...(isMediaPlacement ? {} : position.style), '--ad-opacity': (advertisement.opacity || 82) / 100 }}
+      style={{
+        ...(isMediaPlacement ? {} : position.style),
+        ...(placement === 'image' ? {
+          '--ad-anchor-left': imageAnchor.left,
+          '--ad-anchor-bottom': imageAnchor.bottom,
+        } : {}),
+        '--ad-description-font-size': `${ADVERTISEMENT_POPUP_UI.descriptionFontSizePx}px`,
+        '--ad-description-font-weight': ADVERTISEMENT_POPUP_UI.descriptionFontWeight,
+        '--ad-opacity': (advertisement.opacity || 82) / 100,
+      }}
       aria-label="Advertisement popup"
     >
       <div className="personalized-ad__layout">
@@ -287,5 +335,7 @@ export default function PersonalizedAdvertisement({
       )}
     </aside>
   );
-  return embedded || isFeedCard ? popup : createPortal(popup, document.body);
+  return (embedded && placement !== 'image') || isFeedCard
+    ? popup
+    : createPortal(popup, document.body);
 }

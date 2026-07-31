@@ -1030,9 +1030,12 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   const [aiAnimationUrl, setAiAnimationUrl] = useState('');
   const [aiAnimationLoading, setAiAnimationLoading] = useState(false);
   const [aiAnimationError, setAiAnimationError] = useState('');
+  const [aiAnimationMetadata, setAiAnimationMetadata] = useState(null);
+  const [aiAnimationSaving, setAiAnimationSaving] = useState(false);
   const [touchDx, setTouchDx] = useState(0);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const imgRef = useRef(null);
+  const advertisementAnchorRef = useRef(null);
   const overlayRef = useRef(null);
   const touchStartRef = useRef(null);
 
@@ -1138,6 +1141,8 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
   useEffect(() => {
     setAiAnimationUrl('');
     setAiAnimationError('');
+    setAiAnimationMetadata(null);
+    setAiAnimationSaving(false);
     setAiAnimationLoading(false);
     setAnimationModeIndex(0);
     setShowLens(false);
@@ -1158,6 +1163,14 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
 
   const authorName = [photo.post.userFirstName, photo.post.userLastName].filter(Boolean).join(' ')
     || photo.post.email || 'Unknown';
+  const storedEmail = String(localStorage.getItem('email') || '').trim().toLowerCase();
+  const storedUserId = String(localStorage.getItem('userId') || '').trim();
+  const ownerEmail = String(photo.post.email || '').trim().toLowerCase();
+  const ownerUserId = String(photo.post.userId || photo.post.userid || photo.post.ownerId || '').trim();
+  const isOwner = isLoggedIn && (
+    (storedEmail && ownerEmail && storedEmail === ownerEmail)
+    || (storedUserId && ownerUserId && storedUserId === ownerUserId)
+  );
   const animationMode = IMAGE_ANIMATION_MODES[animationModeIndex] || IMAGE_ANIMATION_MODES[0];
   const animationEnabled = animationMode.key !== 'none' && !aiAnimationUrl;
 
@@ -1167,6 +1180,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
     setAiAnimationLoading(true);
     setAiAnimationError('');
     setAiAnimationUrl('');
+    setAiAnimationMetadata(null);
     setShowLens(false);
     setBinocularEnabled(false);
     setAnimationModeIndex(0);
@@ -1181,8 +1195,8 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
         headers,
         body: JSON.stringify({
           imageUrl: photo.url,
-          seconds: 4,
-          prompt: 'Animate natural motion in visible people or animals while preserving the original image.',
+          seconds: 60,
+          prompt: 'Recognize the living subject and create rich natural motion for humans, animals, birds, fish, insects, or plants while preserving the original image.',
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -1191,11 +1205,39 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
       }
       const nextUrl = data?.videoUrl || data?.animationUrl || data?.url;
       if (!nextUrl) throw new Error('Animation service did not return a video URL.');
-      setAiAnimationUrl(toPublicUrl(nextUrl));
+      setAiAnimationUrl(nextUrl);
+      setAiAnimationMetadata({
+        format: data?.format || 'gif',
+        subjectType: data?.subjectType || 'living-subject',
+        animationMode: data?.animationMode || 'rich-motion',
+      });
     } catch (error) {
       setAiAnimationError(error?.message || 'Could not animate this image.');
     } finally {
       setAiAnimationLoading(false);
+    }
+  };
+
+  const saveAiAnimation = async () => {
+    if (!isOwner || !aiAnimationUrl || aiAnimationSaving) return;
+    setAiAnimationSaving(true);
+    setAiAnimationError('');
+    try {
+      const response = await fetch(aiAnimationUrl, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Animated GIF download failed (${response.status})`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `animated-${photo.post.id || 'image'}.gif`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      setAiAnimationError(error?.message || 'Could not save the animated GIF.');
+    } finally {
+      setAiAnimationSaving(false);
     }
   };
 
@@ -1292,6 +1334,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, maxHeight: '80vh', maxWidth: '95vw' }}>
         {/* Image + lens wrapper */}
         <div
+          ref={advertisementAnchorRef}
           className={`photo-viewer-image-wrap ${animationEnabled ? `photo-viewer-image-wrap--${animationMode.key}` : ''}`}
           style={{
             position: 'relative',
@@ -1314,15 +1357,11 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           onTouchEnd={onTouchEnd}
         >
           {aiAnimationUrl ? (
-            <video
+            <img
               key={aiAnimationUrl}
               src={aiAnimationUrl}
+              alt="AI animated living subject"
               className="photo-viewer-image"
-              controls
-              autoPlay
-              loop
-              muted
-              playsInline
               style={{
                 maxHeight: '72vh',
                 maxWidth: '78vw',
@@ -1368,6 +1407,7 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
               photo.post.type,
             ].filter(Boolean)}
             embedded
+            anchorRef={advertisementAnchorRef}
           />
 
           {/* Binocular lens */}
@@ -1446,6 +1486,18 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
             <span style={{ fontSize: '0.72rem', marginTop: 2 }}>{aiAnimationLoading ? 'AI...' : 'AI'}</span>
           </button>
 
+          {aiAnimationUrl && isOwner && (
+            <button
+              className="btn p-0 border-0 bg-transparent text-success d-flex flex-column align-items-center"
+              title="Save animated GIF"
+              onClick={saveAiAnimation}
+              disabled={aiAnimationSaving}
+            >
+              <i className={`bi ${aiAnimationSaving ? 'bi-hourglass-split' : 'bi-filetype-gif'}`} style={{ fontSize: '1.6rem' }} />
+              <span style={{ fontSize: '0.72rem', marginTop: 2 }}>{aiAnimationSaving ? 'Saving…' : 'Save GIF'}</span>
+            </button>
+          )}
+
           {/* Download */}
           <button
             className="btn p-0 border-0 bg-transparent text-white d-flex flex-column align-items-center"
@@ -1472,11 +1524,40 @@ function PhotoViewer({ photo, onClose, onPrev, onNext, hasPrev, hasNext, stats, 
           <p style={{ margin: '0 0 2px', color: '#fff' }}>{photo.post.description}</p>
         )}
         <span style={{ fontSize: '0.78rem' }}>by {authorName}</span>
+        {aiAnimationMetadata && (
+          <div className="text-info mt-1" style={{ fontSize: '0.76rem' }}>
+            {aiAnimationMetadata.subjectType} · {aiAnimationMetadata.animationMode} · animated GIF
+          </div>
+        )}
         {aiAnimationError && (
           <div className="text-warning mt-2" style={{ fontSize: '0.78rem' }}>{aiAnimationError}</div>
         )}
       </div>
 
+      {aiAnimationLoading && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Animation creation in progress"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 5000,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+        >
+          <div className="bg-dark text-white border border-secondary rounded-4 shadow-lg p-4 text-center" style={{ maxWidth: 420 }}>
+            <div className="spinner-border text-info mb-3" role="status" />
+            <h3 className="h5">Animation creation is ongoing</h3>
+            <p className="mb-0 text-white-50">
+              Recognizing the living subject and generating richer natural motion. Please keep this window open.
+            </p>
+          </div>
+        </div>
+      )}
 
     </div>
   );

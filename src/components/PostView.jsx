@@ -5,6 +5,7 @@ import { API_BASE, PUBLIC_BASE } from '../../app.config.js';
 import { getAllPostsCached, invalidatePostsCache } from '../services/postsService';
 import { getUserProfileCached } from '../services/userProfileService';
 import PostComments from './PostComments';
+import PersonalizedAdvertisement from './PersonalizedAdvertisement';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
@@ -62,7 +63,7 @@ function resolveImageUrls(post) {
     .filter(Boolean);
 }
 
-function ImageGallery({ imageUrls, onImageOpen }) {
+function ImageGallery({ imageUrls, post, isLoggedIn }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showLens, setShowLens] = useState(false);
   const [lensPos, setLensPos] = useState({ x: 0, y: 0, rectW: 1, rectH: 1 });
@@ -116,6 +117,22 @@ function ImageGallery({ imageUrls, onImageOpen }) {
           <i className={`bi ${liked ? 'bi-heart-fill' : 'bi-heart'} me-1`} />
           Like
         </button>
+        <PersonalizedAdvertisement
+          isLoggedIn={isLoggedIn}
+          placement="post-image"
+          className="postview-media-ad"
+          immediate
+          contentId={post.id}
+          contentTitle={post.title || post.description || ''}
+          contentDescription={[post.description, post.content, post.title].filter(Boolean).join(' ')}
+          contentCategories={[
+            ...toArray(post.categories),
+            ...toArray(post.tags),
+            post.category,
+            post.type,
+          ].filter(Boolean)}
+          embedded
+        />
       </div>
       {imageUrls.length > 1 && (
         <div className="postview-image-strip">
@@ -487,8 +504,8 @@ export function EditPostModal({ post, onClose = () => {}, onSaved = async () => 
         <div className="postview-edit-tabs mb-3">
           {[
             { key: 'details', label: 'Details' },
-            { key: 'videos', label: `Videos (${attachments.videos.length})` },
-            { key: 'images', label: `Images (${attachments.images.length})` },
+            { key: 'videos', label: attachments.videos.length, icon: 'bi-film', ariaLabel: 'Video attachments' },
+            { key: 'images', label: attachments.images.length, icon: 'bi-image', ariaLabel: 'Image attachments' },
             { key: 'audios', label: `Audios (${attachments.audios.length})` },
             { key: 'documents', label: `Documents (${attachments.documents.length})` },
             { key: 'new', label: `Add Content (${newFiles.length})` },
@@ -498,7 +515,9 @@ export function EditPostModal({ post, onClose = () => {}, onSaved = async () => 
               type="button"
               className={`btn btn-sm ${activeTab === tab.key ? 'btn-primary' : 'btn-outline-secondary'}`}
               onClick={() => setActiveTab(tab.key)}
+              aria-label={tab.ariaLabel}
             >
+              {tab.icon && <i className={`bi ${tab.icon} me-1`} aria-hidden="true" />}
               {tab.label}
             </button>
           ))}
@@ -717,7 +736,7 @@ PostVideoPlayer.propTypes = {
   onPlay: PropTypes.func,
 };
 
-function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
+function PostCard({ post, onDelete, onUpdated, canEdit = false, isLoggedIn = false }) {
   const [hidden, setHidden] = useState(false);
   const [likes, setLikes] = useState(post?.likes || 0);
   const [liked, setLiked] = useState(!!post?.isLikedByCurrentUser);
@@ -725,7 +744,6 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
   const [showComments, setShowComments] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
-  const title = String(post?.title || post?.description || 'Untitled Post').trim();
   const videoUrl = useMemo(() => resolveVideoUrl(post), [post]);
   const imageUrls = useMemo(() => resolveImageUrls(post), [post]);
   const audioUrls = useMemo(() => resolveAudioUrls(post), [post]);
@@ -798,24 +816,34 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false }) {
 
   return (
     <article className="postview-card card-clean">
-      <header className="postview-card-head">
-        <div className="postview-title-wrap">
-          <h6 className="postview-title">{title}</h6>
-        </div>
-      </header>
-
       <div className="postview-body">
         {videoUrl && (
           <div className="postview-attachment-block">
-            <div className="postview-attachment-label"><i className="bi bi-play-btn me-1"></i>Video</div>
-            <PostVideoPlayer src={videoUrl} onPlay={incrementView} />
+            <div className="postview-video-ad-wrap">
+              <PostVideoPlayer src={videoUrl} onPlay={incrementView} />
+              <PersonalizedAdvertisement
+                isLoggedIn={isLoggedIn}
+                placement="video"
+                className="postview-media-ad"
+                immediate
+                contentId={post.id}
+                contentTitle={post.title || post.description || ''}
+                contentDescription={[post.description, post.content, post.title].filter(Boolean).join(' ')}
+                contentCategories={[
+                  ...toArray(post.categories),
+                  ...toArray(post.tags),
+                  post.category,
+                  post.type,
+                ].filter(Boolean)}
+                embedded
+              />
+            </div>
           </div>
         )}
 
         {imageUrls.length > 0 && (
           <div className="postview-attachment-block">
-            <div className="postview-attachment-label"><i className="bi bi-images me-1"></i>Images ({imageUrls.length})</div>
-            <ImageGallery imageUrls={imageUrls} />
+            <ImageGallery imageUrls={imageUrls} post={post} isLoggedIn={isLoggedIn} />
           </div>
         )}
 
@@ -897,6 +925,7 @@ PostCard.propTypes = {
   onDelete: PropTypes.func,
   onUpdated: PropTypes.func,
   canEdit: PropTypes.bool,
+  isLoggedIn: PropTypes.bool,
 };
 
 export default function PostView({ posts = [], isLoggedIn = false, onUpload, onDelete }) {
@@ -981,6 +1010,7 @@ export default function PostView({ posts = [], isLoggedIn = false, onUpload, onD
             onDelete={onDelete}
             onUpdated={refreshPostsAfterEdit}
             canEdit={canCurrentUserEditPost(post)}
+            isLoggedIn={isLoggedIn}
           />
         ))}
       </div>

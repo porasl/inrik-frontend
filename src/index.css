@@ -22,6 +22,15 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-pill: 50rem;
+
+  /* Shared geometry for advertisement popups on every image/video view. */
+  --advertisement-media-popup-max-width: 304px;
+  --advertisement-media-popup-responsive-width: 100%;
+  --advertisement-media-popup-side-gap: 6px;
+  --advertisement-media-popup-horizontal-inset: 12px;
+  --advertisement-media-popup-vertical-inset: 12px;
+  --advertisement-media-popup-min-height: 23px;
+  --advertisement-media-popup-max-height: 59px;
 }
 
 * {
@@ -507,24 +516,39 @@ html {
 }
 
 .rightbar-connection-name {
+  display: block;
+  width: 100%;
   min-width: 0;
   font-size: 0.82rem;
   line-height: 1.15;
 }
 
+.rightbar-connection-identity {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 40px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3px;
+  overflow: hidden;
+}
+
 .rightbar-connection-meta {
-  max-width: 50%;
+  max-width: 18px;
   min-width: 0;
 }
 
 .rightbar-pending-badge {
-  white-space: normal;
+  display: block;
   max-width: 100%;
-  font-size: 0.62rem;
+  color: #7a4b00;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   line-height: 1;
-  padding: 0.35rem 0.45rem;
-  text-align: center;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 /* --- 7. Responsive Breakdown --- */
@@ -565,14 +589,13 @@ html {
   }
 
   .rightbar-connection-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .rightbar-connection-meta {
-    max-width: 100%;
-    width: 100%;
-    justify-content: flex-end;
-    margin-left: auto;
+    max-width: 18px;
+    width: auto;
+    margin-left: 0;
   }
 
   .rightbar-connection-name {
@@ -1165,9 +1188,19 @@ html {
 }
 
 .postview-video {
+  position: relative;
+  z-index: 0;
+  display: block;
   width: 100%;
   border-radius: 10px;
   background: #000;
+}
+
+.postview-video-ad-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  min-height: 120px;
 }
 
 .postview-image-grid {
@@ -1210,6 +1243,8 @@ html {
 
 .postview-image-feature-img,
 .group-image-feature-img {
+  position: relative;
+  z-index: 0;
   width: 100%;
   max-height: 460px;
   object-fit: cover;
@@ -4058,7 +4093,7 @@ html {
 
 .market-topline h3 {
   margin: 0;
-  font-size: 24px;
+  font-size: 72px;
   font-weight: 800;
   color: #111827;
 }
@@ -4225,6 +4260,10 @@ html {
 .advertising-studio__notes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .advertising-studio__notes span { padding: 6px 9px; border-radius: 999px; background: #f0f4fa; color: #526077; font-size: .68rem; font-weight: 700; }
 @keyframes advertisingAdIn { from { opacity: 0; transform: scale(.94) translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes advertisingImageAdIn {
+  from { opacity: 0; translate: -50% 6px; scale: .47; }
+  to { opacity: 1; translate: -50% 0; scale: .5; }
+}
 
 .advertising-targeting { display: grid; gap: 9px; margin: 14px 0; padding: 14px; border: 1px solid #dce5f4; border-radius: 14px; background: #f7f9fd; }
 .advertising-media-upload { position: relative; display: grid; place-items: center; min-height: 48px; padding: 10px 14px; border: 1px dashed #6d83b5; border-radius: 12px; background: #eef3ff; color: #294d9c; font-weight: 800; cursor: pointer; }
@@ -4264,21 +4303,79 @@ html {
 .personalized-ad__copy > span { display: block; margin-bottom: 8px; color: #426bd0; font-size: .58rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
 .personalized-ad__copy > strong { display: block; padding-right: 22px; font-size: 1.08rem; }
 .personalized-ad--lower-third { left: 50% !important; right: auto !important; top: auto !important; bottom: 7% !important; width: min(620px, 86vw); transform: translateX(-50%); }
-.personalized-ad.personalized-ad--media-overlay { top: auto !important; right: 4% !important; bottom: 8px !important; left: 4% !important; width: auto !important; min-width: 0; max-width: none; max-height: none; aspect-ratio: 12 / 1; padding: 5px; box-sizing: border-box; overflow: hidden; transform: none; transition: none; }
-.personalized-ad.personalized-ad--slice-overlay { min-height: 84px; max-height: 36%; aspect-ratio: auto; overflow-x: hidden; overflow-y: auto; }
-.personalized-ad--slice-overlay .personalized-ad__copy { justify-content: flex-start; overflow: visible; }
-.personalized-ad--slice-overlay p { display: block; overflow: visible; -webkit-line-clamp: unset; }
-.personalized-ad--slice-overlay .personalized-ad__layout { min-height: 72px; }
-.personalized-ad.personalized-ad--image-overlay { max-width: calc(100% - 16px); }
-.personalized-ad--image-overlay .personalized-ad__layout { min-height: 0; gap: 8px; }
-.personalized-ad--image-overlay.personalized-ad--has-media .personalized-ad__layout { grid-template-columns: minmax(0, 1fr) minmax(0, 30%) 28px; }
-.personalized-ad--image-overlay.personalized-ad--has-media .personalized-ad__media { min-width: 0; height: 100%; min-height: 0; }
+.personalized-ad.personalized-ad--media-overlay {
+  top: auto !important;
+  right: auto !important;
+  bottom: var(--advertisement-media-popup-side-gap) !important;
+  left: 50% !important;
+  width: min(
+    var(--advertisement-media-popup-max-width),
+    calc(var(--advertisement-media-popup-responsive-width) - var(--advertisement-media-popup-horizontal-inset))
+  ) !important;
+  min-width: 0;
+  max-width: var(--advertisement-media-popup-max-width);
+  height: min(
+    var(--advertisement-media-popup-max-height),
+    calc(100% - var(--advertisement-media-popup-vertical-inset))
+  );
+  min-height: var(--advertisement-media-popup-min-height);
+  max-height: none;
+  aspect-ratio: auto;
+  padding: 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+  transform: translateX(-50%) !important;
+  transition: none;
+}
+.personalized-ad.personalized-ad--viewport-anchor {
+  position: fixed;
+  z-index: 7000;
+  bottom: var(--ad-anchor-bottom, 0px) !important;
+  left: var(--ad-anchor-left, 50vw) !important;
+}
+.personalized-ad--media-overlay.personalized-ad--has-media .personalized-ad__layout {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 30%) 20px;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 2px;
+}
+.personalized-ad--media-overlay .personalized-ad__copy {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 1px 0;
+}
+.personalized-ad--media-overlay a.personalized-ad__media-link {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  height: 100%;
+  min-height: 20px;
+}
+.personalized-ad--media-overlay .personalized-ad__media-placeholder {
+  min-height: 20px;
+}
+.personalized-ad--media-overlay .personalized-ad__close {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  width: 20px;
+  height: 20px;
+  font-size: .8rem;
+}
 .personalized-ad p { margin: 7px 0 13px; color: #536075; font-size: .8rem; }
 .personalized-ad a { display: inline-block; padding: 8px 13px; border-radius: 9px; background: #1b2a44; color: #fff; font-size: .74rem; font-weight: 800; text-decoration: none; }
 .personalized-ad--media-overlay .personalized-ad__copy > span { margin-bottom: 3px; }
 .personalized-ad--media-overlay .personalized-ad__copy > strong { font-size: clamp(.78rem, 2vw, 1.05rem); line-height: 1.15; }
-.personalized-ad--media-overlay p { display: -webkit-box; margin: 1px 20px 3px 0; overflow: hidden; font-size: clamp(.52rem, 1.1vw, .64rem); line-height: 1.15; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.personalized-ad--media-overlay p { display: -webkit-box; margin: 0; overflow: hidden; font-size: clamp(.52rem, 1.1vw, .64rem); line-height: 1.15; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .personalized-ad--media-overlay a { align-self: flex-start; padding: 3px 7px; border-radius: 6px; font-size: .56rem; line-height: 1.15; }
+.personalized-ad .personalized-ad__copy p {
+  display: block;
+  overflow: visible;
+  font-size: var(--ad-description-font-size, 12px) !important;
+  font-weight: var(--ad-description-font-weight, 700) !important;
+  line-height: 1.3 !important;
+  -webkit-line-clamp: unset;
+}
 .personalized-ad__close { position: static; z-index: 20; display: grid; place-items: center; align-self: start; justify-self: end; width: 28px; height: 28px; padding: 0; border: 1px solid rgba(255,255,255,.7); border-radius: 50%; background: rgba(8,13,23,.82); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); font-size: 1.15rem; line-height: 1; cursor: pointer; }
 .advertising-video-modal { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; padding: 24px; background: rgba(3,8,18,.82); backdrop-filter: blur(8px); }
 .advertising-video-modal section { position: relative; width: min(960px, 94vw); max-height: 90vh; padding: 10px; border: 1px solid rgba(255,255,255,.25); border-radius: 16px; background: #05070c; box-shadow: 0 28px 80px rgba(0,0,0,.55); }
@@ -4332,10 +4429,7 @@ html {
 @media (max-width: 720px) { .main-content:has(> .advertising-studio) { padding-top: 4px; } .advertising-studio { padding: 0 2px 12px; } .advertising-studio__header, .advertising-credit { padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; } .advertising-studio__header h2, .advertising-studio__header p { display: block; } .advertising-studio__header h2 { margin: 0 0 2px; } .advertising-credit input { width: 100%; } .advertising-studio__workspace { grid-template-columns: 1fr; } .advertising-studio__preview-panel { grid-column: auto; } .advertising-studio__field-row, .advertising-admin__summary, .advertising-admin__tables { grid-template-columns: 1fr; } .advertising-preview__scene { min-height: 360px; } }
 @media (max-width: 720px) {
   .personalized-ad--media-overlay {
-    max-height: 66%;
     aspect-ratio: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
   }
   .personalized-ad--media-overlay .personalized-ad__copy { justify-content: flex-start; overflow: visible; }
   .personalized-ad--media-overlay p {
@@ -4344,8 +4438,8 @@ html {
     -webkit-line-clamp: unset;
   }
   .personalized-ad--media-overlay .personalized-ad__copy > span { display: block; }
-  .personalized-ad--media-overlay .personalized-ad__layout { gap: 7px; }
-  .personalized-ad--media-overlay .personalized-ad__close { flex-basis: 22px; width: 22px; height: 22px; font-size: .9rem; }
+  .personalized-ad--media-overlay .personalized-ad__layout { gap: 2px; }
+  .personalized-ad--media-overlay .personalized-ad__close { flex-basis: 20px; width: 20px; height: 20px; font-size: .8rem; }
 }
 
 @media (max-width: 1180px) {

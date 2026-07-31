@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { currentRole, listAdminAdvertisementVideos } from '../services/advertisementsService';
+import * as advertisementService from '../services/advertisementsService.js?v=20260729b';
+
+const { currentRole, listAdminAdvertisementVideos } = advertisementService;
 
 export default function AdvertisementVideoView() {
   const [videos, setVideos] = useState([]);

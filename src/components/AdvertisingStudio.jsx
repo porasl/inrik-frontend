@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
+import * as advertisementService from '../services/advertisementsService.js?v=20260729b';
+
+const {
   adjustAdminStoreCredit, cancelAdvertisement, createAdvertisement, createStripeCheckout, currentRole,
   getAdminStoreCredit, getAdvertisementAnalytics, getAdvertisementConfiguration,
   getAdvertisementViews, getStoreCreditWallet, getStripeStatus,
   listMyAdvertisements, updateAdvertisement, updateAdvertisementConfiguration, updateAdvertisementStatus,
   uploadAdvertisementMedia,
-} from '../services/advertisementsService';
+} = advertisementService;
 
 const TEMPLATES = [
   { id: 'transparent-popup', name: 'Transparent image popup', icon: 'bi-window-stack' },

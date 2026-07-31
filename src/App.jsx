@@ -16,6 +16,8 @@ import NoteView from './components/NoteView';
 import MarketView from './components/MarketView';
 import AdvertisingStudio from './components/AdvertisingStudio';
 import AdvertisementVideoView from './components/AdvertisementVideoView';
+import FailedVideoConversionsPage from './components/FailedVideoConversionsPage';
+import AdminContentHealthPage from './components/AdminContentHealthPage';
 import { API_BASE, PUBLIC_BASE } from '../app.config.js';
 import { getPagedPosts, invalidatePostsCache, subscribePostsCacheUpdates, subscribePostsRefreshStatus } from './services/postsService';
 import { invalidatePhotoCache } from './services/photoService';
@@ -387,6 +389,9 @@ function App() {
       && activeSection !== 'ai'
       && activeSection !== 'market'
       && activeSection !== 'advertisement'
+      && activeSection !== 'advertisement-videos'
+      && activeSection !== 'failed-video-conversions'
+      && activeSection !== 'admin-content-health'
       && !showSlicePage
       && !watchingPost;
     if (!shouldAutoLoad) return;
@@ -448,6 +453,20 @@ function App() {
   const goAdvertisementVideos = () => {
     if (!isCurrentAdmin()) return;
     setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement-videos');
+  };
+  const goFailedVideoConversions = () => {
+    if (!isCurrentAdmin()) return;
+    setShowSlicePage(false);
+    setSliceStartId(null);
+    setWatchingPost(null);
+    setActiveSection('failed-video-conversions');
+  };
+  const goAdminContentHealth = () => {
+    if (!isCurrentAdmin()) return;
+    setShowSlicePage(false);
+    setSliceStartId(null);
+    setWatchingPost(null);
+    setActiveSection('admin-content-health');
   };
 
   /* Helper: open slice page at a specific post */
@@ -1358,6 +1377,7 @@ function App() {
       <div className="app-body-wrapper">
         <Sidebar
           activeSection={activeSection}
+          isAdmin={isAdmin}
           onHome={goHome}
           onVideos={goVideos}
           onPosts={goPosts}
@@ -1367,6 +1387,8 @@ function App() {
           onBox={goBox}
           onSlice={() => { setShowSlicePage(true); setWatchingPost(null); setActiveSection('slice'); }}
           onNotes={goNotes}
+          onFailedConversions={goFailedVideoConversions}
+          onContentHealth={goAdminContentHealth}
         />
 
         <main className="main-content">
@@ -1384,6 +1406,8 @@ function App() {
             && activeSection !== 'market'
             && activeSection !== 'advertisement'
             && activeSection !== 'advertisement-videos'
+            && activeSection !== 'failed-video-conversions'
+            && activeSection !== 'admin-content-health'
             && !showSlicePage && (
             <div className="mb-2">
               <span className="badge rounded-pill text-bg-light border text-secondary d-inline-flex align-items-center gap-2">
@@ -1464,6 +1488,10 @@ function App() {
             <AdvertisingStudio />
           ) : activeSection === 'advertisement-videos' && isAdmin ? (
             <AdvertisementVideoView />
+          ) : activeSection === 'failed-video-conversions' && isAdmin ? (
+            <FailedVideoConversionsPage />
+          ) : activeSection === 'admin-content-health' && isAdmin ? (
+            <AdminContentHealthPage />
           ) : watchingPost ? (
             /* ── WATCH PAGE ── */
             <VideoWatchPage

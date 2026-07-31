@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
-export default function Sidebar({ activeSection = 'home', onVideos, onPosts, onBox, onGroups, onAudio, onPhotos, onSlice, onNotes }) {
+export default function Sidebar({
+  activeSection = 'home', isAdmin = false, onVideos, onPosts, onBox, onGroups,
+  onAudio, onPhotos, onSlice, onNotes, onFailedConversions, onContentHealth,
+}) {
   const [collapsedSections, setCollapsedSections] = useState({
     views: false,
     groups: false,
@@ -93,12 +96,11 @@ export default function Sidebar({ activeSection = 'home', onVideos, onPosts, onB
                 <span className="fw-medium">Post</span>
               </a>
             </li>
-
             <li className="nav-item w-100 mb-0">
               <a className={navLinkClass('videos')}
                 href="#" onClick={handleVideos} aria-current={ariaCurrent('videos')}>
                 <i className="bi bi-play-btn fs-5 text-secondary"></i>
-                <span className="fw-medium">Video</span>
+                <span className="fw-medium">Videos</span>
               </a>
             </li>
 
@@ -170,6 +172,43 @@ export default function Sidebar({ activeSection = 'home', onVideos, onPosts, onB
 
         <li className="nav-item mb-1"></li>
 
+        {isAdmin && (
+          <>
+            <li className="nav-item">
+              <span className="leftbar-section-title">Admin</span>
+            </li>
+            <li className="nav-item w-100 mb-0">
+              <a
+                className={navLinkClass('failed-video-conversions')}
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onFailedConversions?.();
+                }}
+                aria-current={ariaCurrent('failed-video-conversions')}
+              >
+                <i className="bi bi-exclamation-octagon-fill fs-5 text-danger" aria-hidden="true"></i>
+                <span className="fw-medium">Failed conversions</span>
+              </a>
+            </li>
+            <li className="nav-item w-100 mb-0">
+              <a
+                className={navLinkClass('admin-content-health')}
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onContentHealth?.();
+                }}
+                aria-current={ariaCurrent('admin-content-health')}
+              >
+                <i className="bi bi-activity fs-5 text-success" aria-hidden="true"></i>
+                <span className="fw-medium">Content health</span>
+              </a>
+            </li>
+            <li className="nav-item mb-1"></li>
+          </>
+        )}
+
         <li className="nav-item">
           <button
             type="button"
@@ -198,6 +237,7 @@ export default function Sidebar({ activeSection = 'home', onVideos, onPosts, onB
 
 Sidebar.propTypes = {
   activeSection: PropTypes.string,
+  isAdmin: PropTypes.bool,
   onVideos: PropTypes.func,
   onPosts: PropTypes.func,
   onBox: PropTypes.func,
@@ -206,4 +246,6 @@ Sidebar.propTypes = {
   onPhotos: PropTypes.func,
   onSlice: PropTypes.func,
   onNotes: PropTypes.func,
+  onFailedConversions: PropTypes.func,
+  onContentHealth: PropTypes.func,
 };

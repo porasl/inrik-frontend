@@ -6,6 +6,15 @@
   margin-bottom: 0;
 }
 
+.group-admin-search {
+  width: min(420px, 70vw);
+}
+
+.group-member-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .group-card {
   border: 1px solid #e8ecf2;
   border-radius: 16px;

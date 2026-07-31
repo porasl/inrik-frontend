@@ -1,0 +1,135 @@
+.admin-content-health-page {
+  width: 100%;
+  padding: 1.25rem;
+  border: 1px solid #e3e6ea;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 0.5rem 1.5rem rgb(20 26 33 / 6%);
+}
+
+.admin-content-health-header,
+.admin-content-user-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-content-user-heading {
+  justify-content: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.admin-content-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e9f5ee;
+  color: #198754;
+  font-weight: 700;
+}
+
+.admin-content-avatar-sm {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.admin-content-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+
+.admin-content-stats article {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid #e9ecef;
+  border-radius: 0.75rem;
+  background: #f8f9fa;
+}
+
+.admin-content-stats article strong {
+  font-size: 1.65rem;
+}
+
+.admin-content-stats article span {
+  color: #6c757d;
+}
+
+.admin-content-stats article.has-issues strong {
+  color: #dc3545;
+}
+
+.admin-content-toolbar {
+  max-width: 30rem;
+  margin-bottom: 1rem;
+}
+
+.admin-content-table-wrap {
+  border: 1px solid #eceff2;
+  border-radius: 0.75rem;
+}
+
+.admin-content-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-content-sort i {
+  color: #adb5bd;
+  font-size: 0.75rem;
+}
+
+.admin-content-sort.is-active,
+.admin-content-sort.is-active i {
+  color: #0d6efd;
+}
+
+.admin-content-sort:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 0.25rem;
+  border-radius: 0.15rem;
+}
+
+.admin-content-path {
+  display: block;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-content-empty {
+  min-height: 10rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: #6c757d;
+}
+
+@media (max-width: 767px) {
+  .admin-content-health-page {
+    padding: 1rem;
+  }
+
+  .admin-content-stats {
+    grid-template-columns: repeat(2, minmax(7rem, 1fr));
+  }
+}

@@ -461,33 +461,18 @@ export default function Rightbar({
                       style={{ width: '12px', height: '12px' }}
                     ></span>
                     </div>
-                    <span
-                      className="fw-medium text-dark text-truncate rightbar-connection-name"
-                      style={{ minWidth: 0, fontSize: '0.82rem', lineHeight: 1.15 }}
-                    >
-                      {conn.name}
-                    </span>
+                    <div className="rightbar-connection-identity">
+                      {isPending && (
+                        <span className="rightbar-pending-badge">
+                          PENDING
+                        </span>
+                      )}
+                      <span className="fw-medium text-dark text-truncate rightbar-connection-name">
+                        {conn.name}
+                      </span>
+                    </div>
                   </div>
                   <div className="d-flex align-items-center gap-2 flex-shrink-0 rightbar-connection-meta" style={{ minWidth: 0 }}>
-                    {isPending && (
-                      <span
-                        className="badge flex-shrink-0 rightbar-pending-badge"
-                        style={{
-                          backgroundColor: '#ffe08a',
-                          color: '#7a4b00',
-                          fontWeight: 700,
-                          letterSpacing: '0.03em',
-                          whiteSpace: 'normal',
-                          textAlign: 'center',
-                          maxWidth: '100%',
-                          fontSize: '0.62rem',
-                          lineHeight: 1,
-                          padding: '0.35rem 0.45rem',
-                        }}
-                      >
-                        PENDING
-                      </span>
-                    )}
                     <i className={`bi ${isSelected ? 'bi-chevron-up' : 'bi-chevron-down'} text-secondary`}></i>
                   </div>
                 </div>
