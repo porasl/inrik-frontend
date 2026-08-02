@@ -24,7 +24,7 @@ function currentRole() {
   }
 }
 
-export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onSport, onArt, onAi, onMarket, onAdvertisement, onAdvertisementVideos }) {
+export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, onNotes, onVideos, onPosts, onSlice, onBox, onAudio, onPhotos, onNews, onArt, onMarket, onAdvertisement, onImageStudio, onAdvertisementVideos }) {
   const [showUpload, setShowUpload] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState('profile');
@@ -422,11 +422,10 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                   <i className="bi bi-house-door"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onNews}>News</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSport}>Sport</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement Studio</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onImageStudio}>AI Animation Studio</button>
               </div>
 
               <div className="header-auth-area d-flex align-items-center gap-2">
@@ -477,11 +476,10 @@ export default function Navbar({ isLoggedIn, user, onLogin, onLogout, onHome, on
                   <i className="bi bi-house-door"></i>
                 </button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onNews}>News</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onSport}>Sport</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAi}>AI</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onMarket}>Market</button>
                 <button type="button" className="btn btn-sm header-nav-link" onClick={onArt}>Art</button>
-                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisement}>Advertisement Studio</button>
+                <button type="button" className="btn btn-sm header-nav-link" onClick={onImageStudio}>AI Animation Studio</button>
                 {isAdmin && <button type="button" className="btn btn-sm header-nav-link" onClick={onAdvertisementVideos}>Advertisement Videos</button>}
 
                 <button className="btn btn-sm btn-outline-primary mobile-connection-toggle ms-2" style={{ display: 'none' }} onClick={toggleRightbar}>
@@ -869,10 +867,9 @@ Navbar.propTypes = {
   onAudio: PropTypes.func,
   onPhotos: PropTypes.func,
   onNews: PropTypes.func,
-  onSport: PropTypes.func,
   onArt: PropTypes.func,
-  onAi: PropTypes.func,
   onMarket: PropTypes.func,
   onAdvertisement: PropTypes.func,
+  onImageStudio: PropTypes.func,
   onAdvertisementVideos: PropTypes.func,
 };

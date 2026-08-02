@@ -586,7 +586,7 @@ function ImageStudioModal({ onClose }) {
       <div className="bg-white rounded-4 shadow-lg p-3 p-md-4" onClick={(event) => event.stopPropagation()} style={{ width: 'min(960px, 100%)', maxHeight: '94vh', overflowY: 'auto' }}>
         <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
           <div>
-            <h4 className="mb-1 fw-bold"><i className="bi bi-stars me-2 text-primary" />AI Image Studio</h4>
+            <h4 className="mb-1 fw-bold"><i className="bi bi-stars me-2 text-primary" />AI Animation Studio</h4>
             <p className="text-secondary mb-0 small">Colorize, restore, upscale or animate a portrait and save it as GIF or MP4.</p>
           </div>
           <button className="btn-close" onClick={onClose} aria-label="Close image studio" />
@@ -1706,7 +1706,7 @@ function PhotoCard({ photo, stats, isLoggedIn, onOpen, onLike, onDownload, onEmb
 }
 
 /* ─── Main PhotoPage ─── */
-export default function PhotoPage({ isLoggedIn, onUpload }) {
+export default function PhotoPage({ isLoggedIn, onUpload, openStudioRequest = 0 }) {
   const [activeTab, setActiveTab] = useState(isLoggedIn ? 'mine' : 'public');
   const [myPhotos, setMyPhotos] = useState([]);
   const [publicPhotos, setPublicPhotos] = useState([]);
@@ -1722,6 +1722,10 @@ export default function PhotoPage({ isLoggedIn, onUpload }) {
   const [embedPhoto, setEmbedPhoto] = useState(null);
   const [showImageStudio, setShowImageStudio] = useState(false);
   const [binocularZoom, setBinocularZoom] = useState(2.5);
+
+  useEffect(() => {
+    if (openStudioRequest > 0) setShowImageStudio(true);
+  }, [openStudioRequest]);
 
   const [postStats, setPostStats] = useState({});
   const didLoadInitialMine = useRef(false);

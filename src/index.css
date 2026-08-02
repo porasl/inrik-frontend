@@ -1098,6 +1098,76 @@ html {
   text-overflow: ellipsis;
 }
 
+.postview-description {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.925rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.content-embed-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 65%);
+}
+
+.content-embed-dialog {
+  width: min(38rem, 100%);
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: #fff;
+  color: #1f2937;
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 35%);
+}
+
+.embedded-content-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: #090d14;
+  color: #fff;
+}
+
+.embedded-content-page article {
+  width: min(100%, 72rem);
+}
+
+.embedded-content-page video,
+.embedded-content-page img {
+  display: block;
+  width: 100%;
+  max-height: 78vh;
+  border-radius: 0.75rem;
+  background: #000;
+  object-fit: contain;
+}
+
+.embedded-content-page header {
+  padding: 1rem 0 0;
+}
+
+.embedded-content-page h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.1rem, 3vw, 1.75rem);
+}
+
+.embedded-content-page p {
+  margin: 0;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+}
+
+.embedded-content-message {
+  color: #cbd5e1;
+}
+
 .postview-owner {
   display: block;
   font-size: 12px;

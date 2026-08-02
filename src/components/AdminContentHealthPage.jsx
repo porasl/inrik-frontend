@@ -4,6 +4,7 @@ import {
   deleteAllAdminContent,
   fixAdminContent,
   getAdminContentHealth,
+  updateAdminContentMetadata,
 } from '../services/adminContentHealthService.js';
 import './AdminContentHealthPage.css';
 
@@ -33,6 +34,8 @@ export default function AdminContentHealthPage() {
   const [actionId, setActionId] = useState(null);
   const [notice, setNotice] = useState('');
   const [sort, setSort] = useState({ key: 'user', direction: 'asc' });
+  const [editing, setEditing] = useState(null);
+  const [metadata, setMetadata] = useState({ title: '', description: '' });
 
   const load = async () => {
     setLoading(true);
@@ -84,6 +87,30 @@ export default function AdminContentHealthPage() {
       await load();
     } catch (requestError) {
       setError(requestError.message || 'The attention cases could not be deleted.');
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const openEditor = (item) => {
+    setEditing(item);
+    setMetadata({ title: item.title || '', description: item.description || '' });
+    setError('');
+    setNotice('');
+  };
+
+  const saveMetadata = async (event) => {
+    event.preventDefault();
+    if (!editing?.postId) return;
+    setActionId(`edit-${editing.postId}`);
+    setError('');
+    try {
+      await updateAdminContentMetadata(editing.postId, metadata.title, metadata.description);
+      setNotice('Title and description were updated.');
+      setEditing(null);
+      await load();
+    } catch (requestError) {
+      setError(requestError.message || 'Title and description could not be updated.');
     } finally {
       setActionId(null);
     }
@@ -211,6 +238,8 @@ export default function AdminContentHealthPage() {
                       <span className="admin-content-path" title={item.sourcePath}>
                         {item.sourcePath || `Record #${item.id} — missing durable link`}
                       </span>
+                      {item.title && <strong className="d-block mt-1">{item.title}</strong>}
+                      {item.description && <small className="d-block text-muted">{item.description}</small>}
                     </td>
                     <td>
                       <span className={`badge ${item.healthy ? 'text-bg-success' : 'text-bg-danger'}`}>
@@ -220,8 +249,19 @@ export default function AdminContentHealthPage() {
                     </td>
                     <td>{dateTime(item.createdAt)}</td>
                     <td>
-                      {!item.healthy && item.id != null && (
-                        <div className="d-flex gap-2 flex-wrap">
+                      <div className="d-flex gap-2 flex-wrap">
+                        {item.postId && ['VIDEO', 'IMAGE'].includes(item.type) && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            disabled={actionId !== null}
+                            onClick={() => openEditor(item)}
+                          >
+                            <i className="bi bi-pencil me-1" aria-hidden="true"></i>Edit
+                          </button>
+                        )}
+                        {!item.healthy && item.id != null && (
+                          <>
                           {item.type === 'VIDEO' && (
                             <button
                               type="button"
@@ -240,14 +280,58 @@ export default function AdminContentHealthPage() {
                           >
                             <i className="bi bi-trash me-1" aria-hidden="true"></i>Delete
                           </button>
-                        </div>
-                      )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {editing && (
+            <div className="admin-content-edit-modal" role="presentation" onMouseDown={() => setEditing(null)}>
+              <form
+                className="admin-content-edit-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit media title and description"
+                onSubmit={saveMetadata}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <h3 className="h5 mb-1">Edit {editing.type.toLowerCase()}</h3>
+                    <small className="text-muted">This updates the metadata shared by media in post {editing.postId}.</small>
+                  </div>
+                  <button type="button" className="btn-close" aria-label="Close" onClick={() => setEditing(null)}></button>
+                </div>
+                <label className="form-label mt-3">
+                  Title
+                  <input
+                    className="form-control mt-1"
+                    value={metadata.title}
+                    maxLength={200}
+                    onChange={(event) => setMetadata((current) => ({ ...current, title: event.target.value }))}
+                  />
+                </label>
+                <label className="form-label">
+                  Description
+                  <textarea
+                    className="form-control mt-1"
+                    rows={5}
+                    value={metadata.description}
+                    maxLength={4000}
+                    onChange={(event) => setMetadata((current) => ({ ...current, description: event.target.value }))}
+                  ></textarea>
+                </label>
+                <div className="d-flex justify-content-end gap-2 mt-3">
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => setEditing(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={actionId !== null}>Save changes</button>
+                </div>
+              </form>
+            </div>
+          )}
           </>
         )}
       </section>

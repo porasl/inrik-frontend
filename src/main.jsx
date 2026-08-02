@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './inrik.css'
 import App from './App.jsx'
+import EmbeddedContentPage from './components/EmbeddedContentPage.jsx'
 
 class StorefrontErrorBoundary extends Component {
   constructor(props) {
@@ -34,10 +35,15 @@ class StorefrontErrorBoundary extends Component {
   }
 }
 
+const embedMatch = globalThis.location.pathname.match(/^\/embed\/([^/]+)\/?$/)
+const rootContent = embedMatch
+  ? <EmbeddedContentPage postId={decodeURIComponent(embedMatch[1])} />
+  : <App />
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <StorefrontErrorBoundary>
-      <App />
+      {rootContent}
     </StorefrontErrorBoundary>
   </StrictMode>,
 )

@@ -322,6 +322,7 @@ function App() {
 
   /* ─── Upload modal ─── */
   const [showUpload, setShowUpload] = useState(false);
+  const [imageStudioRequest, setImageStudioRequest] = useState(0);
 
   /* ─── Incoming connection requests popup ─── */
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -450,6 +451,10 @@ function App() {
 
   const goMarket = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('market'); };
   const goAdvertisement = () => { setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement'); };
+  const goImageStudio = () => {
+    goPhotos();
+    setImageStudioRequest((request) => request + 1);
+  };
   const goAdvertisementVideos = () => {
     if (!isCurrentAdmin()) return;
     setShowSlicePage(false); setSliceStartId(null); setWatchingPost(null); setActiveSection('advertisement-videos');
@@ -1366,11 +1371,10 @@ function App() {
         onAudio={goAudio}
         onPhotos={goPhotos}
         onNews={goNews}
-        onSport={goSport}
         onArt={goArt}
-        onAi={goAi}
         onMarket={goMarket}
         onAdvertisement={goAdvertisement}
+        onImageStudio={goImageStudio}
         onAdvertisementVideos={goAdvertisementVideos}
       />
 
@@ -1445,6 +1449,7 @@ function App() {
               posts={posts}
               isLoggedIn={isLoggedIn}
               onUpload={() => setShowUpload(true)}
+              openStudioRequest={imageStudioRequest}
             />
           ) : activeSection === 'audio' ? (
             /* ── AUDIO PAGE ── */

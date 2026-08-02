@@ -6,6 +6,7 @@ import PostComments from './PostComments';
 import { EditPostModal, canCurrentUserEditPost } from './PostView';
 import PersonalizedAdvertisement from './PersonalizedAdvertisement';
 import { behaviorSessionId, recordBehavior } from '../services/userProfilingService';
+import ContentEmbedModal from './ContentEmbedModal';
 
 function toPublicUrl(fsPath) {
     if (!fsPath) return "";
@@ -316,6 +317,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
     const [likeCount, setLikeCount] = useState(post.likes || 0);
     const [views, setViews] = useState(post.views || 0);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showEmbed, setShowEmbed] = useState(false);
     const canEditPost = canCurrentUserEditPost(post);
 
     // Sync state when navigating between different videos
@@ -536,6 +538,14 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
                         <button className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 px-3" style={{ borderRadius: 20 }}>
                             <i className="bi bi-share"></i> <span className="d-none d-md-inline">Share</span>
                         </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2 px-3"
+                            style={{ borderRadius: 20 }}
+                            onClick={() => setShowEmbed(true)}
+                        >
+                            <i className="bi bi-code-slash"></i><span className="d-none d-md-inline">Embed</span>
+                        </button>
                         {canEditPost && (
                             <>
                                 <button
@@ -570,6 +580,7 @@ export default function VideoWatchPage({ post, allPosts, onWatch, onHome, onDele
 
                 {/* Comments */}
                 <PostComments postId={post.id} className="mt-4" canModerate={canEditPost} autoLoad />
+                {showEmbed && <ContentEmbedModal postId={post.id} label="Video" onClose={() => setShowEmbed(false)} />}
             </div>
 
             {/* ── RIGHT: Related videos sidebar ── */}

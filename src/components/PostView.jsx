@@ -6,6 +6,7 @@ import { getAllPostsCached, invalidatePostsCache } from '../services/postsServic
 import { getUserProfileCached } from '../services/userProfileService';
 import PostComments from './PostComments';
 import PersonalizedAdvertisement from './PersonalizedAdvertisement';
+import ContentEmbedModal from './ContentEmbedModal';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return '';
@@ -270,9 +271,7 @@ export function canCurrentUserEditPost(post) {
   // Must be logged in to edit/delete
   if (!viewer.email && !viewer.userId) return false;
 
-  const storedAuthor = String(localStorage.getItem('author') || '').trim().toLowerCase();
-
-  const postEmailCandidates = [post?.email, post?.author, post?.user?.email, storedAuthor]
+  const postEmailCandidates = [post?.email, post?.author, post?.user?.email]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter((value) => value.includes('@'));
 
@@ -531,6 +530,7 @@ export function EditPostModal({ post, onClose = () => {}, onSaved = async () => 
             id={titleInputId}
             className="form-control"
             value={title}
+            maxLength={200}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Post title"
           />
@@ -543,6 +543,7 @@ export function EditPostModal({ post, onClose = () => {}, onSaved = async () => 
             className="form-control"
             rows={3}
             value={description}
+            maxLength={4000}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Post description"
           />
@@ -743,11 +744,16 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false, isLoggedIn = fal
   const [views, setViews] = useState(post?.views || 0);
   const [showComments, setShowComments] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEmbed, setShowEmbed] = useState(false);
 
   const videoUrl = useMemo(() => resolveVideoUrl(post), [post]);
   const imageUrls = useMemo(() => resolveImageUrls(post), [post]);
   const audioUrls = useMemo(() => resolveAudioUrls(post), [post]);
   const documentUrls = useMemo(() => resolveDocumentUrls(post), [post]);
+  const contentTitle = String(post?.title || '').trim();
+  const contentDescription = String(post?.description || post?.content || '').trim();
+  const showDescription = contentTitle && contentDescription
+    && contentDescription.toLocaleLowerCase() !== contentTitle.toLocaleLowerCase();
 
   if (hidden) return null;
 
@@ -816,6 +822,15 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false, isLoggedIn = fal
 
   return (
     <article className="postview-card card-clean">
+      {(contentTitle || contentDescription) && (
+        <header className="postview-card-head">
+          <div className="postview-title-wrap">
+            {contentTitle && <h3 className="postview-title">{contentTitle}</h3>}
+            {showDescription && <p className="postview-description">{contentDescription}</p>}
+            {!contentTitle && contentDescription && <p className="postview-description">{contentDescription}</p>}
+          </div>
+        </header>
+      )}
       <div className="postview-body">
         {videoUrl && (
           <div className="postview-attachment-block">
@@ -889,6 +904,9 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false, isLoggedIn = fal
           <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setShowComments((s) => !s)}>
             <i className="bi bi-chat-left-text me-1"></i>Comments
           </button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowEmbed(true)}>
+            <i className="bi bi-code-slash me-1"></i>Embed
+          </button>
         </div>
 
         <div className="postview-footer-actions">
@@ -909,6 +927,7 @@ function PostCard({ post, onDelete, onUpdated, canEdit = false, isLoggedIn = fal
       </footer>
 
       {showComments && <PostComments postId={post.id} className="postview-comments" compact autoLoad canModerate={canEdit} />}
+      {showEmbed && <ContentEmbedModal postId={post.id} label="Post" onClose={() => setShowEmbed(false)} />}
       {showEditModal && (
         <EditPostModal
           post={post}

@@ -35,3 +35,11 @@ export function deleteAllAdminContent(attachmentIds) {
     body: JSON.stringify(attachmentIds),
   });
 }
+
+export function updateAdminContentMetadata(postId, title, description) {
+  return request(`/posts/${encodeURIComponent(postId)}/metadata`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description }),
+  });
+}

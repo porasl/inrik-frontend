@@ -5,6 +5,7 @@ import { getSlicePostsCached, subscribePostsCacheUpdates, subscribePostsRefreshS
 import { getUserProfileCached } from '../services/userProfileService';
 import useDelayedVisibility from '../hooks/useDelayedVisibility';
 import PersonalizedAdvertisement from './PersonalizedAdvertisement';
+import ContentEmbedModal from './ContentEmbedModal';
 
 function toPublicUrl(fsPath) {
   if (!fsPath) return "";
@@ -26,6 +27,7 @@ function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
   const [avatarError, setAvatarError] = useState(false);
   const [resolvedAvatar, setResolvedAvatar] = useState(null);
   const [resolvedName, setResolvedName] = useState('User');
+  const [showEmbed, setShowEmbed] = useState(false);
   const controlsTimer = useRef(null);
 
   const hls0 = post.hlsVideoUrls?.[0] || "";
@@ -251,8 +253,13 @@ function SlicePlayer({ post, onNext, onPrev, onClose, isFirst, isLast }) {
             <i className="bi bi-eye" />
             <span>{post.views || 0}</span>
           </div>
+          <button className="slice-action-btn" type="button" onClick={() => setShowEmbed(true)} title="Embed">
+            <i className="bi bi-code-slash" />
+            <span>Embed</span>
+          </button>
         </div>
       </div>
+      {showEmbed && <ContentEmbedModal postId={post.id} label="Slice" onClose={() => setShowEmbed(false)} />}
     </div>
   );
 }

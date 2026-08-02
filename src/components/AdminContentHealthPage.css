@@ -106,6 +106,29 @@
   border-radius: 0.15rem;
 }
 
+.admin-content-edit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 58%);
+}
+
+.admin-content-edit-dialog {
+  width: min(36rem, 100%);
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 30%);
+}
+
+.admin-content-edit-dialog .form-label {
+  display: block;
+  font-weight: 700;
+}
+
 .admin-content-path {
   display: block;
   max-width: 28rem;
