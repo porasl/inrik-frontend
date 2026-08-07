@@ -85,6 +85,28 @@ function initialsFromName(value) {
     .slice(0, 2) || 'U';
 }
 
+function formatVoiceLabel(voice) {
+  const normalized = String(voice || '').trim();
+  const labels = {
+    af_heart: 'AF Heart',
+    af_bella: 'AF Bella',
+    af_nicole: 'AF Nicole',
+    af_sarah: 'AF Sarah',
+    af_sky: 'AF Sky',
+    am_adam: 'AM Adam',
+    am_eric: 'AM Eric',
+    am_fenrir: 'AM Fenrir',
+    am_michael: 'AM Michael',
+    samantha: 'Samantha',
+    karen: 'Karen',
+    moira: 'Moira',
+    tessa: 'Tessa',
+    alex: 'Alex',
+    daniel: 'Daniel',
+  };
+  return labels[normalized] || normalized;
+}
+
 function photoGridMinWidth(photoCount, activeTab) {
   if (activeTab !== 'public') return 220;
   if (photoCount >= 30) return 132;
@@ -142,6 +164,8 @@ function ImageStudioModal({ onClose }) {
   const [animationDuration, setAnimationDuration] = useState(4);
   const [speechText, setSpeechText] = useState('');
   const [speechVoice, setSpeechVoice] = useState('samantha');
+  const [ttsVoices, setTtsVoices] = useState([]);
+  const [ttsVoicesLoading, setTtsVoicesLoading] = useState(true);
   const [speechRate, setSpeechRate] = useState(145);
   const [speechStyle, setSpeechStyle] = useState('gentle');
   const [lipSyncModel, setLipSyncModel] = useState('audio_reactive');
@@ -215,6 +239,32 @@ function ImageStudioModal({ onClose }) {
   }, [authHeaders]);
 
   useEffect(() => { loadSavedMotions(); }, [loadSavedMotions]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadVoices = async () => {
+      setTtsVoicesLoading(true);
+      try {
+        const response = await fetch('/content-tools/contentservices/api/image-studio/voices');
+        if (!response.ok) throw new Error('Unable to load voices');
+        const payload = await response.json();
+        const voices = Array.isArray(payload?.voices) ? payload.voices.filter(Boolean).map(String) : [];
+        if (!cancelled) {
+          setTtsVoices(voices);
+          if (voices.length && !voices.includes(speechVoice)) setSpeechVoice(voices[0]);
+        }
+      } catch {
+        const fallbackVoices = ['af_heart', 'af_bella', 'af_nicole', 'af_sarah', 'af_sky', 'am_adam', 'am_eric', 'am_fenrir', 'am_michael'];
+        if (!cancelled) {
+          setTtsVoices(fallbackVoices);
+          if (!fallbackVoices.includes(speechVoice)) setSpeechVoice('af_heart');
+        }
+      } finally {
+        if (!cancelled) setTtsVoicesLoading(false);
+      }
+    };
+    loadVoices();
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => { localStorage.setItem('imageStudio.motionSource', motionSource); }, [motionSource]);
   useEffect(() => {
     if (selectedMotionId) localStorage.setItem('imageStudio.motionId', selectedMotionId);
@@ -799,12 +849,11 @@ function ImageStudioModal({ onClose }) {
                 <div>
                   <label className="form-label small fw-semibold mb-1">Reader voice</label>
                   <select className="form-select" style={{ minWidth: 210 }} value={speechVoice} onChange={(event) => setSpeechVoice(event.target.value)}>
-                    <option value="samantha">Samantha — US</option>
-                    <option value="karen">Karen — Australian</option>
-                    <option value="moira">Moira — Irish</option>
-                    <option value="tessa">Tessa — South African</option>
-                    <option value="alex">Alex — US</option>
-                    <option value="daniel">Daniel — British</option>
+                    {ttsVoicesLoading && <option value="">Loading voices…</option>}
+                    {!ttsVoicesLoading && ttsVoices.length === 0 && <option value="af_heart">AF Heart</option>}
+                    {(ttsVoices.length ? ttsVoices : ['af_heart', 'af_bella', 'af_nicole', 'af_sarah', 'af_sky', 'am_adam', 'am_eric', 'am_fenrir', 'am_michael']).map((voice) => (
+                      <option key={voice} value={voice}>{formatVoiceLabel(voice)}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
